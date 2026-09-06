@@ -1,0 +1,17 @@
+# Requirements/design-notes/planning docs — a separate, private, nested
+# git repo rooted here (see docs/deployment_proposal.md). Root-anchored so
+# this can never accidentally also match some unrelated future path.
+/docs/
+
+# Build output — generated, not a source of truth.
+/dist/
+/node_modules/
+
+# Python test-cache artifacts (Playwright/pytest suite in tests/).
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Local Claude Code tool-permission config -- machine-specific, not useful
+# to anyone else.
+/.claude/

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Bowtie Diagram Editor</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="app">
+    <div id="toolbar">
+      <div class="toolbar-group toolbar-left">
+        <button id="btn-undo" type="button" class="icon-btn" disabled title="Undo (Ctrl+Z)">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 14 4 9l5-5"/>
+            <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>
+          </svg>
+        </button>
+        <button id="btn-redo" type="button" class="icon-btn" disabled title="Redo (Ctrl+Y)">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M15 14l5-5-5-5"/>
+            <path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>
+          </svg>
+        </button>
+        <div class="menu-bar">
+          <div class="menu-bar-item">
+            <button type="button" id="menu-trigger-file" class="menu-bar-trigger" disabled>File</button>
+            <div id="menu-dropdown-file" class="menu-dropdown" hidden>
+              <button id="btn-import-json" type="button" class="menu-dropdown-item" disabled>Import from JSON</button>
+              <button id="btn-export-json" type="button" class="menu-dropdown-item" disabled>Export to JSON</button>
+              <div class="menu-separator"></div>
+              <button id="btn-export-svg" type="button" class="menu-dropdown-item" disabled>Export to SVG</button>
+              <button id="btn-export-png" type="button" class="menu-dropdown-item" disabled>Export to PNG</button>
+            </div>
+          </div>
+          <div class="menu-bar-item">
+            <button type="button" id="menu-trigger-add" class="menu-bar-trigger" disabled>Add</button>
+            <div id="menu-dropdown-add" class="menu-dropdown" hidden>
+              <button id="btn-add-cause" type="button" class="menu-dropdown-item" disabled>Add Cause</button>
+              <button id="btn-add-outcome" type="button" class="menu-dropdown-item" disabled>Add Outcome</button>
+            </div>
+          </div>
+          <div class="menu-bar-item">
+            <button type="button" id="menu-trigger-view" class="menu-bar-trigger" disabled>View</button>
+            <div id="menu-dropdown-view" class="menu-dropdown" hidden>
+              <button id="btn-auto-arrange" type="button" class="menu-dropdown-item" disabled>Auto-arrange</button>
+              <button id="btn-reset-view" type="button" class="menu-dropdown-item" disabled>Reset view</button>
+            </div>
+          </div>
+          <div class="menu-bar-item">
+            <button type="button" id="menu-trigger-settings" class="menu-bar-trigger" disabled>Settings</button>
+            <div id="menu-dropdown-settings" class="menu-dropdown" hidden>
+              <button id="btn-settings" type="button" class="menu-dropdown-item" disabled>Visual Settings…</button>
+              <button id="btn-manage-ids" type="button" class="menu-dropdown-item" disabled>Identifiers…</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <button id="bowtie-name" type="button" class="toolbar-name" title="Rename this bowtie">Untitled Bowtie</button>
+      <div class="toolbar-group toolbar-right">
+        <button id="btn-warnings" type="button" class="warning-badge" hidden title="Warnings">
+          <span class="warning-icon">&#9888;</span><span class="warning-count">0</span>
+        </button>
+      </div>
+      <input id="import-file-input" type="file" accept="application/json,.json" hidden>
+    </div>
+    <div id="canvas-wrapper">
+      <svg id="bowtie-canvas" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 800">
+        <g id="connections-layer"></g>
+        <g id="nodes-layer"></g>
+      </svg>
+      <div id="minimap-container"></div>
+    </div>
+  </div>
+
+  <script src="js/model/TopLevelEvent.js"></script>
+  <script src="js/model/Hazard.js"></script>
+  <script src="js/model/Cause.js"></script>
+  <script src="js/model/Outcome.js"></script>
+  <script src="js/model/PreventativeBarrier.js"></script>
+  <script src="js/model/MitigativeBarrier.js"></script>
+  <script src="js/model/Line.js"></script>
+  <script src="js/model/BowtieModel.js"></script>
+
+  <script src="js/data/DemoData.js"></script>
+
+  <script src="js/view/TextWrap.js"></script>
+  <script src="js/view/Layout.js"></script>
+  <script src="js/view/ShapeRenderer.js"></script>
+  <script src="js/view/ConnectionRenderer.js"></script>
+  <script src="js/view/CanvasView.js"></script>
+  <script src="js/view/ExportUtil.js"></script>
+  <script src="js/view/MinimapView.js"></script>
+  <script src="js/view/ModalView.js"></script>
+
+  <script src="js/controller/UndoController.js"></script>
+  <script src="js/controller/ToolbarController.js"></script>
+  <script src="js/controller/MenuBarController.js"></script>
+  <script src="js/controller/DragController.js"></script>
+  <script src="js/controller/ContextMenuController.js"></script>
+  <script src="js/controller/AutoArrangeController.js"></script>
+  <script src="js/controller/ImportExportController.js"></script>
+  <script src="js/controller/PanZoomController.js"></script>
+  <script src="js/controller/WelcomeController.js"></script>
+  <script src="js/controller/IdentifierManagerController.js"></script>
+  <script src="js/controller/WarningsController.js"></script>
+  <script src="js/controller/SettingsController.js"></script>
+  <script src="js/controller/FocusController.js"></script>
+
+  <script src="js/main.js"></script>
+</body>
+</html>

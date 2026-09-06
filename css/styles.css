@@ -1,0 +1,655 @@
+:root {
+  color-scheme: light;
+  --toolbar-bg: #f3f4f6;
+  --border: #d1d5db;
+  --tle-fill: #fecaca;
+  --tle-stroke: #b91c1c;
+  --hazard-stroke: #111827;
+  --cause-fill: #dbeafe;
+  --cause-stroke: #1d4ed8;
+  --outcome-fill: #fef3c7;
+  --outcome-stroke: #b45309;
+  --control-fill: #e5e7eb;
+  --control-stroke: #374151;
+  --connection: #6b7280;
+  --node-text: #111827;
+  --connection-label: #4b5563;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+#toolbar {
+  display: grid;
+  /* Outer columns are equal-width (1fr each) rather than auto-sized, so the
+     bowtie-name button in the middle column stays centered on the whole
+     toolbar regardless of how much wider the left group (icon buttons +
+     menu bar) is than the right group (just the warning badge, often
+     hidden entirely) — an `auto 1fr auto` grid centers the name only
+     within the leftover space, which drifts right whenever the two side
+     groups' content widths are unequal. */
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--toolbar-bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar-right {
+  justify-content: flex-end;
+}
+
+.toolbar-name {
+  justify-self: center;
+  padding: 6px 14px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  cursor: pointer;
+  max-width: 40vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolbar-name:hover {
+  background: white;
+  border-color: var(--border);
+}
+
+.warning-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border: 1px solid #b45309;
+  border-radius: 6px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.warning-badge[hidden] {
+  display: none;
+}
+
+.warning-badge:hover {
+  background: #fde68a;
+}
+
+.warning-icon {
+  font-size: 14px;
+}
+
+.warning-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #b45309;
+  color: white;
+  font-size: 11px;
+}
+
+.warning-list {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.warning-list li {
+  margin-bottom: 6px;
+}
+
+#toolbar button {
+  padding: 6px 12px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+}
+
+#toolbar button:hover:not(:disabled) {
+  background: #eef2ff;
+}
+
+#toolbar button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 8px;
+  color: #374151;
+}
+
+.menu-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.menu-bar-item {
+  position: relative;
+}
+
+.menu-bar-trigger {
+  border-color: transparent;
+  background: none;
+}
+
+.menu-bar-trigger:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+
+.menu-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  min-width: 190px;
+  padding: 4px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.menu-dropdown[hidden] {
+  display: none;
+}
+
+.menu-dropdown-item {
+  padding: 6px 10px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  font-size: 13px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.menu-dropdown-item:hover:not(:disabled) {
+  background: #eef2ff;
+}
+
+.menu-separator {
+  margin: 4px 6px;
+  border-top: 1px solid var(--border);
+}
+
+#canvas-wrapper {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+#bowtie-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  cursor: grab;
+}
+
+#bowtie-canvas.is-panning,
+#bowtie-canvas.is-dragging {
+  cursor: grabbing;
+}
+
+#minimap-container {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  pointer-events: none;
+}
+
+.minimap {
+  pointer-events: auto;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+}
+
+/* The minimap's content is a scaled-down clone of the live canvas's own
+   nodes/connections — it must never intercept pointer events itself (that
+   would fight the minimap's own click/drag-to-navigate handling) and its
+   cursor should always read as "pointer" (navigate here), never whatever
+   cursor a cloned node/line normally shows on the real canvas (grab,
+   context-menu, ...). `pointer-events: none` is inherited by every
+   descendant, which handles both at once. */
+.minimap-content {
+  pointer-events: none;
+}
+
+.minimap-viewport {
+  fill: rgba(29, 78, 216, 0.12);
+  stroke: #1d4ed8;
+  stroke-width: 1.5;
+}
+
+.connection {
+  stroke: var(--connection);
+  stroke-width: 2;
+  fill: none;
+  cursor: context-menu;
+  /* A thin 2px stroke is a fiddly click target; pointer-events:stroke with
+     a wide invisible hit area (via a duplicated hover-only outline) isn't
+     supported cross-browser for plain <line>, so we widen the hit test by
+     making the whole stroke area more forgiving on hover instead. */
+}
+
+/* JS-driven (FocusController) rather than plain `:hover`: a Line renders as
+   up to two separate <line> elements (a flat run plus the bend into the
+   TLE) sharing one data-line-id, and `:hover` alone only bolds whichever
+   single element the pointer happens to be over — bugs.md: hovering felt
+   "continuous" through the flat run but the far segment was "considered
+   separately". Toggling `.hovered` on every element with that id keeps the
+   whole line consistent regardless of which part is actually under the
+   pointer. */
+.connection.hovered {
+  stroke-width: 4;
+}
+
+.node .shape {
+  stroke-width: 2;
+}
+
+.node.top-level-event .shape {
+  /* fill comes from the inline radial gradient set on the circle itself
+     (ShapeRenderer.renderTopLevelEvent) -- not set here, since a stylesheet
+     rule would win over the element's own fill="url(#...)" attribute. */
+  stroke: var(--tle-stroke);
+}
+
+.node.hazard .shape {
+  stroke: var(--hazard-stroke);
+  cursor: default;
+}
+
+.node.cause .shape {
+  fill: var(--cause-fill);
+  stroke: var(--cause-stroke);
+}
+
+.node.outcome .shape {
+  fill: var(--outcome-fill);
+  stroke: var(--outcome-stroke);
+}
+
+.node.preventative-barrier .shape,
+.node.mitigative-barrier .shape {
+  fill: var(--control-fill);
+  stroke: var(--control-stroke);
+}
+
+.node text {
+  font-size: 13px;
+  fill: var(--node-text);
+  pointer-events: none;
+  user-select: none;
+}
+
+.node-id-text {
+  font-weight: 700;
+}
+
+.node .shape {
+  cursor: grab;
+}
+
+#bowtie-canvas.is-dragging,
+#bowtie-canvas.is-dragging .node .shape {
+  cursor: grabbing;
+}
+
+.context-menu {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  min-width: 190px;
+  padding: 4px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.context-menu-item {
+  padding: 6px 10px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.context-menu-item:hover {
+  background: #eef2ff;
+}
+
+.node.dimmed .shape,
+.node.dimmed text {
+  opacity: 0.25;
+}
+
+.connection.dimmed {
+  opacity: 0.15;
+}
+
+.connection-label {
+  font-size: 10px;
+  fill: var(--connection-label);
+  pointer-events: none;
+  user-select: none;
+  text-anchor: start;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(17, 24, 39, 0.5);
+}
+
+.modal-dialog {
+  width: min(420px, 90vw);
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 20px;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+}
+
+.modal-title {
+  margin: 0 0 12px;
+  font-size: 17px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.welcome-body p {
+  margin: 0;
+  color: #374151;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.welcome-dialog {
+  width: min(680px, 90vw);
+}
+
+.welcome-choice-row {
+  display: flex;
+  align-items: stretch;
+  gap: 14px;
+}
+
+.welcome-choice-col {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 18px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.welcome-choice-btn {
+  width: 100%;
+  padding: 12px 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+}
+
+.welcome-choice-btn:hover {
+  background: #eef2ff;
+}
+
+.welcome-choice-btn-primary {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: white;
+}
+
+.welcome-choice-btn-primary:hover {
+  background: #1e40af;
+}
+
+.welcome-choice-hint {
+  margin: 0;
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+.welcome-dropzone {
+  border-style: dashed;
+  color: #6b7280;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.welcome-dropzone.drag-over {
+  border-color: #1d4ed8;
+  background: #eef2ff;
+  color: #1d4ed8;
+}
+
+.modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.modal-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  font-size: 13px;
+  color: #111827;
+}
+
+.modal-field input {
+  padding: 8px 10px;
+  font-size: 14px;
+  font-weight: 400;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.modal-btn {
+  padding: 7px 14px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+}
+
+.modal-btn:hover {
+  background: #eef2ff;
+}
+
+.modal-btn-primary {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: white;
+}
+
+.modal-btn-primary:hover {
+  background: #1e40af;
+}
+
+.attach-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.attach-list-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: white;
+  text-align: left;
+  cursor: pointer;
+}
+
+.attach-list-item[hidden] {
+  display: none;
+}
+
+.attach-list-item:hover {
+  background: #eef2ff;
+  border-color: #1d4ed8;
+}
+
+.attach-list-id {
+  font-weight: 700;
+  font-size: 13px;
+  color: #111827;
+}
+
+.attach-list-name {
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.id-manager {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.id-manager-section h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.id-manager-empty {
+  margin: 0;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.id-manager-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.id-manager-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.id-manager-id {
+  font-weight: 700;
+  min-width: 48px;
+}
+
+.id-manager-status {
+  flex: 1;
+  color: #6b7280;
+}
+
+.id-manager-reassign {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+
+.id-manager-reassign select {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 6px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
