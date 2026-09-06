@@ -1,0 +1,51 @@
+name: Deploy Pages
+
+# Publishes a live, HTTPS-hosted copy of the app to GitHub Pages
+# (deployment_proposal.md §7) -- a secondary, optional distribution path
+# alongside the Releases page. Not a build: just the same plain
+# index.html/css/js a `git clone` already gets, since a secure-context host
+# is the whole point here (native Save/Open dialogs on Chromium, §8), not
+# minification.
+#
+# Uses the modern Actions-based deployment (actions/deploy-pages) rather
+# than the repo-settings "serve from a branch/docs-folder" option -- this
+# repo's own /docs is the mountpoint for a separate, private, nested repo
+# (see DESIGN_NOTES.md), so that shortcut isn't available here.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Curated copy: only what index.html actually references. Avoids
+      # publishing tests/, scripts/, package.json, etc. to the live site.
+      - name: Prepare site content
+        run: |
+          mkdir _site
+          cp index.html README.md LICENSE _site/
+          cp -r css _site/css
+          cp -r js _site/js
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - uses: actions/deploy-pages@v4
+        id: deployment
