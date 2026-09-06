@@ -473,6 +473,16 @@ html, body {
   background: #1e40af;
 }
 
+.welcome-choice-btn-demo {
+  background: #7c3aed;
+  border-color: #7c3aed;
+  color: white;
+}
+
+.welcome-choice-btn-demo:hover {
+  background: #6d28d9;
+}
+
 .welcome-choice-hint {
   margin: 0;
   font-size: 12px;

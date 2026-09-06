@@ -36,15 +36,30 @@ jobs:
       # commit itself via test.yml before it was ever tagged.
       - run: pytest tests/test_dist_smoke.py
 
+      # CHANGELOG.md always has the newest release's section first --
+      # pull just that section out so the release notes below can carry
+      # the actual entries instead of a static, version-less body.
+      - name: Extract changelog section for this tag
+        run: |
+          awk '/^## /{n++} n==1{print} n==2{exit}' CHANGELOG.md > /tmp/changelog-section.md
+          cat /tmp/changelog-section.md
+
+      - name: Build release notes
+        run: |
+          {
+            echo "## Downloads"
+            echo ""
+            echo "- **\`bowtie-diagram.html\`** — a single, minified file. Download it and open it directly in your browser. No server, no install, nothing else needed."
+            echo "- **\`bowtie-diagram-web.zip\`** — the same app as plain, **unminified** multi-file source (\`index.html\`/\`css\`/\`js\`), for anyone who wants to host it behind their own web server instead of opening it as a local file."
+            echo ""
+            echo "GitHub's auto-generated source code archives (zip/tar.gz) are also available below, for anyone who wants the full repository at this tag."
+            echo ""
+            cat /tmp/changelog-section.md
+          } > /tmp/release-notes.md
+
       - uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/bowtie-diagram.html
             dist/bowtie-diagram-web.zip
-          body: |
-            ## Downloads
-
-            - **`bowtie-diagram.html`** — a single, minified file. Download it and open it directly in your browser. No server, no install, nothing else needed.
-            - **`bowtie-diagram-web.zip`** — the same app as plain, **unminified** multi-file source (`index.html`/`css`/`js`), for anyone who wants to host it behind their own web server instead of opening it as a local file.
-
-            GitHub's auto-generated source code archives (zip/tar.gz) are also available below, for anyone who wants the full repository at this tag.
+          body_path: /tmp/release-notes.md

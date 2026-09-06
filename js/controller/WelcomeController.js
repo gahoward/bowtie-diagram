@@ -85,7 +85,7 @@
       // grow and re-center automatically once this column gets taller.
       const demoBtn = document.createElement('button');
       demoBtn.type = 'button';
-      demoBtn.className = 'welcome-choice-btn';
+      demoBtn.className = 'welcome-choice-btn welcome-choice-btn-demo';
       demoBtn.textContent = 'Load Demo';
       demoBtn.addEventListener('click', () => this._loadDemo());
       const demoHint = document.createElement('p');
