@@ -1,13 +1,13 @@
 // GENERATED FILE -- do not edit directly.
 // Source of truth: js/data/demo-bowtie.json -- edit that file (plain,
-// schema-v6 JSON, the same shape "Export to JSON" produces), then run
+// schema-v7 JSON, the same shape "Export to JSON" produces), then run
 // `node scripts/build-demo-data.js` to regenerate this file.
 //
 // Wrapped into a real script (rather than fetched as JSON) so it works
 // standalone over file:// -- see scripts/build-demo-data.js.
 (function (Bowtie) {
   Bowtie.DEMO_DATA = {
-  "version": 6,
+  "version": 7,
   "name": "Demo: Pipeline Overpressure Release",
   "idCounters": {
     "cause": 4,

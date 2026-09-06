@@ -17,13 +17,14 @@
   // its own single-origin label — never a joined "C_1, C_2" list.
   class Line {
     constructor({
-      id, originType, originId, stops = [],
+      id, originType, originId, stops = [], pageId,
     } = {}) {
       this.id = id;
       // 'cause' | 'outcome'
       this.originType = originType;
       // The Cause or Outcome id that owns this Line.
       this.originId = originId;
+      this.pageId = pageId;
       // Ordered barrier ids the line passes through. Index 0 is always
       // nearest the origin (the Cause or Outcome); the last index is always
       // nearest the TLE. This convention is the same for both cause- and
