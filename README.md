@@ -13,6 +13,8 @@ Download the latest release from the **[Releases page](https://github.com/gahowa
 
 Either way, Chrome/Edge get the nicest experience (native Save/Open dialogs), but the app works fully in Firefox and Safari too — saving there just always lands in your Downloads folder unless your browser is set to ask where to save each file. From the welcome screen you can start a new diagram, upload a previously-exported `.json` file, or click **Load Demo** (or press `Ctrl+Alt+D`) to see a worked example with shared barriers and multiple causes/outcomes.
 
+Prefer not to download anything? **[Try it live](https://gahoward.github.io/bowtie-diagram/)** — same app, hosted on GitHub Pages. On a Chromium browser this is actually the *best* experience: being served over HTTPS (unlike a downloaded file) unlocks the native Save/Open dialogs. Nothing you do there is saved on our end — it's the same local-only editor, just running from a URL instead of a file.
+
 ## Development
 
 To run from source instead of a downloaded release — e.g. to contribute — clone the repo and open `index.html` directly; there's no build step for day-to-day editing, `js/`, `css/`, and `index.html` are plain scripts loaded directly.
