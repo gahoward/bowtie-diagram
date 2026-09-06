@@ -228,22 +228,14 @@
       button.addEventListener('click', () => this.arrange());
     }
 
-    // The barrier immediately origin-ward (predecessor) of `barrierId` in
-    // some line's stops, e.g. cause-ward for a PB (undefined if none exist).
-    _predecessorsOf(barrierId, collection) {
-      const ids = new Set();
-      this.model.lines.forEach((l) => {
-        const idx = l.stops.indexOf(barrierId);
-        if (idx > 0) ids.add(l.stops[idx - 1]);
-      });
-      return Array.from(ids).map((id) => collection.find((b) => b.id === id)).filter(Boolean);
-    }
-
     // The first-found barrier immediately TLE-ward (successor) of
     // `barrierId` in some line's stops, or null if it connects straight to
     // the TLE. Mirrors the pre-Line-rework model's "first found wins" for
     // the rare case where a barrier's lines have diverged onto different
-    // next stops.
+    // next stops. Shared by both _pcDepth and _mcDepth below — Line.stops
+    // uses the same origin-nearest-first convention for both PB and MB
+    // chains (see Line.js), so "next stop toward the TLE" means the same
+    // thing for either.
     _successorOf(barrierId) {
       for (let i = 0; i < this.model.lines.length; i += 1) {
         const line = this.model.lines[i];
@@ -253,23 +245,31 @@
       return null;
     }
 
-    // Distance (in barrier hops) from the nearest Cause. A PB fed only by
-    // Causes is depth 1; a PB chained after another PB is one deeper than
-    // the deepest of its own upstream PBs (its Line.stops predecessors).
+    // Distance (in barrier hops) from the TopLevelEvent. A PB feeding
+    // directly into the TLE (nothing further toward the TLE in its
+    // Line.stops) is depth 1; one chained before it (further from the TLE)
+    // is one deeper. This must be measured from the TLE, not from the
+    // Cause: a lone PB with no further barrier before the TLE (e.g. a
+    // single barrier on an otherwise-bare Cause) sits immediately before
+    // the TLE regardless of how many hops it is from its own Cause, and
+    // needs to land in the same TLE-adjacent column as any other chain's
+    // final barrier (architecture review finding, 2026 — a lone barrier
+    // was landing a full column short of the TLE, alongside chains'
+    // FIRST barriers instead of their LAST, because depth was previously
+    // measured from the Cause end instead).
     _pcDepth(pb, cache) {
       if (cache.has(pb.id)) return cache.get(pb.id);
-      const upstreamPbs = this._predecessorsOf(pb.id, this.model.preventativeBarriers);
-      const depth = upstreamPbs.length === 0
-        ? 1
-        : 1 + Math.max(...upstreamPbs.map((p) => this._pcDepth(p, cache)));
+      const downstreamId = this._successorOf(pb.id);
+      const downstream = downstreamId ? this.model.preventativeBarriers.find((p) => p.id === downstreamId) : null;
+      const depth = downstream ? 1 + this._pcDepth(downstream, cache) : 1;
       cache.set(pb.id, depth);
       return depth;
     }
 
-    // Mirrors _pcDepth: distance (in barrier hops) from the TopLevelEvent. An
-    // MB fed directly by the TLE (nothing further toward the TLE in its
-    // Line.stops) is depth 1; one chained before it (toward the TLE) is one
-    // deeper.
+    // Mirrors _pcDepth exactly (both now measure distance from the
+    // TopLevelEvent). An MB fed directly by the TLE (nothing further toward
+    // the TLE in its Line.stops) is depth 1; one chained before it (toward
+    // the TLE) is one deeper.
     _mcDepth(mb, cache) {
       if (cache.has(mb.id)) return cache.get(mb.id);
       const upstreamId = this._successorOf(mb.id);
@@ -335,9 +335,10 @@
     // than spacing each depth column independently — this way a barrier
     // naturally lands at the midpoint of the actual lines it serves, so its
     // grown height (Layout.controlBounds) only ever needs to cover its own
-    // lanes. PBs propagate from Causes toward the TLE (ascending depth); MBs
-    // propagate from Outcomes toward the TLE (descending depth, since MB
-    // depth is measured FROM the TLE) — see the two call sites below.
+    // lanes. Both PC and MC depth are measured from the TLE, so both
+    // propagate the same direction: descending depth (leaf-adjacent,
+    // highest-depth columns first, since that end's position is already
+    // known — the Cause or Outcome itself) — see the two call sites below.
     _propagateDepthYs(byDepth, depths, positionedY) {
       depths.forEach((d) => {
         (byDepth.get(d) || []).forEach((node) => {
@@ -394,10 +395,15 @@
       assignLeafYs(causeCluster, model, this.svgRoot).forEach((y, id) => positionedY.set(id, y));
       assignLeafYs(outcomeCluster, model, this.svgRoot).forEach((y, id) => positionedY.set(id, y));
 
-      const ascendingDepths = Array.from({ length: maxPcDepth }, (_, i) => i + 1);
-      this._propagateDepthYs(pcsByDepth, ascendingDepths, positionedY);
-      const descendingDepths = Array.from({ length: maxMcDepth }, (_, i) => maxMcDepth - i);
-      this._propagateDepthYs(mcsByDepth, descendingDepths, positionedY);
+      // Both PC and MC depth are now measured from the TLE (see _pcDepth),
+      // so both propagate the same direction: leaf-adjacent (highest-depth)
+      // columns first, since that's the end whose position is already known
+      // (the Cause/Outcome itself) — then progressively toward the
+      // TLE-adjacent (depth 1) column.
+      const descendingPcDepths = Array.from({ length: maxPcDepth }, (_, i) => maxPcDepth - i);
+      this._propagateDepthYs(pcsByDepth, descendingPcDepths, positionedY);
+      const descendingMcDepths = Array.from({ length: maxMcDepth }, (_, i) => maxMcDepth - i);
+      this._propagateDepthYs(mcsByDepth, descendingMcDepths, positionedY);
 
       const rowCount = Math.max(
         causeCluster.length,
@@ -408,10 +414,11 @@
       );
 
       // The TLE sits at the midpoint of whatever directly touches it: the
-      // deepest (TLE-adjacent) PBs and the shallowest (TLE-adjacent) MBs, or
-      // the row midpoint as a fallback for a diagram with neither yet.
+      // depth-1 (TLE-adjacent) PBs and the depth-1 (TLE-adjacent) MBs — both
+      // depth-1 now, since both are measured from the TLE — or the row
+      // midpoint as a fallback for a diagram with neither yet.
       const tleAdjacentYs = [
-        ...(pcsByDepth.get(maxPcDepth) || []).map((n) => positionedY.get(n.id)),
+        ...(pcsByDepth.get(1) || []).map((n) => positionedY.get(n.id)),
         ...(mcsByDepth.get(1) || []).map((n) => positionedY.get(n.id)),
       ];
       const tleY = tleAdjacentYs.length > 0
@@ -452,7 +459,13 @@
       // independent of loose/tight mode, fixed here for both.
       const tleX = causesX + (maxPcDepth * colSpacing) + tleAdjacentGap;
       const outcomesX = tleX + (maxMcDepth * colSpacing) + tleAdjacentGap;
-      const pcColX = (d) => causesX + (d * colSpacing);
+      // PC depth is measured from the TLE (depth 1 = TLE-adjacent), but
+      // causesX is the fixed, cause-adjacent end — so column position runs
+      // the OPPOSITE direction from depth: depth 1 gets the highest x
+      // (closest to the TLE), depth `maxPcDepth` gets the lowest (closest
+      // to causesX). Mirrors mcColX, which is already TLE-anchored the
+      // same way for the MC side.
+      const pcColX = (d) => causesX + ((maxPcDepth - d + 1) * colSpacing);
       const mcColX = (d) => tleX + tleAdjacentGap + ((d - 1) * colSpacing);
 
       const updates = [];

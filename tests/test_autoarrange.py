@@ -396,3 +396,48 @@ def test_auto_arrange_leaves_room_for_a_long_wrapped_cause_name(page):
     a_top, a_bot = a["y"] - a["h"] / 2, a["y"] + a["h"] / 2
     b_top, b_bot = b["y"] - b["h"] / 2, b["y"] + b["h"] / 2
     assert not (a_top < b_bot and b_top < a_bot), "the long-named Cause's own box must not overlap its sibling's"
+
+
+def test_lone_barrier_lands_in_the_tle_adjacent_column_not_the_cause_adjacent_one(page):
+    """Regression test: a Cause with its own single, unchained Preventative
+    Barrier (nothing further before the TLE) must land in the SAME column as
+    another chain's TLE-adjacent barrier, not the column nearest the Causes
+    -- even though, counted from ITS OWN Cause, it's only one hop deep. Depth
+    must be measured from the TLE for both barrier types (mirroring how
+    Mitigative Barrier depth already works), or a lone barrier ends up a full
+    column short of the TLE, alongside chains' FIRST barriers instead of
+    their LAST -- exactly the bug reported against the demo diagram: adding
+    a Preventative Barrier to a bare Cause (like C_4) landed it next to
+    PB_1/PB_2 instead of alongside PB_3, the column both of those chains
+    that instead feed the TLE, real screenshot."""
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      // A two-deep chain: two Causes each with their own first barrier,
+      // both chaining into one shared second (TLE-adjacent) barrier.
+      m.addCause({x: 150, y: 90});
+      const pbA = m.addPreventativeControl(m.causes[0].id);
+      m.addCause({x: 150, y: 300});
+      const pbB = m.addPreventativeControl(m.causes[1].id);
+      const shared = m.insertBarrier('preventativeBarrier', 'after', pbA.id);
+      m.attachExistingBarrier('preventativeBarrier', 'after', pbB.id, shared.id);
+      // A separate, unrelated Cause with a single unchained barrier of its
+      // own -- nothing feeds it, and nothing follows it before the TLE.
+      m.addCause({x: 150, y: 600});
+      m.addPreventativeControl(m.causes[2].id);
+    }""")
+    auto_arrange(page)
+    page.wait_for_timeout(150)
+
+    positions = page.evaluate("""() => {
+      const m = window.__lastModel;
+      const [pbA, pbB, shared, lone] = m.preventativeBarriers;
+      return { sharedX: shared.x, loneX: lone.x, pbAX: pbA.x };
+    }""")
+    assert positions["loneX"] == positions["sharedX"], (
+        "a lone, unchained barrier must sit in the same (TLE-adjacent) column "
+        "as another chain's final barrier"
+    )
+    assert positions["loneX"] != positions["pbAX"], (
+        "the lone barrier's column must differ from the cause-adjacent "
+        "first-barrier column it used to be wrongly placed in"
+    )
