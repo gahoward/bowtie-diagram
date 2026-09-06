@@ -106,6 +106,16 @@ step for the app itself, so tests run directly against `index.html` as-is.
   Settings toggle — off-by-default parity with pre-toggle behavior, the
   forced-deep and fully-bare repositioning cases, that no barrier or
   y-position ever moves, and the Outcome-side mirror).
+- **`test_dist_smoke.py`** — the release-time smoke test (deployment
+  proposal §5): points a page at `dist/bowtie-diagram.html` via `file://`
+  (not the HTTP server every other test uses) and re-runs a small slice of
+  the suite against it — no leftover external `<script src>`/`<link>`
+  references, a full create/chain/auto-arrange/export/reimport round trip,
+  and loading the demo. Skipped automatically when `dist/` hasn't been
+  built (`npm run build`), since that's a deliberate publish-time step, not
+  part of the normal edit/test loop. Reuses `conftest.py`'s session-scoped
+  `browser` fixture rather than starting a second `sync_playwright()` —
+  Playwright's sync API only tolerates one live manager per process.
 - **`test_minimap.py`** — the viewport-overlay rectangle reflecting the
   TRUE visible area (`PanZoomController.getVisibleRect()`), not the raw
   stored `viewBox`, which can understate it by several times over once SVG

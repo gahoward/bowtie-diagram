@@ -1,0 +1,14 @@
+{
+  "name": "bowtie-diagram",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bowtie diagram editor",
+  "scripts": {
+    "build": "node scripts/build.js",
+    "build:demo": "node scripts/build-demo-data.js"
+  },
+  "devDependencies": {
+    "archiver": "^7.0.1",
+    "esbuild": "^0.25.0"
+  }
+}

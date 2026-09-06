@@ -1,0 +1,23 @@
+name: Test
+
+# Runs the full Playwright/pytest suite against the unbundled source on
+# every push/PR -- fast feedback, no build involved (deployment_proposal.md
+# §6). This is deliberately separate from release.yml: an ordinary push
+# should never need Node/esbuild at all.
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install -r tests/requirements.txt
+      - run: playwright install --with-deps chromium
+      - run: pytest tests/

@@ -1,0 +1,43 @@
+name: Release
+
+# On a version tag push: build both release artifacts, prove the
+# single-file build actually works via the file:// smoke test, then attach
+# both to a GitHub Release for that tag (deployment_proposal.md §6-7).
+# Uses the default GITHUB_TOKEN GitHub injects into every run -- no
+# personal access token or repo secret needed for this.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - run: npm ci
+      - run: npm run build
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install -r tests/requirements.txt
+      - run: playwright install --with-deps chromium
+      # Only the dist smoke test -- the full suite already ran on the
+      # commit itself via test.yml before it was ever tagged.
+      - run: pytest tests/test_dist_smoke.py
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/bowtie-diagram.html
+            dist/bowtie-diagram-web.zip
