@@ -167,18 +167,25 @@
   }
 
   // Assigns y-positions down an adjacency-ordered leaf array (Causes or
-  // Outcomes). The gap between two consecutive entries is ROW_SPACING only
-  // when they share the exact same immediate barrier (`Line.stops[0]`) —
-  // meaning they are, at the very first depth column, literally the same
-  // box, not two — and GROUP_GAP otherwise. This is intentionally NOT based
-  // on whether orderByAdjacency placed them in the same connected
-  // component: that grouping exists to get the ORDER right (so a shared
-  // barrier several hops downstream still pulls its two Causes adjacent),
-  // but two adjacent entries can still each own a wholly separate barrier
-  // at depth 1 that only merges later (e.g. Cause A -> PB1 -> PB3, Cause C
-  // -> PB4 -> PB3) — PB1 and PB4 are two distinct boxes sharing that same
-  // depth-1 column, and need GROUP_GAP's full clearance between them just
-  // as much as two entirely unrelated Causes would.
+  // Outcomes). The gap between two consecutive entries is ROW_SPACING —
+  // not the full barrier-collision GROUP_GAP — in either of two cases:
+  // they share the exact same immediate barrier (`Line.stops[0]`), meaning
+  // they are, at the very first depth column, literally the same box, not
+  // two; or NEITHER has any barrier at all (`Line.stops` empty for both),
+  // meaning there is no barrier box or label anywhere near this particular
+  // pair's shared boundary for GROUP_GAP to actually be protecting (a real
+  // reported case: several Causes/Outcomes with few barriers between them
+  // — GROUP_GAP's full worst-case clearance, sized for two lone BARRIERS'
+  // boxes+labels, was being paid between rows that had no barrier at all).
+  // Otherwise GROUP_GAP applies. This is intentionally NOT based on
+  // whether orderByAdjacency placed them in the same connected component:
+  // that grouping exists to get the ORDER right (so a shared barrier
+  // several hops downstream still pulls its two Causes adjacent), but two
+  // adjacent entries can still each own a wholly separate barrier at depth
+  // 1 that only merges later (e.g. Cause A -> PB1 -> PB3, Cause C -> PB4
+  // -> PB3) — PB1 and PB4 are two distinct boxes sharing that same depth-1
+  // column, and need GROUP_GAP's full clearance between them just as much
+  // as two entirely unrelated Causes would.
   function assignLeafYs(nodes, model, svgRoot) {
     const ys = new Map();
     const halfH = (node) => Bowtie.Layout.causeOutcomeBounds(svgRoot, node).h / 2;
@@ -189,7 +196,8 @@
         const prevFirstStop = model._lineFor(prevNode.id).stops[0];
         const firstStop = model._lineFor(node.id).stops[0];
         const shareImmediateBarrier = prevFirstStop && firstStop && prevFirstStop === firstStop;
-        const baseGap = shareImmediateBarrier ? ROW_SPACING : GROUP_GAP;
+        const neitherHasABarrier = !prevFirstStop && !firstStop;
+        const baseGap = (shareImmediateBarrier || neitherHasABarrier) ? ROW_SPACING : GROUP_GAP;
         // Neither ROW_SPACING nor GROUP_GAP alone accounts for a wrapped,
         // multi-line name growing THIS PARTICULAR row's (or its neighbour's)
         // own box taller than the default — see LEAF_ROW_MARGIN above. Take

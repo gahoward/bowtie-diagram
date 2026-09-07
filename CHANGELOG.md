@@ -9,6 +9,11 @@
   — so the new order is permanent and is exactly what Auto-arrange reflects
   from then on. A barrier shared by lines that disagree on its neighbor now
   prompts for which path(s) to reorder.
+- Fixed auto-arrange spacing rows far apart vertically (regardless of
+  Loose/Tight mode) when several Causes or Outcomes had few or no
+  barriers between them — two Causes/Outcomes with no barrier at all now
+  sit as close together as two that share one, since there's no barrier
+  box or label between them to protect against.
 
 ## v0.1.3 - 2026-09-07
 

@@ -504,3 +504,116 @@ def test_shared_barrier_with_a_divergent_downstream_chain_gets_its_own_column(pa
         "PB_1 and the barrier it feeds through its longer chain must never "
         "land on the exact same spot"
     )
+
+
+def test_two_mutually_bare_causes_use_row_spacing_not_group_gap(page):
+    """Reported bug: with several Causes/Outcomes and few barriers, the
+    vertical spacing looked huge -- GROUP_GAP (sized for two LONE
+    BARRIERS' boxes+labels) was being charged even between two adjacent
+    Causes that have no barrier at all between them to protect. Two fully
+    bare Causes next to each other in the order have nothing barrier-shaped
+    to collide, so they should get the same compact ROW_SPACING two
+    barrier-sharing siblings get, not the full worst-case gap."""
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.addCause({x: 150, y: 90});
+      m.addCause({x: 150, y: 90}); // both bare -- _findClearY nudges this one down
+    }""")
+    auto_arrange(page)
+    page.wait_for_timeout(150)
+
+    ys = page.evaluate("() => window.__lastModel.causes.map((c) => c.y).sort((a, b) => a - b)")
+    assert ys[1] - ys[0] == 110, "two mutually bare Causes must be exactly ROW_SPACING apart"
+
+
+def test_a_bare_cause_next_to_a_barrier_bearing_one_still_gets_full_group_gap(page):
+    """Regression guard for the fix above: the compaction must be scoped
+    strictly to BOTH sides being bare. A bare Cause sitting next to one
+    that has its own barrier must still get the full GROUP_GAP -- that
+    barrier's box and label are real geometry the bare row's gap must stay
+    clear of, unchanged from before this fix."""
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.addCause({x: 150, y: 90});
+      m.addPreventativeControl(m.causes[0].id);
+      m.addCause({x: 150, y: 90}); // bare, nudged below C_1 by _findClearY
+    }""")
+    auto_arrange(page)
+    page.wait_for_timeout(150)
+
+    ys = page.evaluate("() => window.__lastModel.causes.map((c) => c.y).sort((a, b) => a - b)")
+    assert ys[1] - ys[0] == 220, "a bare Cause beside a barrier-bearing one must keep the full GROUP_GAP"
+
+
+def test_mixed_bare_and_barrier_rows_never_overlap_in_either_spacing_mode(page):
+    """Stress check for the compaction fix: five Causes with only two
+    barriers between them (the exact shape of the reported bug) must
+    still produce zero box overlaps and zero bare-line/barrier-box
+    crossings, in both Loose and Tight mode -- shrinking the bare-bare
+    gaps must never let a bare row's line clip a barrier it isn't
+    associated with (baseline5)."""
+    def build(page):
+        page.evaluate("""() => {
+          const m = window.__lastModel;
+          for (let i = 0; i < 5; i += 1) m.addCause({x: 150, y: 90 + i * 50});
+          m.addPreventativeControl(m.causes[0].id);
+          m.addPreventativeControl(m.causes[2].id);
+        }""")
+
+    def violations(page):
+        return page.evaluate("""() => {
+          const barrierRects = Array.from(
+            document.querySelectorAll('#bowtie-canvas .node.preventative-barrier rect.shape')
+          ).map((r) => ({
+            x: +r.getAttribute('x'), y: +r.getAttribute('y'),
+            w: +r.getAttribute('width'), h: +r.getAttribute('height'),
+          }));
+          const bareSegments = Array.from(
+            document.querySelectorAll('#bowtie-canvas .connection[data-role="cause-direct"]')
+          ).map((el) => ({
+            x1: +el.getAttribute('x1'), y1: +el.getAttribute('y1'),
+            x2: +el.getAttribute('x2'), y2: +el.getAttribute('y2'),
+          }));
+          let count = 0;
+          bareSegments.forEach((seg) => {
+            for (let i = 0; i <= 100; i += 1) {
+              const t = i / 100;
+              const x = seg.x1 + (seg.x2 - seg.x1) * t;
+              const y = seg.y1 + (seg.y2 - seg.y1) * t;
+              barrierRects.forEach((b) => {
+                if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) count += 1;
+              });
+            }
+          });
+          const view = window.__lastView;
+          const boxes = Object.values(view.boundsById);
+          let overlapCount = 0;
+          for (let i = 0; i < boxes.length; i += 1) {
+            for (let j = i + 1; j < boxes.length; j += 1) {
+              const a = boxes[i];
+              const b = boxes[j];
+              const overlapsX = Math.abs(a.cx - b.cx) < (a.w + b.w) / 2;
+              const overlapsY = Math.abs(a.cy - b.cy) < (a.h + b.h) / 2;
+              if (overlapsX && overlapsY) overlapCount += 1;
+            }
+          }
+          return { lineViolations: count, boxOverlaps: overlapCount };
+        }""")
+
+    build(page)
+    auto_arrange(page)
+    page.wait_for_timeout(150)
+    loose = violations(page)
+    assert loose["lineViolations"] == 0
+    assert loose["boxOverlaps"] == 0
+
+    page.click("#menu-trigger-settings")
+    page.click("#btn-settings")
+    page.locator(".modal-checkbox-row", has_text="Tight").click()
+    page.get_by_role("button", name="Close", exact=True).click()
+    page.wait_for_timeout(80)
+    auto_arrange(page)
+    page.wait_for_timeout(150)
+    tight = violations(page)
+    assert tight["lineViolations"] == 0
+    assert tight["boxOverlaps"] == 0

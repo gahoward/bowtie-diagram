@@ -60,10 +60,16 @@ step for the app itself, so tests run directly against `index.html` as-is.
   behaviors reached through real right-clicks, hovers, and context menus.
   `test_autoarrange.py` also covers a long, realistically-wrapping Cause
   name not overlapping its sibling row (an architecture review finding —
-  see `DESIGN_NOTES.md`'s `LEAF_ROW_MARGIN` entry), and a barrier shared by
+  see `DESIGN_NOTES.md`'s `LEAF_ROW_MARGIN` entry), a barrier shared by
   two chains with different remaining lengths to the TLE landing in its
   own column instead of colliding with the barrier that makes it longer
-  (shared_barrier_column_collision_fix.md §1-2). `test_barrier_placement.py`
+  (shared_barrier_column_collision_fix.md §1-2), and two mutually bare
+  Causes/Outcomes (no barrier on either side) sitting ROW_SPACING apart
+  instead of paying the full barrier-collision GROUP_GAP that has nothing
+  to protect between them — including a stress check (both spacing modes)
+  that a mix of bare and barrier-bearing rows still produces zero box
+  overlaps and zero bare-line/barrier-box crossings once those gaps
+  shrink. `test_barrier_placement.py`
   also covers the "Shift Toward/Away From TLE" context-menu items
   (shared_barrier_column_collision_fix.md §3): each item only appears when
   a swap in that direction would do something, reorders the underlying
