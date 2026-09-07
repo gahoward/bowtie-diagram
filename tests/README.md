@@ -59,7 +59,14 @@ step for the app itself, so tests run directly against `index.html` as-is.
   applies; when lines disagree, position is left untouched rather than
   corrupted (a real bug — a barrier ended up on the exact same spot as an
   unrelated one when each line was swapped in a separate call instead),
-  and the whole batch is one undo step.
+  and the whole batch is one undo step. Also covers `attachInputTo
+  PreventativeControl`/`attachOutputToMitigativeControl`'s
+  `inheritDownstream` option (default true, matching the original
+  always-inherit behavior): declining keeps the attaching line's own
+  prior continuation instead of adopting the target barrier's, or
+  connects straight to the TLE if it had none; and `_donorContinuation`,
+  the read-only lookup `ContextMenuController` uses to decide whether
+  there's even anything to ask about.
 - **`test_barrier_placement.py`**, **`test_rendering.py`**,
   **`test_autoarrange.py`**, **`test_focus_hover.py`**,
   **`test_attach_and_truncate_ui.py`** — UI-driven coverage of the same
@@ -98,7 +105,11 @@ step for the app itself, so tests run directly against `index.html` as-is.
   disagree on the neighbour — including the exact reported repro (load the
   demo, shift PB_3 away from the TLE on both C_1 and C_2 at once): no
   position corruption beforehand, and no label/box overlap after
-  Auto-arrange.
+  Auto-arrange. `test_attach_and_truncate_ui.py` covers the "inherit
+  downstream barriers?" prompt end-to-end: appears (with Cancel/Stop
+  Here/Follow Existing Path) when attaching to a barrier with further
+  continuation, each choice does what it says, and it's skipped entirely
+  (attaches immediately) when the target barrier has nothing to inherit.
 - **`test_undo_redo.py`**, **`test_drag_ordering.py`** — snapshot-based
   undo/redo (stack capping, phantom-step avoidance on a failed mutation,
   one-undo-step-per-drag-gesture) and `DragController`'s ordering/overlap
@@ -149,7 +160,15 @@ step for the app itself, so tests run directly against `index.html` as-is.
   §7 (the opt-in "pull causes/outcomes closer to their first real stop"
   Settings toggle — off-by-default parity with pre-toggle behavior, the
   forced-deep and fully-bare repositioning cases, that no barrier or
-  y-position ever moves, and the Outcome-side mirror).
+  y-position ever moves, and the Outcome-side mirror). Also covers a line
+  (bare, or barrier-terminated short of the true TLE-adjacent column via
+  "Connect Directly to TLE") extending its flat run to at least the
+  diagram's shallowest occupied barrier column before bending, on both
+  sides — reported bug: the bend used to start right at the line's own
+  last stop (or a fixed Hazard-clearance margin for bare lines), cutting
+  across whatever column actually sat closer to the TLE at a visibly
+  sharp angle. See `shallowestPcEdge`/`shallowestMcEdge` in
+  `ConnectionRenderer.js`.
 - **`test_dist_smoke.py`** — the release-time smoke test (deployment
   proposal §5): points a page at `dist/bowtie-diagram.html` via `file://`
   (not the HTTP server every other test uses) and re-runs a small slice of

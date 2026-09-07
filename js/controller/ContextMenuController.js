@@ -86,7 +86,11 @@
             action: () => this._openAttachModal(
               'Attach Cause to Preventative Barrier',
               this.model.preventativeBarriers,
-              (pb) => this._safeAttach(() => this.model.attachInputToPreventativeControl(el.id, pb.id)),
+              (pb) => this._attachWithInheritPrompt(
+                pb.id,
+                this.model._lineFor(el.id).id,
+                (inherit) => this.model.attachInputToPreventativeControl(el.id, pb.id, inherit),
+              ),
             ),
           });
         }
@@ -99,7 +103,11 @@
             action: () => this._openAttachModal(
               'Attach Outcome to Mitigative Barrier',
               this.model.mitigativeBarriers,
-              (mb) => this._safeAttach(() => this.model.attachOutputToMitigativeControl(mb.id, el.id)),
+              (mb) => this._attachWithInheritPrompt(
+                mb.id,
+                this.model._lineFor(el.id).id,
+                (inherit) => this.model.attachOutputToMitigativeControl(mb.id, el.id, inherit),
+              ),
             ),
           });
         }
@@ -235,7 +243,11 @@
           items.push(this._attachSegmentItem(
             'Attach to Existing Preventative Barrier…',
             this.model.preventativeBarriers,
-            (target) => this._safeAttach(() => this.model.attachInputToPreventativeControl(line.originId, target.id)),
+            (target) => this._attachWithInheritPrompt(
+              target.id,
+              line.id,
+              (inherit) => this.model.attachInputToPreventativeControl(line.originId, target.id, inherit),
+            ),
           ));
         }
         return items;
@@ -289,7 +301,11 @@
           items.push(this._attachSegmentItem(
             'Attach to Existing Mitigative Barrier…',
             this.model.mitigativeBarriers,
-            (target) => this._safeAttach(() => this.model.attachOutputToMitigativeControl(target.id, line.originId)),
+            (target) => this._attachWithInheritPrompt(
+              target.id,
+              line.id,
+              (inherit) => this.model.attachOutputToMitigativeControl(target.id, line.originId, inherit),
+            ),
           ));
         }
         return items;
@@ -460,6 +476,68 @@
         this._showError(err.message);
         return false;
       }
+    }
+
+    // Wraps attachInputToPreventativeControl/attachOutputToMitigativeControl
+    // (via `attach(inheritDownstream)`): only asks the user whether to
+    // inherit `targetId`'s existing downstream continuation when there
+    // actually IS one on some other line (`excludeLineId` is the line
+    // about to be replaced, so it never answers its own question) --
+    // otherwise inheriting or not makes no difference, so it just attaches
+    // (with `inheritDownstream: true`, though `false` would produce the
+    // exact same result) without bothering the user over a non-choice.
+    _attachWithInheritPrompt(targetId, excludeLineId, attach) {
+      const continuation = this.model._donorContinuation(targetId, excludeLineId);
+      if (continuation.length === 0) {
+        this._safeAttach(() => attach(true));
+        return;
+      }
+      // What "decline" actually resolves to depends on whether this line
+      // already had its own further barriers before this attach -- the
+      // modal's wording needs to say which, not just always claim "goes
+      // straight to the TLE" (only true for the common bare-origin case).
+      const excludeLine = this.model.lines.find((l) => l.id === excludeLineId);
+      const ownContinuation = excludeLine ? excludeLine.stops.filter((id) => id !== targetId) : [];
+      this._openInheritDownstreamModal(
+        continuation,
+        ownContinuation,
+        (inherit) => this._safeAttach(() => attach(inherit)),
+      );
+    }
+
+    // `continuation` is the donor's stops past the barrier being attached
+    // to (e.g. ['PB_3'] when attaching to a barrier that already continues
+    // on to PB_3 before the TLE); `ownContinuation` is whatever this
+    // line's OWN stops already were beyond the target barrier, if any --
+    // declining keeps those instead, or goes straight to the TLE if there
+    // were none. Offers a real third way out (Cancel) alongside the two
+    // real choices, since this can come up mid-attach and the user may not
+    // have realized the target barrier already continues further.
+    _openInheritDownstreamModal(continuation, ownContinuation, onChoice) {
+      const nameOf = (id) => {
+        const el = this.model.findById(id);
+        return el ? `${id} (${el.name})` : id;
+      };
+      const continuationNames = continuation.map(nameOf).join(', ');
+      const declineDescription = ownContinuation.length > 0
+        ? `keep going through its own existing path (${ownContinuation.map(nameOf).join(', ')}) instead`
+        : 'go straight to the TLE from this barrier instead';
+      const body = document.createElement('div');
+      const p = document.createElement('p');
+      p.textContent = `This barrier already continues on to ${continuationNames} before reaching the TLE. `
+        + `Should the new connection follow that same path, or ${declineDescription}?`;
+      body.appendChild(p);
+
+      Bowtie.ModalView.openModal({
+        title: 'Inherit Downstream Barriers?',
+        bodyEl: body,
+        dismissible: false,
+        actions: [
+          { label: 'Cancel' },
+          { label: 'Stop Here', onClick: () => onChoice(false) },
+          { label: 'Follow Existing Path', primary: true, onClick: () => onChoice(true) },
+        ],
+      });
     }
 
     _openAttachModal(title, candidates, onPick) {

@@ -19,6 +19,20 @@
   row in between. Two rows sharing a barrier with few participants are
   now clustered strictly adjacent, ahead of a looser, many-participant
   relationship they might also both be part of.
+- "Attach to Existing Preventative/Mitigative Barrier…" now asks whether
+  to follow that barrier's existing continuation toward the TLE (only
+  when it actually has one) instead of always silently inheriting it —
+  declining keeps whatever the attaching Cause/Outcome's own line already
+  had, or connects straight to the TLE if it had nothing of its own.
+- Fixed a line's final bend toward the TLE starting right at its own last
+  barrier's edge even when that barrier sits short of the diagram's true
+  TLE-adjacent column (reachable via the options above, or by truncating
+  one of several lines sharing a barrier that others still continue
+  past) — the bend cut across the intervening column at a sharp angle.
+  Also affected fully bare lines, whose fixed clearance margin could fall
+  short of where the diagram's actual barrier columns are. Every line's
+  flat run now extends to at least the shallowest occupied barrier
+  column on its side before turning, matching every other line.
 
 ## v0.1.3 - 2026-09-07
 
