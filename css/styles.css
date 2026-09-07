@@ -646,6 +646,11 @@ html, body {
   min-width: 48px;
 }
 
+.id-manager-page {
+  color: #9ca3af;
+  font-size: 11px;
+}
+
 .id-manager-status {
   flex: 1;
   color: #6b7280;

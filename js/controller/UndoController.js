@@ -124,8 +124,14 @@
     // the constructor's placeholder comment above for why this isn't a
     // constructor argument instead (constructing PageTabsController itself
     // requires `undo.model` to already exist, so it can't come first).
-    bindActivePage(getActivePageId) {
+    // `onActivePageChange` (`pageTabs.onChange`) is subscribed to here too:
+    // canUndo()/canRedo() are page-dependent, but nothing else re-runs them
+    // on a plain tab switch (switching tabs pushes to neither stack), so
+    // without this the Undo/Redo buttons would keep showing whichever
+    // page was active at the last mutation until the next one happens.
+    bindActivePage(getActivePageId, onActivePageChange) {
       this.getActivePageId = getActivePageId;
+      onActivePageChange(() => this._refreshButtons());
     }
 
     _onKeyDown(e) {

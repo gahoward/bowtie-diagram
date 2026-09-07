@@ -28,7 +28,9 @@
     // PageTabsController itself has to be constructed with `undo.model`
     // (above), so this can't be a constructor argument without a circular
     // dependency. Bound here instead, right after pageTabs exists.
-    undo.bindActivePage(() => pageTabs.getActivePageId());
+    // `pageTabs.onChange` also re-syncs the Undo/Redo buttons' enabled
+    // state on every page switch, not just on the next mutation.
+    undo.bindActivePage(() => pageTabs.getActivePageId(), (fn) => pageTabs.onChange(fn));
 
     // Gives every canvas-manipulation controller (and the view) a single
     // page's drawable content, shaped exactly like the old single-page

@@ -10,11 +10,12 @@
   "version": 7,
   "name": "Demo: Pipeline Overpressure Release",
   "idCounters": {
-    "cause": 4,
-    "outcome": 4,
-    "preventativeBarrier": 3,
-    "mitigativeBarrier": 3,
-    "line": 8
+    "page": 2,
+    "cause": 5,
+    "outcome": 5,
+    "preventativeBarrier": 4,
+    "mitigativeBarrier": 4,
+    "line": 10
   },
   "retiredIds": {
     "cause": [],
@@ -22,17 +23,40 @@
     "preventativeBarrier": [],
     "mitigativeBarrier": []
   },
-  "topLevelEvent": {
-    "id": "TLE",
-    "name": "Release (Loss of Containment)",
-    "x": 1110,
-    "y": 365,
-    "r": 70
-  },
-  "hazard": {
-    "id": "HAZARD",
-    "name": "Flammable Liquid"
-  },
+  "pages": [
+    {
+      "id": "PAGE_1",
+      "name": "Pipeline Release",
+      "description": "Primary process containment failure scenario.",
+      "topLevelEvent": {
+        "id": "TLE_1",
+        "name": "Release (Loss of Containment)",
+        "x": 1110,
+        "y": 365,
+        "r": 70
+      },
+      "hazard": {
+        "id": "HAZARD_1",
+        "name": "Flammable Liquid"
+      }
+    },
+    {
+      "id": "PAGE_2",
+      "name": "Bund Containment Failure",
+      "description": "Secondary containment scenario, independent of the primary release on the first page.",
+      "topLevelEvent": {
+        "id": "TLE_2",
+        "name": "Secondary Containment Breach",
+        "x": 850,
+        "y": 200,
+        "r": 70
+      },
+      "hazard": {
+        "id": "HAZARD_2",
+        "name": "Stored Chemical Inventory"
+      }
+    }
+  ],
   "causes": [
     {
       "id": "C_1",
@@ -40,7 +64,8 @@
       "x": 150,
       "y": 90,
       "w": 140,
-      "h": 60
+      "h": 60,
+      "pageId": "PAGE_1"
     },
     {
       "id": "C_2",
@@ -48,7 +73,8 @@
       "x": 150,
       "y": 310,
       "w": 140,
-      "h": 60
+      "h": 60,
+      "pageId": "PAGE_1"
     },
     {
       "id": "C_3",
@@ -56,7 +82,8 @@
       "x": 150,
       "y": 530,
       "w": 140,
-      "h": 60
+      "h": 60,
+      "pageId": "PAGE_1"
     },
     {
       "id": "C_4",
@@ -64,7 +91,17 @@
       "x": 150,
       "y": 750,
       "w": 140,
-      "h": 60
+      "h": 60,
+      "pageId": "PAGE_1"
+    },
+    {
+      "id": "C_5",
+      "name": "Bund Wall Cracking",
+      "x": 150,
+      "y": 200,
+      "w": 140,
+      "h": 60,
+      "pageId": "PAGE_2"
     }
   ],
   "outcomes": [
@@ -74,7 +111,8 @@
       "x": 2070,
       "y": 90,
       "w": 140,
-      "h": 60
+      "h": 60,
+      "pageId": "PAGE_1"
     },
     {
       "id": "O_2",
@@ -82,7 +120,8 @@
       "x": 2070,
       "y": 310,
       "w": 140,
-      "h": 60
+      "h": 60,
+      "pageId": "PAGE_1"
     },
     {
       "id": "O_3",
@@ -90,7 +129,8 @@
       "x": 2070,
       "y": 530,
       "w": 140,
-      "h": 60
+      "h": 60,
+      "pageId": "PAGE_1"
     },
     {
       "id": "O_4",
@@ -98,7 +138,17 @@
       "x": 2070,
       "y": 750,
       "w": 140,
-      "h": 60
+      "h": 60,
+      "pageId": "PAGE_1"
+    },
+    {
+      "id": "O_5",
+      "name": "Ground/Water Contamination",
+      "x": 1550,
+      "y": 200,
+      "w": 140,
+      "h": 60,
+      "pageId": "PAGE_2"
     }
   ],
   "preventativeBarriers": [
@@ -108,7 +158,8 @@
       "x": 470,
       "y": 90,
       "w": 36,
-      "h": 110
+      "h": 110,
+      "pageId": "PAGE_1"
     },
     {
       "id": "PB_2",
@@ -116,7 +167,8 @@
       "x": 470,
       "y": 310,
       "w": 36,
-      "h": 110
+      "h": 110,
+      "pageId": "PAGE_1"
     },
     {
       "id": "PB_3",
@@ -124,7 +176,17 @@
       "x": 790,
       "y": 310,
       "w": 36,
-      "h": 110
+      "h": 110,
+      "pageId": "PAGE_1"
+    },
+    {
+      "id": "PB_4",
+      "name": "Bund Integrity Inspection Programme",
+      "x": 470,
+      "y": 200,
+      "w": 36,
+      "h": 110,
+      "pageId": "PAGE_2"
     }
   ],
   "mitigativeBarriers": [
@@ -134,7 +196,8 @@
       "x": 1750,
       "y": 90,
       "w": 36,
-      "h": 110
+      "h": 110,
+      "pageId": "PAGE_1"
     },
     {
       "id": "MB_2",
@@ -142,7 +205,8 @@
       "x": 1430,
       "y": 200,
       "w": 36,
-      "h": 110
+      "h": 110,
+      "pageId": "PAGE_1"
     },
     {
       "id": "MB_3",
@@ -150,7 +214,17 @@
       "x": 1430,
       "y": 530,
       "w": 36,
-      "h": 110
+      "h": 110,
+      "pageId": "PAGE_1"
+    },
+    {
+      "id": "MB_4",
+      "name": "Spill Containment & Recovery Plan",
+      "x": 1230,
+      "y": 200,
+      "w": 36,
+      "h": 110,
+      "pageId": "PAGE_2"
     }
   ],
   "lines": [
@@ -161,7 +235,8 @@
       "stops": [
         "PB_1",
         "PB_3"
-      ]
+      ],
+      "pageId": "PAGE_1"
     },
     {
       "id": "LINE_2",
@@ -170,7 +245,8 @@
       "stops": [
         "PB_2",
         "PB_3"
-      ]
+      ],
+      "pageId": "PAGE_1"
     },
     {
       "id": "LINE_3",
@@ -178,13 +254,15 @@
       "originId": "C_3",
       "stops": [
         "PB_3"
-      ]
+      ],
+      "pageId": "PAGE_1"
     },
     {
       "id": "LINE_4",
       "originType": "cause",
       "originId": "C_4",
-      "stops": []
+      "stops": [],
+      "pageId": "PAGE_1"
     },
     {
       "id": "LINE_5",
@@ -193,7 +271,8 @@
       "stops": [
         "MB_1",
         "MB_2"
-      ]
+      ],
+      "pageId": "PAGE_1"
     },
     {
       "id": "LINE_6",
@@ -201,7 +280,8 @@
       "originId": "O_2",
       "stops": [
         "MB_2"
-      ]
+      ],
+      "pageId": "PAGE_1"
     },
     {
       "id": "LINE_7",
@@ -209,13 +289,33 @@
       "originId": "O_3",
       "stops": [
         "MB_3"
-      ]
+      ],
+      "pageId": "PAGE_1"
     },
     {
       "id": "LINE_8",
       "originType": "outcome",
       "originId": "O_4",
-      "stops": []
+      "stops": [],
+      "pageId": "PAGE_1"
+    },
+    {
+      "id": "LINE_9",
+      "originType": "cause",
+      "originId": "C_5",
+      "stops": [
+        "PB_4"
+      ],
+      "pageId": "PAGE_2"
+    },
+    {
+      "id": "LINE_10",
+      "originType": "outcome",
+      "originId": "O_5",
+      "stops": [
+        "MB_4"
+      ],
+      "pageId": "PAGE_2"
     }
   ]
 };
