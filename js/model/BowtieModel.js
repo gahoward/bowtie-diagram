@@ -418,21 +418,72 @@
       this._emitChange();
     }
 
-    // Manual escape hatch for the rare case auto-arrange still can't
-    // resolve on its own: shifts a single barrier by one auto-arrange
-    // "column" toward or away from the TLE, leaving every other element
-    // untouched. `colSpacing` is the caller's job to supply (the auto-
-    // arrange column width, Loose or Tight per current Settings) so this
-    // method stays a pure "move by this many px, in the right direction for
-    // this barrier kind" operation with no layout knowledge of its own.
-    // PreventativeBarriers sit left of the TLE (Causes -> TLE, ascending
-    // x), MitigativeBarriers sit right of it (TLE -> Outcomes, ascending
-    // x) -- so "toward the TLE" is +x for one kind and -x for the other.
-    nudgeBarrierColumn(kind, id, towardTle, colSpacing) {
-      const barrier = this._barrierCollection(kind).find((b) => b.id === id);
-      if (!barrier) throw new Error(`Unknown ${kind} id: ${id}`);
-      const sign = kind === 'preventativeBarrier' ? 1 : -1;
-      barrier.x += (towardTle ? 1 : -1) * sign * colSpacing;
+    // Manual escape hatch for the rare case auto-arrange still doesn't put
+    // a barrier where the user wants it: swaps `barrierId` with whichever
+    // stop currently sits immediately toward (or away from) the TLE of it
+    // in ONE line's own stops array -- an actual topology change, not a
+    // cosmetic position nudge, so it's permanent: the next Auto-arrange
+    // derives its columns from this new order, same as it does for
+    // whatever order the barriers were chained in to begin with (an
+    // earlier version of this method only moved the barrier's on-screen x,
+    // which the very next Auto-arrange click would immediately undo, since
+    // it recomputes every position from topology alone and had no idea
+    // anything had changed).
+    //
+    // `Line.stops` is nearest-origin-first for BOTH Cause and Outcome
+    // lines -- increasing index always means "closer to the TLE", for
+    // either barrier kind (see addPreventativeControl/addMitigativeControl:
+    // each newly-appended barrier lands one index further toward the TLE
+    // than the one before it, for both). So "toward the TLE" always means
+    // swapping with the NEXT index and "away from the TLE" always means
+    // swapping with the PREVIOUS one -- no kind-specific mirroring needed
+    // here, unlike the x-pixel arithmetic the old version of this method
+    // needed.
+    //
+    // Scoped to a single line on purpose: a barrier shared by several
+    // lines can have a different neighbour (or none at all) in each one,
+    // so "swap with your neighbour" only has one unambiguous meaning per
+    // line -- exactly the same reasoning `attachExistingBarrier` already
+    // documents for why reattachment is always line-scoped. Swapping two
+    // stops within one line's own array can never affect any OTHER line,
+    // even one that also passes through both of the swapped barriers,
+    // since every Line owns its stops independently.
+    //
+    // A no-op (returns without changing anything) if `barrierId` is
+    // already at that end of THIS line -- e.g. asking to shift it further
+    // toward the TLE when it's already that line's TLE-adjacent stop.
+    // Callers should check for this ahead of time (ContextMenuController
+    // only offers the action for lines where it would do something) rather
+    // than rely on the no-op, since this still counts as a call for
+    // undo-snapshotting purposes even when nothing actually moves.
+    //
+    // Also swaps the two barriers' own `x` (never `y`, which reflects each
+    // barrier's own lane midpoint, unrelated to how many hops it is from
+    // the TLE) as an immediate best-effort visual approximation for the
+    // common case of a barrier that's only ever on this one line -- so the
+    // diagram doesn't look stale until the user thinks to re-run
+    // Auto-arrange. When either barrier is ALSO shared by other lines
+    // whose own ordering disagrees, this is only an approximation; a full
+    // Auto-arrange remains the authority that reconciles everything from
+    // the (now-updated) topology.
+    swapBarrierWithNeighbor(lineId, barrierId, towardTle) {
+      const line = this.lines.find((l) => l.id === lineId);
+      if (!line) throw new Error(`Unknown line id: ${lineId}`);
+      const idx = line.stops.indexOf(barrierId);
+      if (idx === -1) throw new Error(`${barrierId} is not on line ${lineId}`);
+      const neighborIdx = towardTle ? idx + 1 : idx - 1;
+      if (neighborIdx < 0 || neighborIdx >= line.stops.length) return; // already at that end of this line
+
+      const neighborId = line.stops[neighborIdx];
+      line.stops[idx] = neighborId;
+      line.stops[neighborIdx] = barrierId;
+
+      const barrier = this.findById(barrierId);
+      const neighbor = this.findById(neighborId);
+      const barrierX = barrier.x;
+      barrier.x = neighbor.x;
+      neighbor.x = barrierX;
+
       this._emitChange();
     }
 

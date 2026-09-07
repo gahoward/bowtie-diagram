@@ -544,13 +544,5 @@
     }
   }
 
-  // Exposed so anything that needs "the same column width auto-arrange
-  // would use" (the barrier context-menu's manual column-shunt buttons —
-  // see ContextMenuController.js) reads the exact same numbers rather than
-  // duplicating them, and stays in sync if these are ever retuned.
-  AutoArrangeController.COL_SPACING_LOOSE = COL_SPACING_LOOSE;
-  AutoArrangeController.COL_SPACING_TIGHT = COL_SPACING_TIGHT;
-  AutoArrangeController.colSpacingFor = (mode) => (mode === 'tight' ? COL_SPACING_TIGHT : COL_SPACING_LOOSE);
-
   Bowtie.AutoArrangeController = AutoArrangeController;
 })(window.Bowtie = window.Bowtie || {});

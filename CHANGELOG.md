@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Fixed "Shift Toward TLE" / "Shift Away From TLE" (added in v0.1.3): they
+  previously only nudged a barrier's on-screen position, which the very
+  next Auto-arrange silently undid. They now actually reorder the barrier
+  within its path — swapping it with its neighbor in the underlying chain
+  — so the new order is permanent and is exactly what Auto-arrange reflects
+  from then on. A barrier shared by lines that disagree on its neighbor now
+  prompts for which path(s) to reorder.
+
 ## v0.1.3 - 2026-09-07
 
 - Fixed auto-arrange placing a barrier on top of another when it's shared

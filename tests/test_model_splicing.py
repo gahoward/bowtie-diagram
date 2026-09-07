@@ -153,58 +153,101 @@ def test_orphaned_barrier_after_truncate_is_warned(page):
     assert warnings == ["PB_1"]
 
 
-def test_nudge_barrier_column_moves_preventative_barrier_toward_and_away_from_tle(page):
-    """Manual per-barrier column shunt (the escape hatch for whatever rare
-    case auto-arrange's own depth heuristic still gets wrong): a
-    PreventativeBarrier sits left of the TLE (Causes -> TLE, ascending x),
-    so "toward the TLE" must increase x and "away from the TLE" must
-    decrease it, by exactly `colSpacing`."""
+def test_swap_barrier_with_neighbor_reorders_the_line_toward_the_tle(page):
+    """Manual per-barrier path reorder (the escape hatch for whatever rare
+    case auto-arrange's own depth heuristic still gets wrong, and the
+    literal thing "shift toward/away from the TLE" should do): swapping
+    PB_1 toward the TLE in a C -> PB_1 -> PB_2 -> TLE chain must swap it
+    with PB_2 in the Line's own `stops` -- an actual topology change that
+    survives a future Auto-arrange, not a cosmetic position nudge a future
+    Auto-arrange would immediately undo."""
+    result = page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.addCause({x: 150, y: 200});
+      const cause = m.causes[0];
+      const pb1 = m.addPreventativeControl(cause.id);
+      const pb2 = m.insertBarrier('preventativeBarrier', 'after', pb1.id);
+      const line = m._lineFor(cause.id);
+      m.swapBarrierWithNeighbor(line.id, pb1.id, true);
+      return { stops: line.stops, pb1x: pb1.x, pb2x: pb2.x };
+    }""")
+    assert result["stops"] == ["PB_2", "PB_1"], "the swap must actually reorder the line's stops"
+    assert result["pb1x"] > result["pb2x"], (
+        "the two barriers' x should swap too, for immediate visual feedback consistent with the new order"
+    )
+
+
+def test_swap_barrier_with_neighbor_away_from_tle_is_the_mirror(page):
+    result = page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.addCause({x: 150, y: 200});
+      const cause = m.causes[0];
+      const pb1 = m.addPreventativeControl(cause.id);
+      const pb2 = m.insertBarrier('preventativeBarrier', 'after', pb1.id);
+      const line = m._lineFor(cause.id);
+      m.swapBarrierWithNeighbor(line.id, pb2.id, false);
+      return { stops: line.stops };
+    }""")
+    assert result["stops"] == ["PB_2", "PB_1"]
+
+
+def test_swap_barrier_with_neighbor_is_a_noop_at_the_end_of_the_chain(page):
+    """A barrier already at the TLE-adjacent end of a line has no neighbour
+    further toward the TLE to swap with -- must do nothing, not throw or
+    corrupt the line."""
     result = page.evaluate("""() => {
       const m = window.__lastModel;
       m.addCause({x: 150, y: 200});
       const pb = m.addPreventativeControl(m.causes[0].id);
-      const before = pb.x;
-      m.nudgeBarrierColumn('preventativeBarrier', pb.id, true, 320);
-      const towardTle = pb.x;
-      m.nudgeBarrierColumn('preventativeBarrier', pb.id, false, 320);
-      const away = pb.x;
-      return { before, towardTle, away };
+      const line = m._lineFor(m.causes[0].id);
+      const before = { stops: line.stops.slice(), x: pb.x };
+      m.swapBarrierWithNeighbor(line.id, pb.id, true); // already the only/last stop
+      return { before, after: { stops: line.stops.slice(), x: pb.x } };
     }""")
-    assert result["towardTle"] == result["before"] + 320
-    assert result["away"] == result["before"]
+    assert result["after"] == result["before"]
 
 
-def test_nudge_barrier_column_moves_mitigative_barrier_the_opposite_direction(page):
-    """Mirrors the Preventative case: a MitigativeBarrier sits right of the
-    TLE (TLE -> Outcomes, ascending x), so "toward the TLE" must DECREASE x
-    instead."""
+def test_swap_barrier_with_neighbor_only_touches_the_named_line(page):
+    """Two Causes sharing a downstream barrier each have their own private
+    first barrier. Reordering the shared barrier within C_1's own line
+    must not perturb C_2's line, even though both lines pass through it."""
     result = page.evaluate("""() => {
       const m = window.__lastModel;
-      m.addOutcome({x: 1200, y: 200});
-      const mb = m.addMitigativeControl(m.outcomes[0].id);
-      const before = mb.x;
-      m.nudgeBarrierColumn('mitigativeBarrier', mb.id, true, 320);
-      const towardTle = mb.x;
-      m.nudgeBarrierColumn('mitigativeBarrier', mb.id, false, 320);
-      const away = mb.x;
-      return { before, towardTle, away };
+      m.addCause({x: 150, y: 90});
+      const pb1 = m.addPreventativeControl(m.causes[0].id);
+      const shared = m.insertBarrier('preventativeBarrier', 'after', pb1.id); // C_1: [PB_1, shared]
+      m.addCause({x: 150, y: 300});
+      const pb2 = m.addPreventativeControl(m.causes[1].id);
+      m.attachExistingBarrier('preventativeBarrier', 'after', pb2.id, shared.id); // C_2: [PB_2, shared]
+      const line1 = m._lineFor(m.causes[0].id);
+      const line2 = m._lineFor(m.causes[1].id);
+      const before2 = line2.stops.slice();
+      m.swapBarrierWithNeighbor(line1.id, shared.id, false); // shift shared away from the TLE, within C_1's line only
+      return { stops1: line1.stops, stops2: line2.stops, before2, pb1: pb1.id, pb2: pb2.id, shared: shared.id };
     }""")
-    assert result["towardTle"] == result["before"] - 320
-    assert result["away"] == result["before"]
+    assert result["stops1"] == [result["shared"], result["pb1"]], "C_1's line must be reordered"
+    assert result["stops2"] == result["before2"], "the other line sharing this barrier must be untouched"
 
 
-def test_nudge_barrier_column_is_undoable(page):
+def test_swap_barrier_with_neighbor_is_undoable(page):
+    # undo() replaces window.__lastModel.lines wholesale (loadFromJSON), so
+    # the Line must be re-fetched after undo rather than reusing a
+    # reference captured before it -- that reference would still point at
+    # the old (pre-undo) Line object and silently show stale data.
     result = page.evaluate("""() => {
       const undo = window.__lastUndo;
       const m = undo.model;
       m.addCause({x: 150, y: 200});
-      const pb = m.addPreventativeControl(m.causes[0].id);
-      const before = pb.x;
-      m.nudgeBarrierColumn('preventativeBarrier', pb.id, true, 320);
-      const nudged = window.__lastModel.findById(pb.id).x;
+      const cause = m.causes[0];
+      const pb1 = m.addPreventativeControl(cause.id);
+      m.insertBarrier('preventativeBarrier', 'after', pb1.id);
+      const before = window.__lastModel._lineFor(cause.id).stops.slice();
+      const lineId = window.__lastModel._lineFor(cause.id).id;
+      m.swapBarrierWithNeighbor(lineId, pb1.id, true);
+      const swapped = window.__lastModel._lineFor(cause.id).stops.slice();
       undo.undo();
-      const restored = window.__lastModel.findById(pb.id).x;
-      return { before, nudged, restored };
+      const restored = window.__lastModel._lineFor(cause.id).stops.slice();
+      return { before, swapped, restored };
     }""")
-    assert result["nudged"] == result["before"] + 320
+    assert result["swapped"] == ["PB_2", "PB_1"]
     assert result["restored"] == result["before"]

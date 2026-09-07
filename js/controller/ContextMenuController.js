@@ -1,14 +1,8 @@
 (function (Bowtie) {
   class ContextMenuController {
-    // `getSpacingMode`, mirroring AutoArrangeController's own constructor
-    // param, is read fresh on every menu build (not just at construction) so
-    // a Settings change takes effect on the very next right-click — used
-    // only by the barrier "Shift Toward/Away From TLE" items below to size
-    // one manual nudge step the same as auto-arrange's own column width.
-    constructor(model, svgRoot, getSpacingMode) {
+    constructor(model, svgRoot) {
       this.model = model;
       this.svgRoot = svgRoot;
-      this.getSpacingMode = getSpacingMode || (() => 'loose');
       this.menuEl = null;
 
       svgRoot.addEventListener('contextmenu', (e) => this._onContextMenu(e));
@@ -118,11 +112,11 @@
         // through it along for the ride. Reattachment is line-scoped by
         // construction when done from the specific line segment instead
         // (see _gapInsertItemsForCauseLine/_gapInsertItemsForOutcomeLine).
-        items.push(...this._buildShuntItems('preventativeBarrier', el.id));
+        items.push(...this._buildShuntItems(el.id));
       }
       if (el.type === 'mitigativeBarrier') {
         items.push({ label: 'Add Mitigative Barrier', action: () => this._addMitigativeControlFrom(el) });
-        items.push(...this._buildShuntItems('mitigativeBarrier', el.id));
+        items.push(...this._buildShuntItems(el.id));
       }
       items.push({ label: 'Rename', action: () => this._rename(el) });
       if (el.type !== 'topLevelEvent' && el.type !== 'hazard') {
@@ -131,27 +125,63 @@
       return items;
     }
 
-    // Manual escape hatch (see BowtieModel.nudgeBarrierColumn): auto-arrange
-    // derives every barrier's column from the topology alone, and one
-    // barrier feeding both a short and a long remaining chain can still end
-    // up sharing a column with a genuinely different barrier in an edge
-    // case the algorithm doesn't (yet) untangle on its own. These two items
-    // let the user pull a specific barrier one column toward or away from
-    // the TLE by hand, sized to the exact same column width auto-arrange
-    // itself would use (Loose/Tight, per current Settings) so a manual
-    // shunt lines up with whatever a future re-arrange would produce.
-    _buildShuntItems(kind, id) {
-      const colSpacing = Bowtie.AutoArrangeController.colSpacingFor(this.getSpacingMode());
-      return [
-        {
-          label: 'Shift Toward TLE',
-          action: () => this.model.nudgeBarrierColumn(kind, id, true, colSpacing),
-        },
-        {
-          label: 'Shift Away From TLE',
-          action: () => this.model.nudgeBarrierColumn(kind, id, false, colSpacing),
-        },
-      ];
+    // Manual escape hatch (see BowtieModel.swapBarrierWithNeighbor): lets
+    // the user reorder a barrier one step within its own path, toward or
+    // away from the TLE -- an actual topology change (unlike an earlier
+    // version of this feature, which only nudged the barrier's on-screen
+    // x and so got silently undone by the very next Auto-arrange click).
+    //
+    // A barrier shared by several lines can have a different neighbour (or
+    // none at all) in each one, so each direction is offered only for the
+    // lines where a swap would actually do something: omitted entirely if
+    // no line qualifies, applied directly with no prompt if exactly one
+    // does, and offered as a "which path(s)?" picker (mirroring
+    // _addPreventativeControlFrom's own multi-line modal) when more than
+    // one does.
+    _buildShuntItems(id) {
+      const lines = this.model.linesThrough(id);
+      const items = [];
+      [true, false].forEach((towardTle) => {
+        const eligible = lines.filter((l) => this._hasPathNeighbor(l, id, towardTle));
+        if (eligible.length === 0) return;
+        const label = towardTle ? 'Shift Toward TLE' : 'Shift Away From TLE';
+        items.push({
+          label,
+          action: () => {
+            if (eligible.length === 1) {
+              this.model.swapBarrierWithNeighbor(eligible[0].id, id, towardTle);
+              return;
+            }
+            this._openLineSelectModal(
+              label,
+              eligible.map((l) => ({ key: l.id, label: l.originId })),
+              null,
+              // Deliberately does NOT fall back to "every eligible line"
+              // when nothing is checked (unlike insertBarrier's own
+              // null-means-all convention) -- reordering a path the user
+              // never selected would be a surprising side effect, not a
+              // sensible default.
+              (selected) => (selected || []).forEach(
+                (lineId) => this.model.swapBarrierWithNeighbor(lineId, id, towardTle),
+              ),
+              'This barrier carries multiple lines with a different neighbour here. '
+                + 'Select which path(s) to reorder — anything left unselected keeps its current order.',
+            );
+          },
+        });
+      });
+      return items;
+    }
+
+    // Whether swapping `barrierId` with its immediate TLE-ward (or
+    // origin-ward) neighbour in `line`'s own stops would do anything --
+    // false at whichever end of that line's chain already sits in the
+    // requested direction (e.g. asking to shift further toward the TLE
+    // when it's already that line's TLE-adjacent stop).
+    _hasPathNeighbor(line, barrierId, towardTle) {
+      const idx = line.stops.indexOf(barrierId);
+      const neighborIdx = towardTle ? idx + 1 : idx - 1;
+      return neighborIdx >= 0 && neighborIdx < line.stops.length;
     }
 
     // Lines are interactable in their own right: right-clicking anywhere
@@ -340,10 +370,10 @@
       );
     }
 
-    _openLineSelectModal(title, options, preselectedKey, onConfirm) {
+    _openLineSelectModal(title, options, preselectedKey, onConfirm, description) {
       const body = document.createElement('div');
       const p = document.createElement('p');
-      p.textContent = 'This point currently carries multiple lines. Select which one(s) should route '
+      p.textContent = description || 'This point currently carries multiple lines. Select which one(s) should route '
         + 'through the new barrier — anything left unselected continues exactly as before.';
       body.appendChild(p);
 

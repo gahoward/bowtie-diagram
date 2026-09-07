@@ -47,10 +47,13 @@ step for the app itself, so tests run directly against `index.html` as-is.
 - **`test_model_splicing.py`** — the highest-value file: BowtieModel's
   insert/attach/truncate primitives, exercised directly via
   `window.__lastModel`, no UI clicking involved. Fast and immune to
-  rendering changes. Also covers `nudgeBarrierColumn` (shared_barrier_
-  column_collision_fix.md §3's manual per-barrier column shunt): moves a
-  Preventative/Mitigative Barrier by exactly `colSpacing` in the
-  kind-appropriate direction, and is undoable.
+  rendering changes. Also covers `swapBarrierWithNeighbor`
+  (shared_barrier_column_collision_fix.md §3's manual per-barrier path
+  reorder): swaps a barrier with its immediate neighbour toward/away from
+  the TLE in one Line's own `stops` — an actual topology change, not a
+  position nudge — is a no-op at either end of a chain, only ever touches
+  the named line even when the barrier is shared with others, and is
+  undoable.
 - **`test_barrier_placement.py`**, **`test_rendering.py`**,
   **`test_autoarrange.py`**, **`test_focus_hover.py`**,
   **`test_attach_and_truncate_ui.py`** — UI-driven coverage of the same
@@ -62,8 +65,11 @@ step for the app itself, so tests run directly against `index.html` as-is.
   own column instead of colliding with the barrier that makes it longer
   (shared_barrier_column_collision_fix.md §1-2). `test_barrier_placement.py`
   also covers the "Shift Toward/Away From TLE" context-menu items
-  (shared_barrier_column_collision_fix.md §3) moving an isolated barrier by
-  one column in the correct, kind-mirrored direction.
+  (shared_barrier_column_collision_fix.md §3): each item only appears when
+  a swap in that direction would do something, reorders the underlying
+  Line when clicked, and prompts with a line picker (only reordering the
+  path(s) actually checked) when the barrier is shared and its lines
+  disagree on the neighbour.
 - **`test_undo_redo.py`**, **`test_drag_ordering.py`** — snapshot-based
   undo/redo (stack capping, phantom-step avoidance on a failed mutation,
   one-undo-step-per-drag-gesture) and `DragController`'s ordering/overlap
