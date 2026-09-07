@@ -171,11 +171,21 @@
 
     // Groups `children` (an array of units, mutated in place) so every
     // child intersecting `members` ends up together at one `edge`
-    // ('start' or 'end'), each such child's own internal order untouched,
-    // non-matching children keeping their relative order on the other side.
+    // ('start' or 'end'), non-matching children keeping their relative
+    // order on the other side. A matching child that's itself a block gets
+    // this same promotion recursed into it first — otherwise only the
+    // block as a whole moves to the edge, while the actual member inside
+    // it can be left buried away from that edge by whatever order an
+    // earlier, unrelated merge left that block in, so the very next
+    // mergeWithin (which concatenates end-to-end) stitches in the wrong
+    // node next to the boundary (reported bug: three barriers each shared
+    // by a different pair along one chain — A-B, B-C, C-D — collapsed the
+    // B-C adjacency once D's merge repositioned C's block without also
+    // pushing C itself to that block's edge).
     const promoteToEdge = (children, members, edge) => {
       const matching = children.filter((c) => intersectsMembers(c, members));
       const rest = children.filter((c) => !intersectsMembers(c, members));
+      matching.forEach((c) => { if (Array.isArray(c)) promoteToEdge(c, members, edge); });
       const merged = edge === 'end' ? [...rest, ...matching] : [...matching, ...rest];
       children.splice(0, children.length, ...merged);
     };

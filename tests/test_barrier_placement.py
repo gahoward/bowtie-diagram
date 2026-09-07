@@ -209,17 +209,20 @@ def test_shift_shared_barrier_on_both_paths_does_not_corrupt_positions(page):
     just one) and confirm. This used to call swapBarrierWithNeighbor once
     per ticked line, and each call's "swap x with my neighbour" step used
     PB_3's already-mutated x from the previous call -- corrupting it onto
-    the exact same spot as PB_2 (visually: "PB_2 is hidden under PB_3"),
-    even before Auto-arrange ever runs. With two different neighbours in
-    one action, no single new x is well-defined, so all three barriers'
-    x must be left exactly as they started."""
+    the exact same spot as PB_2 (visually: "PB_2 is hidden under PB_3").
+    With two different neighbours in one action, no single new x is
+    well-defined, so swapBarrierWithNeighbor itself must leave all three
+    barriers' x exactly as they started, deferring to Auto-arrange for a
+    real layout -- which now runs automatically right after this action
+    completes, so the visible end state is Auto-arrange's own placement,
+    not the pre-shift positions. After the shift, PB_1 and PB_2 are true
+    siblings at the same depth (each is now the sole barrier remaining on
+    its own line past the shared PB_3), so Auto-arrange correctly puts
+    them in the same column -- sharing an x is not the bug. The invariant
+    that actually matters is the original bug's own symptom: PB_3, now
+    shallower than both of them, must never land in their column."""
     page.evaluate("() => { window.__lastModel.loadFromJSON(Bowtie.DEMO_DATA); }")
     page.wait_for_timeout(100)
-
-    before = page.evaluate("""() => {
-      const m = window.__lastModel;
-      return { PB_1: m.findById('PB_1').x, PB_2: m.findById('PB_2').x, PB_3: m.findById('PB_3').x };
-    }""")
 
     pb3_node = page.locator('#bowtie-canvas .node.preventative-barrier[data-id="PB_3"]')
     pb3_node.click(button="right")
@@ -233,7 +236,10 @@ def test_shift_shared_barrier_on_both_paths_does_not_corrupt_positions(page):
       const m = window.__lastModel;
       return { PB_1: m.findById('PB_1').x, PB_2: m.findById('PB_2').x, PB_3: m.findById('PB_3').x };
     }""")
-    assert after == before, "with two different neighbours reordered at once, no x is well-defined -- must not move"
+    assert after["PB_3"] not in (after["PB_1"], after["PB_2"]), (
+        f"PB_3 is shallower than PB_1/PB_2 after the shift and must not land in their column -- "
+        f"that's the original bug's exact symptom (PB_3 corrupted onto PB_2's exact spot): {after}"
+    )
 
     state = page.evaluate("""() => {
       const m = window.__lastModel;

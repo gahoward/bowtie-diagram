@@ -2,6 +2,23 @@
 
 ## v0.2.1 - 2026-09-07
 
+- Auto-arrange now runs automatically right after "Shift Toward TLE",
+  "Shift Away From TLE", "Attach to Existing Preventative/Mitigative
+  Barrier…", and "Connect Directly to TLE" — each of these changes a
+  barrier's position in the underlying chain without moving anything on
+  screen itself, which used to leave the diagram showing stale positions
+  (including, in the worst case, one barrier visually overlapping another)
+  until the user remembered to press Auto-arrange themselves.
+- Fixed a further gap in auto-arrange's row ordering: a chain of two
+  overlapping shared-barrier pairs (e.g. two Outcomes sharing one barrier,
+  which then diverge into two further barriers, each itself shared with a
+  third and fourth Outcome) could still leave two of those further
+  barriers' boxes overlapping each other, even though neither shares an
+  Outcome with the other. Re-positioning an already-built shared group
+  next to a new neighbour now also promotes the actual shared member to
+  that group's own edge, not just the group as a whole, so every barrier
+  in the chain keeps its own dedicated row(s).
+
 - Added multi-page support: an analysis document can now contain multiple
   pages (tabs), each with its own TopLevelEvent, Hazard, and independent
   diagram content (Causes, Outcomes, Barriers, and Lines).

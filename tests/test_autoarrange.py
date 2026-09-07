@@ -791,3 +791,54 @@ def test_a_lone_barrier_shared_only_by_one_member_of_a_broader_group_stays_out_o
                 f"{cause_id}'s row must not fall inside {pb_id}'s grown box -- "
                 f"{cause_id}'s line never passes through {pb_id}"
             )
+
+
+def test_a_chain_of_overlapping_pairs_keeps_every_barriers_box_disjoint(page):
+    """Reported bug: a barrier shared by a pair on one side of a chain, and
+    that same shared barrier's two lines then diverge into two DIFFERENT
+    further barriers, each of which is itself shared by a second member --
+    O_1 and O_3 share MB_1, then O_1 continues to MB_2 (also shared with
+    O_2) while O_3 continues to MB_3 (also shared with O_4). That's three
+    overlapping pairs chained together: {O_1,O_3} via MB_1, {O_1,O_2} via
+    MB_2, {O_3,O_4} via MB_3. buildConsecutiveOrder's promoteToEdge used to
+    move a matching CHILD BLOCK to the merge edge as a whole without also
+    promoting the actual shared member to that block's own edge -- so
+    merging MB_3's pair repositioned MB_1's block next to O_4 without
+    pushing O_3 (not O_1) to the boundary touching it, leaving the row
+    order O_2, O_3, O_1, O_4 instead of a valid O_2, O_1, O_3, O_4 (or its
+    mirror). That breaks BOTH MB_2 (O_1/O_2, no longer contiguous) and
+    MB_3 (O_3/O_4) at once, and their grown boxes end up overlapping each
+    other despite sharing no outcome at all."""
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.addOutcome({x: 1200, y: 200}); // O_1
+      m.addMitigativeControl(m.outcomes[0].id); // MB_1 -- O_1: [MB_1]
+      m.addMitigativeControl(m.outcomes[0].id); // MB_2 -- O_1: [MB_1, MB_2]
+
+      m.addOutcome({x: 1200, y: 400}); // O_2
+      m.attachOutputToMitigativeControl('MB_2', m.outcomes[1].id); // O_2: [MB_2]
+
+      m.addOutcome({x: 1200, y: 600}); // O_3
+      m.attachOutputToMitigativeControl('MB_1', m.outcomes[2].id, false); // "Stop Here" -- O_3: [MB_1]
+      m.addMitigativeControl(m.outcomes[2].id); // MB_3 -- O_3: [MB_1, MB_3]
+
+      m.addOutcome({x: 1200, y: 800}); // O_4
+      m.attachOutputToMitigativeControl('MB_3', m.outcomes[3].id); // O_4: [MB_3]
+    }""")
+    auto_arrange(page)
+    page.wait_for_timeout(150)
+
+    result = page.evaluate("""() => {
+      const view = window.__lastView;
+      return { mb2: view.boundsById['MB_2'], mb3: view.boundsById['MB_3'] };
+    }""")
+
+    def spans(b):
+        return b["cy"] - b["h"] / 2, b["cy"] + b["h"] / 2
+
+    mb2_top, mb2_bot = spans(result["mb2"])
+    mb3_top, mb3_bot = spans(result["mb3"])
+    assert mb2_bot <= mb3_top or mb3_bot <= mb2_top, (
+        f"MB_2 (O_1/O_2) and MB_3 (O_3/O_4) share no outcome and must not overlap: "
+        f"MB_2 spans {(mb2_top, mb2_bot)}, MB_3 spans {(mb3_top, mb3_bot)}"
+    )

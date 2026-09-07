@@ -83,9 +83,12 @@
     // active at that moment — DragController (wired through
     // PageScopedModel) can only ever be dragging an element on that page.
     new Bowtie.DragController(pageScopedModel, svgRoot, () => undo.snapshot(pageTabs.getActivePageId()));
-    new Bowtie.ContextMenuController(pageScopedModel, svgRoot);
-    new Bowtie.FocusController(pageScopedModel, svgRoot);
-    new Bowtie.AutoArrangeController(
+    // Constructed ahead of ContextMenuController so its arrange() can be
+    // handed in as the "topology just changed, tidy up" callback below —
+    // reorder/attach actions move a barrier's depth without repositioning
+    // anything, which used to leave stale x/y around until the user
+    // remembered to click Auto-arrange themselves.
+    const autoArrange = new Bowtie.AutoArrangeController(
       pageScopedModel,
       svgRoot,
       document.getElementById('btn-auto-arrange'),
@@ -93,6 +96,8 @@
       () => settings.arrangeSpacing,
       () => settings.pullChainsCloser,
     );
+    new Bowtie.ContextMenuController(pageScopedModel, svgRoot, () => autoArrange.arrange());
+    new Bowtie.FocusController(pageScopedModel, svgRoot);
     const importExport = new Bowtie.ImportExportController(
       model,
       svgRoot,

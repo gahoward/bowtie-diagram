@@ -1,8 +1,15 @@
 (function (Bowtie) {
   class ContextMenuController {
-    constructor(model, svgRoot) {
+    // `triggerAutoArrange` re-lays-out the canvas after an action that
+    // changes a barrier's position in the topology without moving anything
+    // on screen itself (a reorder, a re-attach, or dropping straight to the
+    // TLE) — left alone, the diagram would keep showing stale x/y until the
+    // user remembered to click Auto-arrange, which is exactly the kind of
+    // manual step these actions are meant to replace.
+    constructor(model, svgRoot, triggerAutoArrange) {
       this.model = model;
       this.svgRoot = svgRoot;
+      this.triggerAutoArrange = triggerAutoArrange;
       this.menuEl = null;
 
       svgRoot.addEventListener('contextmenu', (e) => this._onContextMenu(e));
@@ -158,6 +165,7 @@
           action: () => {
             if (eligible.length === 1) {
               this.model.swapBarrierWithNeighbor([eligible[0].id], id, towardTle);
+              this.triggerAutoArrange();
               return;
             }
             this._openLineSelectModal(
@@ -174,7 +182,10 @@
               // own comment for why calling it repeatedly for the same
               // barrier used to corrupt its position.
               (selected) => {
-                if (selected && selected.length > 0) this.model.swapBarrierWithNeighbor(selected, id, towardTle);
+                if (selected && selected.length > 0) {
+                  this.model.swapBarrierWithNeighbor(selected, id, towardTle);
+                  this.triggerAutoArrange();
+                }
               },
               'This barrier carries multiple lines with a different neighbour here. '
                 + 'Select which path(s) to reorder — anything left unselected keeps its current order.',
@@ -279,7 +290,10 @@
         const keepThroughId = beforeIdx > 0 ? ordered[beforeIdx - 1].id : null;
         items.push({
           label: 'Connect Directly to TLE',
-          action: () => this.model.connectLineDirectlyToTle(lineId, keepThroughId),
+          action: () => {
+            this.model.connectLineDirectlyToTle(lineId, keepThroughId);
+            this.triggerAutoArrange();
+          },
         });
       }
       return items;
@@ -342,7 +356,10 @@
         const keepThroughId = before ? before.id : null;
         items.push({
           label: 'Connect Directly to TLE',
-          action: () => this.model.connectLineDirectlyToTle(lineId, keepThroughId),
+          action: () => {
+            this.model.connectLineDirectlyToTle(lineId, keepThroughId);
+            this.triggerAutoArrange();
+          },
         });
       }
       return items;
@@ -468,9 +485,15 @@
       Bowtie.ModalView.openModal({ title: 'Cannot Do That', bodyEl: body, actions: [{ label: 'OK', primary: true }] });
     }
 
+    // The sole path every "attach to existing barrier" action runs through
+    // (attachExistingBarrier's line-segment reattach, and the inherit-prompt
+    // flow's attachInputToPreventativeControl/attachOutputToMitigativeControl
+    // calls below) -- re-arranging here on success covers all of them in one
+    // place rather than after each individual call site.
     _safeAttach(fn) {
       try {
         fn();
+        this.triggerAutoArrange();
         return true;
       } catch (err) {
         this._showError(err.message);
