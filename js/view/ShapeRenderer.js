@@ -109,31 +109,47 @@
     return { g, bounds: { w: layout.w, h: layout.h } };
   }
 
-  function renderCauseOrOutcome(svgRoot, node, kind) {
-    const { w, h, lines } = Bowtie.Layout.causeOutcomeBounds(svgRoot, node);
-    const g = el('g', { class: `node ${kind}`, 'data-id': node.id });
+  // `node` here is a PLACEMENT (Cause/Outcome/PreventativeBarrier/
+  // MitigativeBarrier) — `stableId`/`displayId`/`displayName` are resolved
+  // by the caller (CanvasView) from the placement's `nodeId` against the
+  // shared library (node_library_proposal.md "Two id spaces"). Three
+  // distinct strings, each doing a different job:
+  //   - `stableId` (the library NODE's own id, e.g. "C_1"): the DOM
+  //     `data-id` — deliberately NOT the placement's own internal id.
+  //     Drag/context-menu/focus resolve elements via this, and "at most
+  //     one placement per node per page" (decided) makes a node id
+  //     unambiguous within any single rendered page, so PageScopedModel's
+  //     findById can resolve it back to this page's one placement (see
+  //     that file) without ever needing the placement's own id exposed in
+  //     the DOM at all.
+  //   - `displayId`: the same node's id OR its custom identifier, per the
+  //     document's identifierDisplayMode — what actually renders as text.
+  //   - `displayName`: the node's name, for text wrapping/the label line.
+  function renderCauseOrOutcome(svgRoot, node, kind, stableId, displayId, displayName) {
+    const { w, h, lines } = Bowtie.Layout.causeOutcomeBounds(svgRoot, node, displayName);
+    const g = el('g', { class: `node ${kind}`, 'data-id': stableId });
     g.appendChild(el('rect', {
       x: node.x - w / 2, y: node.y - h / 2, width: w, height: h,
       rx: 10, ry: 10, class: 'shape',
     }));
-    g.appendChild(textBlock(node.x, node.y, node.id, lines));
+    g.appendChild(textBlock(node.x, node.y, displayId, lines));
     return { g, bounds: { w, h } };
   }
 
-  function renderControl(svgRoot, node, kind, laneYs) {
+  function renderControl(svgRoot, node, kind, laneYs, stableId, displayId, displayName) {
     const { w, h, cy } = Bowtie.Layout.controlBounds(node, laneYs);
-    const g = el('g', { class: `node ${kind}`, 'data-id': node.id });
+    const g = el('g', { class: `node ${kind}`, 'data-id': stableId });
     g.appendChild(el('rect', {
       x: node.x - w / 2, y: cy - h / 2, width: w, height: h,
       rx: 4, ry: 4, class: 'shape',
     }));
 
     const labelMaxWidth = 110;
-    const labelLines = Bowtie.TextWrap.wrapText(svgRoot, node.name, labelMaxWidth, FONT_SIZE);
+    const labelLines = Bowtie.TextWrap.wrapText(svgRoot, displayName, labelMaxWidth, FONT_SIZE);
     const labelBlockHeight = (labelLines.length + 1) * LINE_HEIGHT;
     const labelTop = cy + h / 2 + 14;
     const labelCenterY = labelTop + (labelBlockHeight / 2);
-    g.appendChild(textBlock(node.x, labelCenterY, node.id, labelLines));
+    g.appendChild(textBlock(node.x, labelCenterY, displayId, labelLines));
 
     // The id/description label sits below the box and isn't accounted for
     // by w/h alone — CanvasView's content-bounds tracking needs these too,
@@ -149,13 +165,17 @@
   Bowtie.ShapeRenderer = {
     renderTopLevelEvent,
     renderHazard,
-    renderCause: (svgRoot, node) => renderCauseOrOutcome(svgRoot, node, 'cause'),
-    renderOutcome: (svgRoot, node) => renderCauseOrOutcome(svgRoot, node, 'outcome'),
-    renderPreventativeBarrier: (svgRoot, node, laneYs) => renderControl(
-      svgRoot, node, 'preventative-barrier', laneYs,
+    renderCause: (svgRoot, node, stableId, displayId, displayName) => renderCauseOrOutcome(
+      svgRoot, node, 'cause', stableId, displayId, displayName,
     ),
-    renderMitigativeBarrier: (svgRoot, node, laneYs) => renderControl(
-      svgRoot, node, 'mitigative-barrier', laneYs,
+    renderOutcome: (svgRoot, node, stableId, displayId, displayName) => renderCauseOrOutcome(
+      svgRoot, node, 'outcome', stableId, displayId, displayName,
+    ),
+    renderPreventativeBarrier: (svgRoot, node, laneYs, stableId, displayId, displayName) => renderControl(
+      svgRoot, node, 'preventative-barrier', laneYs, stableId, displayId, displayName,
+    ),
+    renderMitigativeBarrier: (svgRoot, node, laneYs, stableId, displayId, displayName) => renderControl(
+      svgRoot, node, 'mitigative-barrier', laneYs, stableId, displayId, displayName,
     ),
   };
 })(window.Bowtie = window.Bowtie || {});

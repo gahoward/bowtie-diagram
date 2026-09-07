@@ -64,13 +64,30 @@
       return [
         {
           label: 'Add Cause',
-          action: () => (point.x <= tleX ? this.model.addCause(point) : this.model.addCause()),
+          action: () => this._openCreateOrChooseLeaf('cause', point.x <= tleX ? point : {}),
         },
         {
           label: 'Add Outcome',
-          action: () => (point.x >= tleX ? this.model.addOutcome(point) : this.model.addOutcome()),
+          action: () => this._openCreateOrChooseLeaf('outcome', point.x >= tleX ? point : {}),
         },
       ];
+    }
+
+    // Shared by the empty-canvas/TLE menu's "Add Cause"/"Add Outcome" items:
+    // the create-or-choose modal (node_library_proposal.md ask 3), placed
+    // at `placementOpts` (the click point when it's already on the correct
+    // side of the TLE, or {} to fall back to the model's own default
+    // placement — see _buildAddCauseOutcomeItems above).
+    _openCreateOrChooseLeaf(kind, placementOpts) {
+      const addFn = kind === 'cause'
+        ? (opts) => this.model.addCause(opts)
+        : (opts) => this.model.addOutcome(opts);
+      Bowtie.openCreateOrChooseNodeModal({
+        model: this.model,
+        type: kind,
+        onCreate: (fields) => addFn({ ...placementOpts, ...fields }),
+        onChooseExisting: (node) => addFn({ ...placementOpts, nodeId: node.id }),
+      });
     }
 
     _onDoubleClick(e) {
@@ -86,7 +103,10 @@
         items.push(...this._buildAddCauseOutcomeItems(point));
       }
       if (el.type === 'cause') {
-        items.push({ label: 'Add Preventative Barrier', action: () => this.model.addPreventativeControl(el.id) });
+        items.push({
+          label: 'Add Preventative Barrier',
+          action: () => this._openCreateOrChooseBarrier('preventativeBarrier', el),
+        });
         if (this.model.preventativeBarriers.length > 0) {
           items.push({
             label: 'Attach to Existing Preventative Barrier…',
@@ -103,7 +123,10 @@
         }
       }
       if (el.type === 'outcome') {
-        items.push({ label: 'Add Mitigative Barrier', action: () => this.model.addMitigativeControl(el.id) });
+        items.push({
+          label: 'Add Mitigative Barrier',
+          action: () => this._openCreateOrChooseBarrier('mitigativeBarrier', el),
+        });
         if (this.model.mitigativeBarriers.length > 0) {
           items.push({
             label: 'Attach to Existing Mitigative Barrier…',
@@ -135,9 +158,29 @@
       }
       items.push({ label: 'Rename', action: () => this._rename(el) });
       if (el.type !== 'topLevelEvent' && el.type !== 'hazard') {
-        items.push({ label: 'Delete', action: () => this.model.deleteElement(el.id) });
+        // "Remove from Page" (node_library_proposal.md, decided): this only
+        // ever called deleteElement and always will — the label just stops
+        // implying it destroys the node, which may still be placed on other
+        // pages, or sit in the library with no placement at all.
+        items.push({ label: 'Remove from Page', action: () => this.model.deleteElement(el.id) });
       }
       return items;
+    }
+
+    // Shared by the Cause/Outcome node menu's own "Add ... Barrier" item:
+    // the create-or-choose modal (node_library_proposal.md ask 3), created
+    // against `anchorEl`'s own chain the exact same way
+    // addPreventativeControl/addMitigativeControl always have.
+    _openCreateOrChooseBarrier(kind, anchorEl) {
+      const addFn = kind === 'preventativeBarrier'
+        ? (opts) => this.model.addPreventativeControl(anchorEl.id, opts)
+        : (opts) => this.model.addMitigativeControl(anchorEl.id, opts);
+      Bowtie.openCreateOrChooseNodeModal({
+        model: this.model,
+        type: kind,
+        onCreate: (fields) => addFn(fields),
+        onChooseExisting: (node) => addFn({ nodeId: node.id }),
+      });
     }
 
     // Manual escape hatch (see BowtieModel.swapBarrierWithNeighbor): lets
@@ -170,7 +213,7 @@
             }
             this._openLineSelectModal(
               label,
-              eligible.map((l) => ({ key: l.id, label: l.originId })),
+              eligible.map((l) => ({ key: l.id, label: this._labelForOrigin(l.originId) })),
               null,
               // Deliberately does NOT fall back to "every eligible line"
               // when nothing is checked (unlike insertBarrier's own
@@ -226,6 +269,15 @@
       return [];
     }
 
+    // The display id/name for a Line's own origin (a Cause/Outcome
+    // placement) -- resolved through its shared library node, same as
+    // everywhere else a node's label renders.
+    _labelForOrigin(originId) {
+      const origin = this.model.findById(originId);
+      if (!origin) return originId;
+      return this.model.displayIdentifierFor(this.model.getNode(origin.nodeId));
+    }
+
     _toSvgPoint(e) {
       const pt = this.svgRoot.createSVGPoint();
       pt.x = e.clientX;
@@ -248,7 +300,14 @@
       if (line.stops.length === 0) {
         const items = [{
           label: 'Add Preventative Barrier',
-          action: () => this.model.addPreventativeControl(line.originId, clickOpts),
+          action: () => Bowtie.openCreateOrChooseNodeModal({
+            model: this.model,
+            type: 'preventativeBarrier',
+            onCreate: (fields) => this.model.addPreventativeControl(line.originId, { ...clickOpts, ...fields }),
+            onChooseExisting: (node) => this.model.addPreventativeControl(
+              line.originId, { ...clickOpts, nodeId: node.id },
+            ),
+          }),
         }];
         if (this.model.preventativeBarriers.length > 0) {
           items.push(this._attachSegmentItem(
@@ -269,7 +328,16 @@
       const direction = before ? 'before' : 'after';
       const items = [{
         label: 'Add Preventative Barrier',
-        action: () => this.model.insertBarrier('preventativeBarrier', direction, anchorId, clickOpts, [lineId]),
+        action: () => Bowtie.openCreateOrChooseNodeModal({
+          model: this.model,
+          type: 'preventativeBarrier',
+          onCreate: (fields) => this.model.insertBarrier(
+            'preventativeBarrier', direction, anchorId, { ...clickOpts, ...fields }, [lineId],
+          ),
+          onChooseExisting: (node) => this.model.insertBarrier(
+            'preventativeBarrier', direction, anchorId, { ...clickOpts, nodeId: node.id }, [lineId],
+          ),
+        }),
       }];
       const otherPbs = this.model.preventativeBarriers.filter((p) => !line.stops.includes(p.id));
       if (otherPbs.length > 0) {
@@ -309,7 +377,14 @@
       if (line.stops.length === 0) {
         const items = [{
           label: 'Add Mitigative Barrier',
-          action: () => this.model.addMitigativeControl(line.originId, clickOpts),
+          action: () => Bowtie.openCreateOrChooseNodeModal({
+            model: this.model,
+            type: 'mitigativeBarrier',
+            onCreate: (fields) => this.model.addMitigativeControl(line.originId, { ...clickOpts, ...fields }),
+            onChooseExisting: (node) => this.model.addMitigativeControl(
+              line.originId, { ...clickOpts, nodeId: node.id },
+            ),
+          }),
         }];
         if (this.model.mitigativeBarriers.length > 0) {
           items.push(this._attachSegmentItem(
@@ -330,7 +405,16 @@
       const direction = before ? 'before' : 'after';
       const items = [{
         label: 'Add Mitigative Barrier',
-        action: () => this.model.insertBarrier('mitigativeBarrier', direction, anchorId, clickOpts, [lineId]),
+        action: () => Bowtie.openCreateOrChooseNodeModal({
+          model: this.model,
+          type: 'mitigativeBarrier',
+          onCreate: (fields) => this.model.insertBarrier(
+            'mitigativeBarrier', direction, anchorId, { ...clickOpts, ...fields }, [lineId],
+          ),
+          onChooseExisting: (node) => this.model.insertBarrier(
+            'mitigativeBarrier', direction, anchorId, { ...clickOpts, nodeId: node.id }, [lineId],
+          ),
+        }),
       }];
       const otherMbs = this.model.mitigativeBarriers.filter((m) => !line.stops.includes(m.id));
       if (otherMbs.length > 0) {
@@ -379,15 +463,23 @@
     // should apply to (multi-select, by origin id — nothing is bundled).
     _addPreventativeControlFrom(pb, preselectedLineId) {
       const lines = this.model.linesThrough(pb.id);
+      const proceed = (selected) => Bowtie.openCreateOrChooseNodeModal({
+        model: this.model,
+        type: 'preventativeBarrier',
+        onCreate: (fields) => this.model.insertBarrier('preventativeBarrier', 'after', pb.id, fields, selected),
+        onChooseExisting: (node) => this.model.insertBarrier(
+          'preventativeBarrier', 'after', pb.id, { nodeId: node.id }, selected,
+        ),
+      });
       if (lines.length <= 1) {
-        this.model.insertBarrier('preventativeBarrier', 'after', pb.id);
+        proceed(null);
         return;
       }
       this._openLineSelectModal(
         'Add Preventative Barrier',
-        lines.map((l) => ({ key: l.id, label: l.originId })),
+        lines.map((l) => ({ key: l.id, label: this._labelForOrigin(l.originId) })),
         preselectedLineId,
-        (selected) => this.model.insertBarrier('preventativeBarrier', 'after', pb.id, {}, selected),
+        (selected) => proceed(selected),
       );
     }
 
@@ -395,15 +487,23 @@
     // splices toward the Outcome.
     _addMitigativeControlFrom(mb, preselectedLineId) {
       const lines = this.model.linesThrough(mb.id);
+      const proceed = (selected) => Bowtie.openCreateOrChooseNodeModal({
+        model: this.model,
+        type: 'mitigativeBarrier',
+        onCreate: (fields) => this.model.insertBarrier('mitigativeBarrier', 'after', mb.id, fields, selected),
+        onChooseExisting: (node) => this.model.insertBarrier(
+          'mitigativeBarrier', 'after', mb.id, { nodeId: node.id }, selected,
+        ),
+      });
       if (lines.length <= 1) {
-        this.model.insertBarrier('mitigativeBarrier', 'after', mb.id);
+        proceed(null);
         return;
       }
       this._openLineSelectModal(
         'Add Mitigative Barrier',
-        lines.map((l) => ({ key: l.id, label: l.originId })),
+        lines.map((l) => ({ key: l.id, label: this._labelForOrigin(l.originId) })),
         preselectedLineId,
-        (selected) => this.model.insertBarrier('mitigativeBarrier', 'after', mb.id, {}, selected),
+        (selected) => proceed(selected),
       );
     }
 
@@ -447,7 +547,16 @@
       });
     }
 
+    // The four reusable types (cause/outcome/preventative/mitigative) now
+    // rename their shared library NODE (node_library_proposal.md — a
+    // placement no longer carries a name at all); TLE/Hazard, which were
+    // never nodes, are unaffected and still rename the placement directly.
     _rename(el) {
+      const isNode = ['cause', 'outcome', 'preventativeBarrier', 'mitigativeBarrier'].includes(el.type);
+      const node = isNode ? this.model.getNode(el.nodeId) : null;
+      const currentName = isNode ? node.name : el.name;
+      const displayId = isNode ? this.model.displayIdentifierFor(node) : el.id;
+
       const body = document.createElement('div');
       const wrap = document.createElement('label');
       wrap.className = 'modal-field';
@@ -455,13 +564,18 @@
       span.textContent = 'Name';
       const input = document.createElement('input');
       input.type = 'text';
-      input.value = el.name;
+      input.value = currentName;
       wrap.appendChild(span);
       wrap.appendChild(input);
       body.appendChild(wrap);
 
+      // Qualitative/quantitative risk fields (quantitative_mode_proposal.md)
+      // only ever apply to actual library nodes, and only once the
+      // document has left Simple mode.
+      const riskFields = isNode ? Bowtie.buildRiskFieldsForm(this.model, node, body) : null;
+
       Bowtie.ModalView.openModal({
-        title: `Rename ${el.id}`,
+        title: `Rename ${displayId}`,
         bodyEl: body,
         actions: [
           { label: 'Cancel' },
@@ -470,7 +584,9 @@
             primary: true,
             onClick: () => {
               const next = input.value.trim();
-              if (next) this.model.renameElement(el.id, next);
+              if (!next) return;
+              if (isNode) this.model.renameNode(el.nodeId, { name: next, ...riskFields.readValues() });
+              else this.model.renameElement(el.id, next);
             },
           },
         ],
@@ -539,7 +655,10 @@
     _openInheritDownstreamModal(continuation, ownContinuation, onChoice) {
       const nameOf = (id) => {
         const el = this.model.findById(id);
-        return el ? `${id} (${el.name})` : id;
+        if (!el) return id;
+        const node = this.model.getNode(el.nodeId);
+        const displayId = this.model.displayIdentifierFor(node);
+        return `${displayId} (${node.name})`;
       };
       const continuationNames = continuation.map(nameOf).join(', ');
       const declineDescription = ownContinuation.length > 0
@@ -581,18 +700,25 @@
       list.className = 'attach-list';
       body.appendChild(list);
 
+      // `candidates` are always PLACEMENTS (attachExistingBarrier/
+      // attachInputToPreventativeControl/attachOutputToMitigativeControl
+      // all operate on placement ids) -- displayed id/name resolve through
+      // each one's shared library node instead, same as everywhere else a
+      // barrier renders (node_library_proposal.md "Two id spaces").
       const rows = candidates.map((c) => {
+        const node = this.model.getNode(c.nodeId);
+        const displayId = this.model.displayIdentifierFor(node);
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'attach-list-item';
 
         const idSpan = document.createElement('span');
         idSpan.className = 'attach-list-id';
-        idSpan.textContent = c.id;
+        idSpan.textContent = displayId;
 
         const nameSpan = document.createElement('span');
         nameSpan.className = 'attach-list-name';
-        nameSpan.textContent = c.name;
+        nameSpan.textContent = node.name;
 
         btn.appendChild(idSpan);
         btn.appendChild(nameSpan);
@@ -601,7 +727,7 @@
           modal.close();
         });
         list.appendChild(btn);
-        return { el: btn, haystack: `${c.id} ${c.name}`.toLowerCase() };
+        return { el: btn, haystack: `${displayId} ${node.name}`.toLowerCase() };
       });
 
       filterInput.addEventListener('input', () => {

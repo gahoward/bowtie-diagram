@@ -136,7 +136,8 @@ def test_ctrl_alt_d_does_nothing_once_the_welcome_modal_has_closed(browser, base
 
         state = pg.evaluate("""() => {
           const m = window.__lastModel;
-          return { causeCount: m.causes.length, firstCauseName: m.causes[0] ? m.causes[0].name : null };
+          const first = m.causes[0];
+          return { causeCount: m.causes.length, firstCauseName: first ? m.getNode(first.nodeId).name : null };
         }""")
         assert state["causeCount"] == 1
         assert state["firstCauseName"] == "Real work"
@@ -147,12 +148,19 @@ def test_ctrl_alt_d_does_nothing_once_the_welcome_modal_has_closed(browser, base
 
 def test_load_demo_routes_through_the_same_version_validation_as_a_real_import(browser, base_url):
     """demo_json_proposal.md §2: the demo must not bypass
-    ImportExportController's validation -- if Bowtie.DEMO_DATA ever goes
-    stale relative to SCHEMA_VERSION, it should fail exactly like a real
-    stale export would, not silently load."""
+    ImportExportController's validation -- if a Bowtie.DEMO_DATA_VARIANTS
+    entry ever goes stale relative to SCHEMA_VERSION, it should fail exactly
+    like a real stale export would, not silently load. The welcome wizard's
+    "Load Demo" button loads whichever variant its own <select> defaults to
+    (WelcomeController._demoVariant, 'simple') via DEMO_DATA_VARIANTS -- not
+    the standalone Bowtie.DEMO_DATA back-compat alias -- so every variant is
+    staled out here regardless of which one is actually selected."""
     pg = _fresh_page(browser, base_url)
     try:
         pg.evaluate("""() => {
+          Object.keys(window.Bowtie.DEMO_DATA_VARIANTS).forEach((key) => {
+            window.Bowtie.DEMO_DATA_VARIANTS[key] = { ...window.Bowtie.DEMO_DATA_VARIANTS[key], version: -1 };
+          });
           window.Bowtie.DEMO_DATA = { ...window.Bowtie.DEMO_DATA, version: -1 };
         }""")
         pg.get_by_role("button", name="Load Demo", exact=True).click()

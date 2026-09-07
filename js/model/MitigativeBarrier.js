@@ -1,12 +1,13 @@
 (function (Bowtie) {
-  // Mirrors PreventativeBarrier. All connectivity lives on Line.stops.
+  // Mirrors PreventativeBarrier -- see that file's comment for the
+  // placement/node split. Connectivity lives on Line.stops.
   class MitigativeBarrier {
     constructor({
-      id, name, x = 0, y = 0, w = 36, h = 110, pageId,
+      id, nodeId, x = 0, y = 0, w = 36, h = 110, pageId,
     } = {}) {
       this.id = id;
       this.type = 'mitigativeBarrier';
-      this.name = name;
+      this.nodeId = nodeId;
       this.x = x;
       this.y = y;
       this.w = w;

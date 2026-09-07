@@ -116,7 +116,8 @@
       panZoom.fitToBounds(view.getContentBounds());
     });
 
-    new Bowtie.IdentifierManagerController(model, document.getElementById('btn-manage-ids'));
+    new Bowtie.NodeLibraryController(model, document.getElementById('btn-manage-ids'));
+    new Bowtie.ModeController(model, document.getElementById('btn-analysis-mode'));
 
     const EXPORT_BUTTON_IDS = ['btn-export-png', 'btn-export-svg', 'btn-export-json'];
     const warnings = new Bowtie.WarningsController(model, document.getElementById('btn-warnings'), EXPORT_BUTTON_IDS);
@@ -125,7 +126,7 @@
 
     const TOOLBAR_BUTTON_IDS = [
       'btn-add-cause', 'btn-add-outcome', 'btn-auto-arrange', 'btn-reset-view', 'btn-manage-ids', 'btn-settings',
-      'btn-export-png', 'btn-export-svg', 'btn-export-json', 'btn-import-json',
+      'btn-analysis-mode', 'btn-export-png', 'btn-export-svg', 'btn-export-json', 'btn-import-json',
       'menu-trigger-file', 'menu-trigger-add', 'menu-trigger-view', 'menu-trigger-settings',
     ];
     // Undo/Redo are deliberately NOT in this list — they start disabled and

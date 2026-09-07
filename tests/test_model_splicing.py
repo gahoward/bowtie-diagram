@@ -16,9 +16,9 @@ def test_insert_after_places_new_barrier_toward_tle(page):
       const cause = m.causes[0];
       const pb1 = m.addPreventativeControl(cause.id);
       const pb2 = m.insertBarrier('preventativeBarrier', 'after', pb1.id);
-      return { stops: m._lineFor(cause.id).stops, pb1x: pb1.x, pb2x: pb2.x };
+      return { stops: m._lineFor(cause.id).stops, pb1x: pb1.x, pb2x: pb2.x, pb1: pb1.id, pb2: pb2.id };
     }""")
-    assert result["stops"] == ["PB_1", "PB_2"]
+    assert result["stops"] == [result["pb1"], result["pb2"]]
     assert result["pb2x"] > result["pb1x"], "'after' must land on the TLE side (larger x) of its anchor"
 
 
@@ -29,9 +29,9 @@ def test_insert_before_places_new_barrier_toward_origin(page):
       const cause = m.causes[0];
       const pb1 = m.addPreventativeControl(cause.id);
       const pb2 = m.insertBarrier('preventativeBarrier', 'before', pb1.id);
-      return { stops: m._lineFor(cause.id).stops, pb1x: pb1.x, pb2x: pb2.x };
+      return { stops: m._lineFor(cause.id).stops, pb1x: pb1.x, pb2x: pb2.x, pb1: pb1.id, pb2: pb2.id };
     }""")
-    assert result["stops"] == ["PB_2", "PB_1"], "'before' must splice ahead of the anchor in stops order"
+    assert result["stops"] == [result["pb2"], result["pb1"]], "'before' must splice ahead of the anchor in stops order"
     assert result["pb2x"] < result["pb1x"], "'before' must land on the origin side (smaller x) of its anchor"
 
 
@@ -74,10 +74,13 @@ def test_attach_existing_barrier_is_scoped_to_one_line(page):
       const line1 = m._lineFor(c1.id);
       m.attachExistingBarrier('preventativeBarrier', 'after', pb1.id, pbTarget.id, [line1.id]);
 
-      return { line1: m._lineFor(c1.id).stops, line2: m._lineFor(c2.id).stops };
+      return {
+        line1: m._lineFor(c1.id).stops, line2: m._lineFor(c2.id).stops,
+        pb1: pb1.id, pbTarget: pbTarget.id,
+      };
     }""")
-    assert result["line1"] == ["PB_1", "PB_2"]
-    assert result["line2"] == ["PB_1"], "the sibling line sharing PB_1 must be left alone"
+    assert result["line1"] == [result["pb1"], result["pbTarget"]]
+    assert result["line2"] == [result["pb1"]], "the sibling line sharing PB_1 must be left alone"
 
 
 def test_attach_existing_barrier_rejects_cycle(page):
@@ -106,9 +109,9 @@ def test_attach_input_defaults_to_inheriting_downstream(page):
       const pb2 = m.insertBarrier('preventativeBarrier', 'after', pb1.id); // C_1: [PB_1, PB_2]
       m.addCause({x: 150, y: 300});
       m.attachInputToPreventativeControl(m.causes[1].id, pb1.id); // no third arg
-      return m._lineFor(m.causes[1].id).stops;
+      return { stops: m._lineFor(m.causes[1].id).stops, pb1: pb1.id, pb2: pb2.id };
     }""")
-    assert result == ["PB_1", "PB_2"]
+    assert result["stops"] == [result["pb1"], result["pb2"]]
 
 
 def test_attach_input_declining_inherit_stops_at_the_target_barrier(page):
@@ -124,9 +127,9 @@ def test_attach_input_declining_inherit_stops_at_the_target_barrier(page):
       m.insertBarrier('preventativeBarrier', 'after', pb1.id); // C_1: [PB_1, PB_2]
       m.addCause({x: 150, y: 300});
       m.attachInputToPreventativeControl(m.causes[1].id, pb1.id, false);
-      return m._lineFor(m.causes[1].id).stops;
+      return { stops: m._lineFor(m.causes[1].id).stops, pb1: pb1.id };
     }""")
-    assert result == ["PB_1"], "declining inherit must end the line at the target barrier, not adopt PB_2 too"
+    assert result["stops"] == [result["pb1"]], "declining inherit must end the line at the target barrier, not adopt PB_2 too"
 
 
 def test_attach_input_declining_inherit_keeps_the_lines_own_prior_chain(page):
@@ -197,12 +200,12 @@ def test_connect_directly_to_tle_middle_gap_keeps_origin_side(page):
       m.addCause({x: 150, y: 200});
       const c = m.causes[0];
       const pb1 = m.addPreventativeControl(c.id);
-      m.insertBarrier('preventativeBarrier', 'after', pb1.id); // PB_2
-      m.insertBarrier('preventativeBarrier', 'after', 'PB_2'); // PB_3
-      m.connectLineDirectlyToTle(m._lineFor(c.id).id, 'PB_1');
-      return m._lineFor(c.id).stops;
+      const pb2 = m.insertBarrier('preventativeBarrier', 'after', pb1.id);
+      m.insertBarrier('preventativeBarrier', 'after', pb2.id);
+      m.connectLineDirectlyToTle(m._lineFor(c.id).id, pb1.id);
+      return { stops: m._lineFor(c.id).stops, pb1: pb1.id };
     }""")
-    assert result == ["PB_1"]
+    assert result["stops"] == [result["pb1"]]
 
 
 def test_connect_directly_to_tle_null_drops_everything(page):
@@ -228,13 +231,13 @@ def test_connect_directly_to_tle_outcome_side_keep_through_barrier(page):
       const m = window.__lastModel;
       m.addOutcome({x: 1200, y: 200});
       const o = m.outcomes[0];
-      m.addMitigativeControl(o.id); // MB_1, nearest outcome
-      m.addMitigativeControl(o.id); // MB_2
-      m.addMitigativeControl(o.id); // MB_3, nearest TLE
-      m.connectLineDirectlyToTle(m._lineFor(o.id).id, 'MB_2');
-      return m._lineFor(o.id).stops;
+      const mb1 = m.addMitigativeControl(o.id); // nearest outcome
+      const mb2 = m.addMitigativeControl(o.id);
+      m.addMitigativeControl(o.id); // nearest TLE
+      m.connectLineDirectlyToTle(m._lineFor(o.id).id, mb2.id);
+      return { stops: m._lineFor(o.id).stops, mb1: mb1.id, mb2: mb2.id };
     }""")
-    assert result == ["MB_1", "MB_2"], "must drop MB_3 (nearest the TLE) and keep MB_1, MB_2"
+    assert result["stops"] == [result["mb1"], result["mb2"]], "must drop the TLE-nearest barrier and keep the other two"
 
 
 def test_orphaned_barrier_after_truncate_is_warned(page):
@@ -242,11 +245,11 @@ def test_orphaned_barrier_after_truncate_is_warned(page):
       const m = window.__lastModel;
       m.addCause({x: 150, y: 200});
       const c = m.causes[0];
-      m.addPreventativeControl(c.id); // PB_1
+      const pb = m.addPreventativeControl(c.id);
       m.connectLineDirectlyToTle(m._lineFor(c.id).id, null);
-      return m.getWarnings().map(w => w.id);
+      return { warningIds: m.getWarnings().map(w => w.id), pb: pb.id };
     }""")
-    assert warnings == ["PB_1"]
+    assert warnings["warningIds"] == [warnings["pb"]]
 
 
 def test_swap_barrier_with_neighbor_reorders_the_line_toward_the_tle(page):
@@ -265,9 +268,9 @@ def test_swap_barrier_with_neighbor_reorders_the_line_toward_the_tle(page):
       const pb2 = m.insertBarrier('preventativeBarrier', 'after', pb1.id);
       const line = m._lineFor(cause.id);
       m.swapBarrierWithNeighbor(line.id, pb1.id, true);
-      return { stops: line.stops, pb1x: pb1.x, pb2x: pb2.x };
+      return { stops: line.stops, pb1x: pb1.x, pb2x: pb2.x, pb1: pb1.id, pb2: pb2.id };
     }""")
-    assert result["stops"] == ["PB_2", "PB_1"], "the swap must actually reorder the line's stops"
+    assert result["stops"] == [result["pb2"], result["pb1"]], "the swap must actually reorder the line's stops"
     assert result["pb1x"] > result["pb2x"], (
         "the two barriers' x should swap too, for immediate visual feedback consistent with the new order"
     )
@@ -282,9 +285,9 @@ def test_swap_barrier_with_neighbor_away_from_tle_is_the_mirror(page):
       const pb2 = m.insertBarrier('preventativeBarrier', 'after', pb1.id);
       const line = m._lineFor(cause.id);
       m.swapBarrierWithNeighbor(line.id, pb2.id, false);
-      return { stops: line.stops };
+      return { stops: line.stops, pb1: pb1.id, pb2: pb2.id };
     }""")
-    assert result["stops"] == ["PB_2", "PB_1"]
+    assert result["stops"] == [result["pb2"], result["pb1"]]
 
 
 def test_swap_barrier_with_neighbor_is_a_noop_at_the_end_of_the_chain(page):
@@ -336,16 +339,16 @@ def test_swap_barrier_with_neighbor_is_undoable(page):
       m.addCause({x: 150, y: 200});
       const cause = m.causes[0];
       const pb1 = m.addPreventativeControl(cause.id);
-      m.insertBarrier('preventativeBarrier', 'after', pb1.id);
+      const pb2 = m.insertBarrier('preventativeBarrier', 'after', pb1.id);
       const before = window.__lastModel._lineFor(cause.id).stops.slice();
       const lineId = window.__lastModel._lineFor(cause.id).id;
       m.swapBarrierWithNeighbor(lineId, pb1.id, true);
       const swapped = window.__lastModel._lineFor(cause.id).stops.slice();
       undo.undo();
       const restored = window.__lastModel._lineFor(cause.id).stops.slice();
-      return { before, swapped, restored };
+      return { before, swapped, restored, pb1: pb1.id, pb2: pb2.id };
     }""")
-    assert result["swapped"] == ["PB_2", "PB_1"]
+    assert result["swapped"] == [result["pb2"], result["pb1"]]
     assert result["restored"] == result["before"]
 
 

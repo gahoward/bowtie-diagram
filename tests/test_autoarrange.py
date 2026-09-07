@@ -345,7 +345,7 @@ def test_sharing_two_hops_downstream_still_clusters_causes_together(page):
       const view = window.__lastView;
       const bounds = view.boundsById['PB_3'];
       return {
-        causeYs: Object.fromEntries(m.causes.map((c) => [c.id, c.y])),
+        causeYs: Object.fromEntries(m.causes.map((c) => [c.nodeId, c.y])),
         pb3Top: bounds.cy - bounds.h / 2,
         pb3Bottom: bounds.cy + bounds.h / 2,
       };
@@ -378,7 +378,7 @@ def test_sharing_two_hops_downstream_still_clusters_outcomes_together(page):
       const view = window.__lastView;
       const bounds = view.boundsById['MB_3'];
       return {
-        outcomeYs: Object.fromEntries(m.outcomes.map((o) => [o.id, o.y])),
+        outcomeYs: Object.fromEntries(m.outcomes.map((o) => [o.nodeId, o.y])),
         mb3Top: bounds.cy - bounds.h / 2,
         mb3Bottom: bounds.cy + bounds.h / 2,
       };
@@ -417,7 +417,7 @@ def test_two_bridged_merge_columns_keep_each_others_unrelated_cause_clear(page):
       const m = window.__lastModel;
       const view = window.__lastView;
       return {
-        causeYs: Object.fromEntries(m.causes.map((c) => [c.id, c.y])),
+        causeYs: Object.fromEntries(m.causes.map((c) => [c.nodeId, c.y])),
         pb1: view.boundsById['PB_1'],
         pb2: view.boundsById['PB_2'],
       };
@@ -456,7 +456,7 @@ def test_two_bridged_merge_columns_outcome_side(page):
       const m = window.__lastModel;
       const view = window.__lastView;
       return {
-        outcomeYs: Object.fromEntries(m.outcomes.map((o) => [o.id, o.y])),
+        outcomeYs: Object.fromEntries(m.outcomes.map((o) => [o.nodeId, o.y])),
         mb1: view.boundsById['MB_1'],
         mb2: view.boundsById['MB_2'],
       };
@@ -842,7 +842,7 @@ def test_a_tighter_shared_barrier_clusters_correctly_within_a_broader_shared_gro
     result = page.evaluate("""() => {
       const m = window.__lastModel;
       const view = window.__lastView;
-      const causeYs = Object.fromEntries(m.causes.map((c) => [c.id, c.y]));
+      const causeYs = Object.fromEntries(m.causes.map((c) => [c.nodeId, c.y]));
       const b = view.boundsById['PB_2'];
       return { causeYs, pb2Top: b.cy - b.h / 2, pb2Bottom: b.cy + b.h / 2 };
     }""")

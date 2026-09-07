@@ -39,6 +39,49 @@
 
     setName(name) { return this.realModel.setName(name); }
 
+    // --- Node library / quantitative mode passthroughs --------------------
+    //
+    // All document-wide (node_library_proposal.md / quantitative_mode_
+    // proposal.md), same reasoning as `name`/`setName` above -- but
+    // ShapeRenderer/ConnectionRenderer/ContextMenuController are
+    // constructed with THIS facade, not the raw model, so rendering a
+    // node's label or building the create-or-choose modal needs these
+    // exposed here too.
+
+    get mode() { return this.realModel.mode; }
+
+    get riskMatrix() { return this.realModel.riskMatrix; }
+
+    get identifierDisplayMode() { return this.realModel.identifierDisplayMode; }
+
+    getNode(nodeId) { return this.realModel.getNode(nodeId); }
+
+    getNodeOfType(type, nodeId) { return this.realModel.getNodeOfType(type, nodeId); }
+
+    displayIdentifierFor(node) { return this.realModel.displayIdentifierFor(node); }
+
+    // The "Choose existing" list for the create-or-choose modal (ask 3):
+    // every library node of `type` NOT already placed on the active page
+    // (node_library_proposal.md "at most one placement per node per page").
+    libraryNodesAvailableToPlace(type) {
+      const pageId = this.getActivePageId();
+      return (this.realModel.library[type] || []).filter(
+        (node) => !this.realModel.placementsForNode(node.id).some((p) => p.pageId === pageId),
+      );
+    }
+
+    computeConsequenceLikelihood(outcomeId, opts) {
+      return this.realModel.computeConsequenceLikelihood(outcomeId, opts);
+    }
+
+    computeTleLikelihoodForActivePage(opts) {
+      return this.realModel.computeTleLikelihood(this.getActivePageId(), opts);
+    }
+
+    getConsequenceRiskClass(outcomeId, opts) {
+      return this.realModel.getConsequenceRiskClass(outcomeId, opts);
+    }
+
     addCause(opts = {}) {
       return this.realModel.addCause({ ...opts, pageId: this.getActivePageId() });
     }
@@ -60,7 +103,33 @@
     // this.model.preventativeBarriers/.mitigativeBarriers, which are
     // already filtered to the active page above).
 
-    findById(id) { return this.realModel.findById(id); }
+    // Tries THIS PAGE's own placements first -- by placement id (Line.
+    // stops/originId entries, everything internal wiring actually uses),
+    // then by NODE id (what ShapeRenderer's `data-id` actually is now --
+    // node_library_proposal.md "Two id spaces" -- so DOM clicks resolve
+    // here; "at most one placement per node per page", decided, makes this
+    // unambiguous) -- before ever falling back to the raw model's own
+    // document-wide search (TLE/Hazard, or a node id that turns out to be
+    // placed on some OTHER page instead of this one). Checking this page
+    // first, rather than the other way around, is what keeps a node
+    // shared across pages resolving to the RIGHT page's placement here
+    // even though the raw model's own findById (BowtieModel.js) also has
+    // a same-shaped node-id fallback of its own, just without any page to
+    // prefer.
+    findById(id) {
+      const pageId = this.getActivePageId();
+      const onThisPage = [
+        ...this.realModel.causesForPage(pageId),
+        ...this.realModel.outcomesForPage(pageId),
+        ...this.realModel.preventativeBarriersForPage(pageId),
+        ...this.realModel.mitigativeBarriersForPage(pageId),
+      ];
+      return (
+        onThisPage.find((p) => p.id === id) ||
+        onThisPage.find((p) => p.nodeId === id) ||
+        this.realModel.findById(id)
+      );
+    }
 
     _lineFor(originId) { return this.realModel._lineFor(originId); }
 

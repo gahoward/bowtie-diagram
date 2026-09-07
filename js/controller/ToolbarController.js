@@ -2,8 +2,8 @@
   class ToolbarController {
     constructor(model, { addCauseBtn, addOutcomeBtn, nameEl }) {
       this.model = model;
-      addCauseBtn.addEventListener('click', () => this.model.addCause());
-      addOutcomeBtn.addEventListener('click', () => this.model.addOutcome());
+      addCauseBtn.addEventListener('click', () => this._openCreateOrChoose('cause', (opts) => this.model.addCause(opts)));
+      addOutcomeBtn.addEventListener('click', () => this._openCreateOrChoose('outcome', (opts) => this.model.addOutcome(opts)));
 
       this.nameEl = nameEl;
       nameEl.addEventListener('click', () => this._openRenameModal());
@@ -13,6 +13,18 @@
 
     _renderName() {
       this.nameEl.textContent = this.model.name;
+    }
+
+    // node_library_proposal.md ask 3: the toolbar's "Add Cause"/"Add
+    // Outcome" buttons go through the same shared create-or-choose modal
+    // as every other creation entry point.
+    _openCreateOrChoose(type, addFn) {
+      Bowtie.openCreateOrChooseNodeModal({
+        model: this.model,
+        type,
+        onCreate: (fields) => addFn(fields),
+        onChooseExisting: (node) => addFn({ nodeId: node.id }),
+      });
     }
 
     _openRenameModal() {

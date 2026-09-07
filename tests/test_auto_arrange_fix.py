@@ -180,8 +180,8 @@ def test_pull_chains_closer_on_moves_forced_deep_and_bare_origins_nearer_the_tle
         c1: m.causes[0].x,             // natural depth-1: unaffected
         c3: m.causes[2].x,             // forced-deep (only stop PB_3, depth 2)
         c4: m.causes[3].x,             // fully bare
-        pb1: m.preventativeBarriers.find((p) => p.id === 'PB_1').x, // depth 1
-        pb3: m.preventativeBarriers.find((p) => p.id === 'PB_3').x, // depth 2 (deepest)
+        pb1: m.preventativeBarriers.find((p) => p.nodeId === 'PB_1').x, // depth 1
+        pb3: m.preventativeBarriers.find((p) => p.nodeId === 'PB_3').x, // depth 2 (deepest)
         c3y: m.causes[2].y,
       };
     }""")
@@ -210,7 +210,7 @@ def test_pull_chains_closer_never_moves_a_barrier_or_any_y_position(page):
     before = page.evaluate("""() => {
       const m = window.__lastModel;
       return {
-        pb3: { x: m.preventativeBarriers.find((p) => p.id === 'PB_3').x, y: m.preventativeBarriers.find((p) => p.id === 'PB_3').y },
+        pb3: { x: m.preventativeBarriers.find((p) => p.nodeId === 'PB_3').x, y: m.preventativeBarriers.find((p) => p.nodeId === 'PB_3').y },
         c3y: m.causes[2].y, c4y: m.causes[3].y,
       };
     }""")
@@ -220,7 +220,7 @@ def test_pull_chains_closer_never_moves_a_barrier_or_any_y_position(page):
     after = page.evaluate("""() => {
       const m = window.__lastModel;
       return {
-        pb3: { x: m.preventativeBarriers.find((p) => p.id === 'PB_3').x, y: m.preventativeBarriers.find((p) => p.id === 'PB_3').y },
+        pb3: { x: m.preventativeBarriers.find((p) => p.nodeId === 'PB_3').x, y: m.preventativeBarriers.find((p) => p.nodeId === 'PB_3').y },
         c3y: m.causes[2].y, c4y: m.causes[3].y,
       };
     }""")

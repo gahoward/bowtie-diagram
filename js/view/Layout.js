@@ -12,9 +12,15 @@
   const MIN_H = 60;
   const HAZARD_GAP = 40; // vertical gap between the Hazard's bottom edge and the TLE's top edge
 
-  function causeOutcomeBounds(svgRoot, el) {
+  // `displayName` is the placement's NODE's name (node_library_proposal.md
+  // "Two id spaces" — a placement itself no longer carries a `name` at
+  // all, that identity now lives on the shared library node `el.nodeId`
+  // points at), passed in explicitly rather than read off `el` so this
+  // stays a pure layout function with no model/library dependency of its
+  // own.
+  function causeOutcomeBounds(svgRoot, el, displayName) {
     const maxTextWidth = el.w - PADDING * 2;
-    const lines = Bowtie.TextWrap.wrapText(svgRoot, el.name, maxTextWidth, FONT_SIZE);
+    const lines = Bowtie.TextWrap.wrapText(svgRoot, displayName, maxTextWidth, FONT_SIZE);
     const textBlockHeight = (lines.length * LINE_HEIGHT) + LINE_HEIGHT; // + id line
     const h = Math.max(MIN_H, textBlockHeight + PADDING * 2);
     return { w: el.w, h, lines };

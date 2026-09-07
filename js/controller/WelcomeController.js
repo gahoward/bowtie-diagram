@@ -15,6 +15,12 @@
       this.importExport = importExport;
       this.onDone = onDone;
       this._dismissed = false;
+      // Which demo variant "Load Demo"/Ctrl+Alt+D loads -- one per document
+      // mode (quantitative_mode_proposal.md "Modes"), all built from the
+      // same underlying diagram (scripts/migrate-demo-to-v8.js) so picking
+      // a different variant is purely about which risk fields are filled
+      // in, not a different example.
+      this._demoVariant = 'simple';
 
       model.onChange(() => this._dismissOnFirstChange());
 
@@ -38,7 +44,7 @@
     }
 
     _loadDemo() {
-      this.importExport.loadDocument(Bowtie.DEMO_DATA);
+      this.importExport.loadDocument(Bowtie.DEMO_DATA_VARIANTS[this._demoVariant]);
     }
 
     _dismissOnFirstChange() {
@@ -92,7 +98,25 @@
       demoHint.className = 'welcome-choice-hint';
       demoHint.textContent = 'See a worked example — shared barriers, multiple causes and outcomes. (Ctrl+Alt+D)';
 
-      wizardCol.append(wizardBtn, wizardHint, demoBtn, demoHint);
+      // Which document mode the demo loads in (quantitative_mode_
+      // proposal.md "Modes") -- same underlying diagram either way, only
+      // the risk fields differ. Defaults to Simple (today's only variant).
+      const demoVariantSelect = document.createElement('select');
+      demoVariantSelect.className = 'welcome-demo-variant-select';
+      [
+        { value: 'simple', text: 'Simple' },
+        { value: 'qualitative', text: 'Qualitative' },
+        { value: 'quantitative', text: 'Quantitative' },
+      ].forEach((opt) => {
+        const option = document.createElement('option');
+        option.value = opt.value;
+        option.textContent = opt.text;
+        demoVariantSelect.appendChild(option);
+      });
+      demoVariantSelect.value = this._demoVariant;
+      demoVariantSelect.addEventListener('change', () => { this._demoVariant = demoVariantSelect.value; });
+
+      wizardCol.append(wizardBtn, wizardHint, demoBtn, demoVariantSelect, demoHint);
 
       const uploadCol = document.createElement('div');
       uploadCol.className = 'welcome-choice-col';
@@ -172,6 +196,45 @@
       const tleInput = makeField('Top-level event name', this.model.topLevelEvent.name);
       const hazardInput = makeField('Hazard name', this.model.hazard.name);
 
+      // node_library_proposal.md "Display identifiers": the first
+      // non-text-field control the wizard has -- a two-option radio group,
+      // set once here (there's nothing to backfill yet, no nodes exist),
+      // changeable later via the Settings dropdown.
+      const identifierField = document.createElement('div');
+      identifierField.className = 'modal-field';
+      const identifierLabel = document.createElement('span');
+      identifierLabel.textContent = 'Show identifiers as';
+      identifierField.appendChild(identifierLabel);
+      const identifierOptions = [
+        { value: 'internal', text: 'Internal IDs (C_1, PB_1, …)' },
+        { value: 'custom', text: 'Custom Labels' },
+      ];
+      const identifierInputs = identifierOptions.map((opt) => {
+        const optionRow = document.createElement('label');
+        optionRow.className = 'modal-checkbox-row';
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'identifier-display-mode';
+        radio.value = opt.value;
+        radio.checked = opt.value === 'internal';
+        const optionSpan = document.createElement('span');
+        optionSpan.textContent = opt.text;
+        optionRow.appendChild(radio);
+        optionRow.appendChild(optionSpan);
+        identifierField.appendChild(optionRow);
+        return radio;
+      });
+      const identifierHint = document.createElement('p');
+      identifierHint.className = 'welcome-choice-hint';
+      identifierHint.textContent = "You'll set an identifier for each Cause, Outcome, and Barrier yourself as you "
+        + 'create them — nothing is generated for you.';
+      identifierHint.hidden = true;
+      identifierField.appendChild(identifierHint);
+      identifierInputs.forEach((radio) => radio.addEventListener('change', () => {
+        identifierHint.hidden = radio.value !== 'custom' || !radio.checked;
+      }));
+      body.appendChild(identifierField);
+
       this.modal.setTitle('New Bowtie');
       this.modal.setBody(body);
       this.modal.setActions([
@@ -187,6 +250,8 @@
             });
             this.model.renameElement(this.model.topLevelEvent.id, tleInput.value.trim());
             this.model.renameElement(this.model.hazard.id, hazardInput.value.trim());
+            const identifierChoice = identifierInputs.find((r) => r.checked);
+            if (identifierChoice) this.model.setIdentifierDisplayMode(identifierChoice.value);
             // model.onChange (registered in the constructor) handles dismissal
           },
         },

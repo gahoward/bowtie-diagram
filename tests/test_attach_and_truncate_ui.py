@@ -6,6 +6,14 @@ barriers?" prompt for attaching to a barrier that already continues further.
 from helpers import click_bend_segment, click_menu_item, click_svg_point, menu_items, pick_attach_target
 
 
+def placement_id_for_node(page, node_id):
+    """Resolves a NODE id (e.g. "PB_1") to its current placement's own
+    internal id -- Line.stops/originId store placement ids, not node ids
+    (node_library_proposal.md "Two id spaces"), so assertions against
+    `.stops` must compare against this, not the literal node id string."""
+    return page.evaluate(f"() => window.__lastModel.findById('{node_id}').id")
+
+
 def test_attach_prompts_to_inherit_downstream_when_target_continues_further(page):
     """Attaching a bare Cause (from its own node menu) to a barrier that
     already continues on to a further barrier for another Cause must ask
@@ -29,7 +37,8 @@ def test_attach_prompts_to_inherit_downstream_when_target_continues_further(page
     page.get_by_role("button", name="Follow Existing Path", exact=True).click()
     page.wait_for_timeout(100)
 
-    assert page.evaluate("() => window.__lastModel._lineFor('C_2').stops") == ["PB_1", "PB_2"]
+    expected = [placement_id_for_node(page, "PB_1"), placement_id_for_node(page, "PB_2")]
+    assert page.evaluate("() => window.__lastModel._lineFor('C_2').stops") == expected
 
 
 def test_attach_stop_here_ends_the_line_at_the_target_barrier(page):
@@ -56,8 +65,10 @@ def test_attach_stop_here_ends_the_line_at_the_target_barrier(page):
       const m = window.__lastModel;
       return { c1: m._lineFor('C_1').stops, c2: m._lineFor('C_2').stops };
     }""")
-    assert result["c2"] == ["PB_1"]
-    assert result["c1"] == ["PB_1", "PB_2"], "C_1's own continuation must be untouched"
+    pb1_id = placement_id_for_node(page, "PB_1")
+    pb2_id = placement_id_for_node(page, "PB_2")
+    assert result["c2"] == [pb1_id]
+    assert result["c1"] == [pb1_id, pb2_id], "C_1's own continuation must be untouched"
 
 
 def test_attach_cancel_leaves_the_line_unchanged(page):
@@ -98,7 +109,7 @@ def test_attach_skips_the_prompt_when_target_has_nothing_to_inherit(page):
     page.wait_for_timeout(100)
 
     assert page.locator(".modal-overlay").count() == 0, "no prompt should appear when there's nothing to inherit"
-    assert page.evaluate("() => window.__lastModel._lineFor('C_2').stops") == ["PB_1"]
+    assert page.evaluate("() => window.__lastModel._lineFor('C_2').stops") == [placement_id_for_node(page, "PB_1")]
 
 
 def test_attach_from_a_line_segment_only_moves_that_line(page):
@@ -124,8 +135,10 @@ def test_attach_from_a_line_segment_only_moves_that_line(page):
       const m = window.__lastModel;
       return { line1: m._lineFor(m.causes[0].id).stops, line2: m._lineFor(m.causes[1].id).stops };
     }""")
-    assert result["line1"] == ["PB_1", "PB_2"]
-    assert result["line2"] == ["PB_1"], "the sibling line sharing PB_1 must be untouched"
+    pb1_id = placement_id_for_node(page, "PB_1")
+    pb2_id = placement_id_for_node(page, "PB_2")
+    assert result["line1"] == [pb1_id, pb2_id]
+    assert result["line2"] == [pb1_id], "the sibling line sharing PB_1 must be untouched"
 
 
 def test_connect_directly_to_tle_at_a_middle_gap(page):
@@ -151,7 +164,7 @@ def test_connect_directly_to_tle_at_a_middle_gap(page):
     click_menu_item(page, "Connect Directly to TLE")
 
     stops = page.evaluate("() => window.__lastModel._lineFor(window.__lastModel.causes[0].id).stops")
-    assert stops == ["PB_1"]
+    assert stops == [placement_id_for_node(page, "PB_1")]
 
 
 def test_connect_directly_to_tle_not_offered_at_the_tle_adjacent_gap(page):
