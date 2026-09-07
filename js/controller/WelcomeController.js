@@ -157,7 +157,18 @@
         return input;
       };
 
-      const nameInput = makeField('Bowtie name', this.model.name);
+      // The document/analysis title, the page's own name, and the TLE's
+      // own name are genuinely different things (the project or system
+      // under study; a single failure of interest within it; the failure
+      // itself) — all three stay, none collapsed into another. The page
+      // this wizard configures already exists (BowtieModel's constructor
+      // creates a document's first page up front, the same way it already
+      // pre-creates a first TLE/Hazard for this same step to rename), so
+      // "Create" here renames/describes it rather than adding a second one.
+      const firstPage = this.model.pages[0];
+      const nameInput = makeField('Analysis title', this.model.name);
+      const pageNameInput = makeField('Page name', firstPage.name);
+      const pageDescInput = makeField('Page description (optional)', firstPage.description);
       const tleInput = makeField('Top-level event name', this.model.topLevelEvent.name);
       const hazardInput = makeField('Hazard name', this.model.hazard.name);
 
@@ -169,13 +180,31 @@
           label: 'Create',
           primary: true,
           onClick: () => {
-            this.model.setName(nameInput.value.trim() || 'Untitled Bowtie');
-            this.model.renameElement(this.model.topLevelEvent.id, tleInput.value.trim() || 'Top-Level Event');
-            this.model.renameElement(this.model.hazard.id, hazardInput.value.trim() || 'Hazard');
+            this.model.setName(nameInput.value.trim());
+            this.model.renamePage(firstPage.id, {
+              name: pageNameInput.value.trim(),
+              description: pageDescInput.value,
+            });
+            this.model.renameElement(this.model.topLevelEvent.id, tleInput.value.trim());
+            this.model.renameElement(this.model.hazard.id, hazardInput.value.trim());
             // model.onChange (registered in the constructor) handles dismissal
           },
         },
       ]);
+
+      // Analysis title, Page name, TLE name, and Hazard name are all
+      // genuinely required — Create stays disabled until every one of
+      // them is non-empty after trimming. Page description may stay
+      // blank. Replaces the old silent "falls back to a default name"
+      // behaviour for the three pre-existing fields too, not just the two
+      // new ones — a deliberate behaviour change.
+      const createBtn = this.modal.dialog.querySelector('.modal-btn-primary');
+      const requiredInputs = [nameInput, pageNameInput, tleInput, hazardInput];
+      const updateCreateDisabled = () => {
+        createBtn.disabled = requiredInputs.some((input) => input.value.trim() === '');
+      };
+      requiredInputs.forEach((input) => input.addEventListener('input', updateCreateDisabled));
+      updateCreateDisabled();
     }
   }
 

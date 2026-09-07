@@ -20,7 +20,7 @@
       const wrap = document.createElement('label');
       wrap.className = 'modal-field';
       const span = document.createElement('span');
-      span.textContent = 'Bowtie name';
+      span.textContent = 'Analysis title';
       const input = document.createElement('input');
       input.type = 'text';
       input.value = this.model.name;
@@ -29,7 +29,7 @@
       body.appendChild(wrap);
 
       Bowtie.ModalView.openModal({
-        title: 'Rename Bowtie',
+        title: 'Rename Analysis',
         bodyEl: body,
         actions: [
           { label: 'Cancel' },

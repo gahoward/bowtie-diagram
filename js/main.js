@@ -18,15 +18,16 @@
     const model = undo.model;
     window.__debugModel = model;
 
+    // Owns which page is active and all page CRUD (add/rename/delete);
+    // constructed with `model` (the undo-tracking Proxy), never `rawModel`
+    // — see PageTabsController.js for why. Constructed early, before every
+    // controller below that needs `pageScopedModel`.
+    const pageTabs = new Bowtie.PageTabsController(model, document.getElementById('page-tabs'));
+
     // Gives every canvas-manipulation controller (and the view) a single
     // page's drawable content, shaped exactly like the old single-page
     // model, so their internals need no changes -- see PageScopedModel.js.
-    // `getActivePageId` is a placeholder until PageTabsController (a later
-    // phase) exists to own real tab-switching: today a document only ever
-    // has the one page the model constructor auto-creates, so always
-    // resolving to the first page reproduces exactly today's single-page
-    // behavior while every consumer below already reads through the facade.
-    const pageScopedModel = new Bowtie.PageScopedModel(model, () => model.pages[0].id);
+    const pageScopedModel = new Bowtie.PageScopedModel(model, () => pageTabs.getActivePageId());
 
     const panZoom = new Bowtie.PanZoomController(svgRoot, {
       x: 0, y: 0, w: Bowtie.BowtieModel.CANVAS_W, h: Bowtie.BowtieModel.CANVAS_H,
@@ -38,6 +39,16 @@
       minimap.render(view.connectionsLayer, view.nodesLayer, view.getContentBounds());
     };
     rawModel.onChange(renderAll);
+    // A page switch (or add/delete changing which page is active) re-renders
+    // for the new active page, then re-fits the viewport to it — the same
+    // call `btn-reset-view` already uses — since a different page's content
+    // rarely shares the previous page's extent. Must run AFTER renderAll so
+    // `view.getContentBounds()` reflects the page just switched to, not the
+    // one just left.
+    pageTabs.onChange(() => {
+      renderAll();
+      panZoom.fitToBounds(view.getContentBounds());
+    });
 
     const settings = new Bowtie.SettingsController(document.getElementById('btn-settings'), renderAll);
 
