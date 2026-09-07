@@ -1,20 +1,5 @@
 # Changelog
 
-## Unreleased
-
-- Fixed "Shift Toward TLE" / "Shift Away From TLE" (added in v0.1.3): they
-  previously only nudged a barrier's on-screen position, which the very
-  next Auto-arrange silently undid. They now actually reorder the barrier
-  within its path — swapping it with its neighbor in the underlying chain
-  — so the new order is permanent and is exactly what Auto-arrange reflects
-  from then on. A barrier shared by lines that disagree on its neighbor now
-  prompts for which path(s) to reorder.
-- Fixed auto-arrange spacing rows far apart vertically (regardless of
-  Loose/Tight mode) when several Causes or Outcomes had few or no
-  barriers between them — two Causes/Outcomes with no barrier at all now
-  sit as close together as two that share one, since there's no barrier
-  box or label between them to protect against.
-
 ## v0.1.3 - 2026-09-07
 
 - Fixed auto-arrange placing a barrier on top of another when it's shared
@@ -22,9 +7,16 @@
   a second Cause to an existing barrier ahead of that Cause's own further
   barrier) — depth is now ranked by the longest remaining chain through the
   barrier, not whichever chain happened to be found first.
-- Added a manual per-barrier column shunt: right-click a Preventative or
-  Mitigative Barrier and choose "Shift Toward TLE" / "Shift Away From TLE"
-  to nudge it one auto-arrange column in either direction by hand.
+- Added "Shift Toward TLE" / "Shift Away From TLE" on a barrier's
+  right-click menu: reorders it one step within its own path toward or
+  away from the TLE — a real change to the chain, not a cosmetic nudge, so
+  it's exactly what every future Auto-arrange reflects. Prompts for which
+  path to reorder when a shared barrier's lines disagree on its neighbor.
+- Fixed auto-arrange spacing rows far apart vertically (regardless of
+  Loose/Tight mode) when several Causes or Outcomes had few or no
+  barriers between them — two Causes/Outcomes with no barrier at all now
+  sit as close together as two that share one, since there's no barrier
+  box or label between them to protect against.
 
 ## v0.1.2 - 2026-09-06
 
