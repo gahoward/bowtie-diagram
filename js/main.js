@@ -18,20 +18,30 @@
     const model = undo.model;
     window.__debugModel = model;
 
+    // Gives every canvas-manipulation controller (and the view) a single
+    // page's drawable content, shaped exactly like the old single-page
+    // model, so their internals need no changes -- see PageScopedModel.js.
+    // `getActivePageId` is a placeholder until PageTabsController (a later
+    // phase) exists to own real tab-switching: today a document only ever
+    // has the one page the model constructor auto-creates, so always
+    // resolving to the first page reproduces exactly today's single-page
+    // behavior while every consumer below already reads through the facade.
+    const pageScopedModel = new Bowtie.PageScopedModel(model, () => model.pages[0].id);
+
     const panZoom = new Bowtie.PanZoomController(svgRoot, {
       x: 0, y: 0, w: Bowtie.BowtieModel.CANVAS_W, h: Bowtie.BowtieModel.CANVAS_H,
     });
     const minimap = new Bowtie.MinimapView(document.getElementById('minimap-container'), panZoom);
 
     const renderAll = () => {
-      view.render(model, { showAnnotations: settings.showAnnotations });
+      view.render(pageScopedModel, { showAnnotations: settings.showAnnotations });
       minimap.render(view.connectionsLayer, view.nodesLayer, view.getContentBounds());
     };
     rawModel.onChange(renderAll);
 
     const settings = new Bowtie.SettingsController(document.getElementById('btn-settings'), renderAll);
 
-    new Bowtie.ToolbarController(model, {
+    new Bowtie.ToolbarController(pageScopedModel, {
       addCauseBtn: document.getElementById('btn-add-cause'),
       addOutcomeBtn: document.getElementById('btn-add-outcome'),
       nameEl: document.getElementById('bowtie-name'),
@@ -51,11 +61,11 @@
     // UndoController.js: `moveElement` itself is excluded from its generic
     // per-method-call snapshot hook, since it's called on every
     // pointermove, not once per gesture.
-    new Bowtie.DragController(model, svgRoot, () => undo.snapshot());
-    new Bowtie.ContextMenuController(model, svgRoot);
-    new Bowtie.FocusController(model, svgRoot);
+    new Bowtie.DragController(pageScopedModel, svgRoot, () => undo.snapshot());
+    new Bowtie.ContextMenuController(pageScopedModel, svgRoot);
+    new Bowtie.FocusController(pageScopedModel, svgRoot);
     new Bowtie.AutoArrangeController(
-      model,
+      pageScopedModel,
       svgRoot,
       document.getElementById('btn-auto-arrange'),
       () => panZoom.fitToBounds(view.getContentBounds()),
