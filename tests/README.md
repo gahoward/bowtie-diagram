@@ -47,14 +47,23 @@ step for the app itself, so tests run directly against `index.html` as-is.
 - **`test_model_splicing.py`** — the highest-value file: BowtieModel's
   insert/attach/truncate primitives, exercised directly via
   `window.__lastModel`, no UI clicking involved. Fast and immune to
-  rendering changes.
+  rendering changes. Also covers `nudgeBarrierColumn` (shared_barrier_
+  column_collision_fix.md §3's manual per-barrier column shunt): moves a
+  Preventative/Mitigative Barrier by exactly `colSpacing` in the
+  kind-appropriate direction, and is undoable.
 - **`test_barrier_placement.py`**, **`test_rendering.py`**,
   **`test_autoarrange.py`**, **`test_focus_hover.py`**,
   **`test_attach_and_truncate_ui.py`** — UI-driven coverage of the same
   behaviors reached through real right-clicks, hovers, and context menus.
   `test_autoarrange.py` also covers a long, realistically-wrapping Cause
   name not overlapping its sibling row (an architecture review finding —
-  see `DESIGN_NOTES.md`'s `LEAF_ROW_MARGIN` entry).
+  see `DESIGN_NOTES.md`'s `LEAF_ROW_MARGIN` entry), and a barrier shared by
+  two chains with different remaining lengths to the TLE landing in its
+  own column instead of colliding with the barrier that makes it longer
+  (shared_barrier_column_collision_fix.md §1-2). `test_barrier_placement.py`
+  also covers the "Shift Toward/Away From TLE" context-menu items
+  (shared_barrier_column_collision_fix.md §3) moving an isolated barrier by
+  one column in the correct, kind-mirrored direction.
 - **`test_undo_redo.py`**, **`test_drag_ordering.py`** — snapshot-based
   undo/redo (stack capping, phantom-step avoidance on a failed mutation,
   one-undo-step-per-drag-gesture) and `DragController`'s ordering/overlap

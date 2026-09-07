@@ -16,7 +16,7 @@
     'insertBarrier', 'attachExistingBarrier',
     'attachInputToPreventativeControl', 'attachOutputToMitigativeControl',
     'connectLineDirectlyToTle', 'deleteElement', 'renameElement', 'setPositions',
-    'reEnableId', 'disableRetiredId', 'reassignId', 'setName',
+    'reEnableId', 'disableRetiredId', 'reassignId', 'setName', 'nudgeBarrierColumn',
   ];
 
   // Wraps `model` in a Proxy that snapshots its current toJSON() onto the

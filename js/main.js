@@ -52,7 +52,7 @@
     // per-method-call snapshot hook, since it's called on every
     // pointermove, not once per gesture.
     new Bowtie.DragController(model, svgRoot, () => undo.snapshot());
-    new Bowtie.ContextMenuController(model, svgRoot);
+    new Bowtie.ContextMenuController(model, svgRoot, () => settings.arrangeSpacing);
     new Bowtie.FocusController(model, svgRoot);
     new Bowtie.AutoArrangeController(
       model,

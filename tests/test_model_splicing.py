@@ -151,3 +151,60 @@ def test_orphaned_barrier_after_truncate_is_warned(page):
       return m.getWarnings().map(w => w.id);
     }""")
     assert warnings == ["PB_1"]
+
+
+def test_nudge_barrier_column_moves_preventative_barrier_toward_and_away_from_tle(page):
+    """Manual per-barrier column shunt (the escape hatch for whatever rare
+    case auto-arrange's own depth heuristic still gets wrong): a
+    PreventativeBarrier sits left of the TLE (Causes -> TLE, ascending x),
+    so "toward the TLE" must increase x and "away from the TLE" must
+    decrease it, by exactly `colSpacing`."""
+    result = page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.addCause({x: 150, y: 200});
+      const pb = m.addPreventativeControl(m.causes[0].id);
+      const before = pb.x;
+      m.nudgeBarrierColumn('preventativeBarrier', pb.id, true, 320);
+      const towardTle = pb.x;
+      m.nudgeBarrierColumn('preventativeBarrier', pb.id, false, 320);
+      const away = pb.x;
+      return { before, towardTle, away };
+    }""")
+    assert result["towardTle"] == result["before"] + 320
+    assert result["away"] == result["before"]
+
+
+def test_nudge_barrier_column_moves_mitigative_barrier_the_opposite_direction(page):
+    """Mirrors the Preventative case: a MitigativeBarrier sits right of the
+    TLE (TLE -> Outcomes, ascending x), so "toward the TLE" must DECREASE x
+    instead."""
+    result = page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.addOutcome({x: 1200, y: 200});
+      const mb = m.addMitigativeControl(m.outcomes[0].id);
+      const before = mb.x;
+      m.nudgeBarrierColumn('mitigativeBarrier', mb.id, true, 320);
+      const towardTle = mb.x;
+      m.nudgeBarrierColumn('mitigativeBarrier', mb.id, false, 320);
+      const away = mb.x;
+      return { before, towardTle, away };
+    }""")
+    assert result["towardTle"] == result["before"] - 320
+    assert result["away"] == result["before"]
+
+
+def test_nudge_barrier_column_is_undoable(page):
+    result = page.evaluate("""() => {
+      const undo = window.__lastUndo;
+      const m = undo.model;
+      m.addCause({x: 150, y: 200});
+      const pb = m.addPreventativeControl(m.causes[0].id);
+      const before = pb.x;
+      m.nudgeBarrierColumn('preventativeBarrier', pb.id, true, 320);
+      const nudged = window.__lastModel.findById(pb.id).x;
+      undo.undo();
+      const restored = window.__lastModel.findById(pb.id).x;
+      return { before, nudged, restored };
+    }""")
+    assert result["nudged"] == result["before"] + 320
+    assert result["restored"] == result["before"]
