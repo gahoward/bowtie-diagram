@@ -61,7 +61,8 @@
     20 + ((TLE_CLEARANCE * HAZARD_HALF_W) / (TLE_DEFAULT_R + HAZARD_GAP)),
   );
   // Spacing between two Cause/Outcome leaf rows that end up MERGED into the
-  // same shared barrier (i.e. within one orderByAdjacency group). These
+  // same shared barrier (i.e. adjacent within one buildConsecutiveOrder
+  // hyperedge block). These
   // rows never need barrier-collision clearance from each other — they
   // feed the same barrier, not two separate ones — so this stays a plain,
   // compact spacing. Barrier geometry (below) is irrelevant here.
@@ -85,7 +86,7 @@
   const LABEL_CLEARANCE = 96;
 
   // Minimum vertical gap between every OTHER pair of adjacent Cause/Outcome
-  // leaf rows — i.e. between two different orderByAdjacency groups, or
+  // leaf rows — i.e. between two different buildConsecutiveOrder blocks, or
   // between two singleton (unmerged) rows — sized so that no two
   // same-depth-column barriers' rendered boxes, OR either one's id/name
   // label (which renders BELOW its box, only ever eating into the gap
@@ -124,75 +125,98 @@
   // gap exactly rather than picking another, still-guessable ceiling.
   const LEAF_ROW_MARGIN = 20;
 
-  // Orders `nodes` by a depth-first walk of `adjacency` (built by
-  // _directAdjacency below: {adjacency, tightness} — a Map from id to the
-  // Set of ids it directly shares a barrier with, plus a Map from each
-  // edge to the SMALLEST number of origins any barrier connecting that
-  // pair serves) so that any two nodes linked — directly OR transitively
-  // through a chain of shared barriers — end up adjacent, with NO
-  // unrelated node between them. This is stronger than grouping by a
-  // single shared key: two Causes can share a barrier several hops
-  // downstream while their own immediate next barriers differ (Cause A ->
-  // PB1 -> PB3, Cause C -> PB4 -> PB3), and a third barrier can bridge two
-  // otherwise-unconnected pairs through a shared Cause (A-B share one
-  // barrier, B-C share a different one) — a DFS naturally chains A-B-C
-  // together in that case, which a simple "group by shared key" can't
-  // express at all. Returns the flat, fully ordered array (one DFS
-  // traversal per connected component, started in original array order
-  // for stability) — see `assignLeafYs` for how the GAP between two
-  // adjacent entries is decided; it is deliberately NOT "same DFS
-  // component", since — as in the Cause A -> PB1 -> PB3, Cause C -> PB4 ->
-  // PB3 example above — two nodes can end up correctly adjacent here while
-  // still having two entirely distinct barriers in the very first depth
-  // column, which still need full separation from each other.
+  // Orders `nodes` so that every barrier's participating origins end up
+  // CONTIGUOUS in the result, with no unrelated node's row ever falling
+  // between two of them — otherwise that barrier's rendered box (which
+  // always spans from its shallowest to its deepest participating lane,
+  // Layout.controlBounds via laneYsThrough) visually swallows whatever
+  // unrelated line's row got caught inside its span, even though that
+  // line never stops there (reported bug: attaching a bare Cause to a
+  // barrier that's a tight pair with one member of a larger, separately-
+  // shared barrier's group left the bare Cause's own row sandwiched
+  // inside the larger barrier's box).
   //
-  // `tightness` breaks a real, previously-unhandled ambiguity: when a
-  // node has several unvisited neighbours, which to visit (and thus
-  // cluster adjacent to) FIRST? Sorting by original array index alone
-  // (the old behaviour) assumes every shared-barrier edge deserves equal
-  // priority, which breaks down the moment one pair shares a barrier with
-  // FEW participants (needs to be strictly next to each other, or that
-  // barrier's own small box balloons to cover whoever ends up between
-  // them) while ALSO both belonging to a much LARGER shared-barrier group
-  // (which only needs everyone in the same general region, not in any
-  // particular sub-order) — reported bug: Cause A and Cause D privately
-  // share barrier X (just the two of them), while A, B, C, and D all
-  // separately share a later barrier Y; sorting by index alone visited B
-  // and C (index order) before D, inserting them between A and D and
-  // making X's box balloon to cover B and C's rows too, even though
-  // neither B nor C is attached to X at all. Visiting the TIGHTEST
-  // (fewest-participant) unvisited neighbour first — index order only as
-  // the tie-break — clusters A and D adjacently before the looser Y
-  // relationship gets a chance to interleave anyone else.
-  function orderByAdjacency(nodes, { adjacency, tightness }) {
-    const byId = new Map(nodes.map((n) => [n.id, n]));
-    const indexOf = new Map(nodes.map((n, i) => [n.id, i]));
-    const visited = new Set();
-    const ordered = [];
-    const tightnessOf = (a, b) => {
-      const key = a < b ? `${a}|${b}` : `${b}|${a}`;
-      return tightness.has(key) ? tightness.get(key) : Infinity;
+  // `hyperedges` (built by _hyperedges below) is one entry per barrier
+  // with 2+ lines through it: `{ members: Set<originId> }` — the exact
+  // set of Causes/Outcomes that need to land contiguous for that one
+  // barrier. Plain pairwise adjacency can't express this correctly: a
+  // node can need to sit next to ONE member of a larger group without
+  // being absorbed into the middle of it, which only makes sense treating
+  // each barrier's whole participant set as one constraint at a time.
+  //
+  // Processes hyperedges LARGEST-membership first, building each into an
+  // opaque "block" (nested array) that later, smaller hyperedges treat as
+  // one unit — a big, loose relationship claims its members' contiguous
+  // block before a smaller, tighter one has to decide where within it to
+  // attach. When a smaller hyperedge's members all fall inside a single
+  // already-built block (rather than spanning several top-level blocks),
+  // the merge has to happen one level deeper, INSIDE that block's own
+  // children — recurses for exactly that reason (a bare Cause attached to
+  // one member of an already-4-way-shared barrier needs its private pair
+  // pulled together WITHIN that block, not merely alongside it). A block's
+  // children are freely re-permuted at whatever level the merge happens
+  // (nothing outside this function depends on any particular order among
+  // a block's own members — see assignLeafYs, which sizes gaps from the
+  // STOPS at each row, not from this ordering) so a needed member can
+  // always move to an edge for the next merge to attach next to it — see
+  // `promoteToEdge` below. Two nodes with no shared barrier at all are
+  // never touched here and simply keep their original relative order.
+  function buildConsecutiveOrder(nodes, hyperedges) {
+    const flatten = (unit, out) => {
+      if (Array.isArray(unit)) unit.forEach((u) => flatten(u, out));
+      else out.push(unit);
+      return out;
+    };
+    const intersectsMembers = (unit, members) => flatten(unit, []).some((id) => members.has(id));
+
+    // Groups `children` (an array of units, mutated in place) so every
+    // child intersecting `members` ends up together at one `edge`
+    // ('start' or 'end'), each such child's own internal order untouched,
+    // non-matching children keeping their relative order on the other side.
+    const promoteToEdge = (children, members, edge) => {
+      const matching = children.filter((c) => intersectsMembers(c, members));
+      const rest = children.filter((c) => !intersectsMembers(c, members));
+      const merged = edge === 'end' ? [...rest, ...matching] : [...matching, ...rest];
+      children.splice(0, children.length, ...merged);
     };
 
-    const visit = (node) => {
-      visited.add(node.id);
-      ordered.push(node);
-      const neighborIds = Array.from(adjacency.get(node.id) || [])
-        .filter((id) => byId.has(id) && !visited.has(id))
-        .sort((a, b) => {
-          const diff = tightnessOf(node.id, a) - tightnessOf(node.id, b);
-          return diff !== 0 ? diff : indexOf.get(a) - indexOf.get(b);
-        });
-      neighborIds.forEach((id) => {
-        if (!visited.has(id)) visit(byId.get(id));
+    // Merges `members` into one contiguous run somewhere within `parent`
+    // (an array, mutated in place) — either at this level, if the
+    // hyperedge's members are spread across 2+ of `parent`'s own children,
+    // or by recursing into the single child that already contains all of
+    // them, going as deep as needed to find where they actually diverge.
+    const mergeWithin = (parent, members) => {
+      const touchedIdx = [];
+      parent.forEach((child, i) => { if (intersectsMembers(child, members)) touchedIdx.push(i); });
+      if (touchedIdx.length === 0) return;
+      if (touchedIdx.length === 1) {
+        const child = parent[touchedIdx[0]];
+        if (Array.isArray(child)) mergeWithin(child, members);
+        return;
+      }
+
+      // Bring each touched child's matching part to its own trailing edge
+      // so concatenating the touched children end-to-end keeps THIS
+      // hyperedge's members contiguous even when a child also carries
+      // other members from a bigger, already-built hyperedge.
+      touchedIdx.forEach((i) => {
+        if (Array.isArray(parent[i])) promoteToEdge(parent[i], members, 'end');
       });
+
+      const touchedSet = new Set(touchedIdx);
+      const merged = touchedIdx.map((i) => parent[i]);
+      const kept = parent.filter((_, i) => !touchedSet.has(i));
+      const insertPos = parent.slice(0, touchedIdx[0]).filter((_, i) => !touchedSet.has(i)).length;
+      kept.splice(insertPos, 0, merged);
+      parent.splice(0, parent.length, ...kept);
     };
 
-    nodes.forEach((node) => {
-      if (!visited.has(node.id)) visit(node);
-    });
+    const root = nodes.map((n) => n.id);
+    const sortedEdges = [...hyperedges].sort((a, b) => b.members.size - a.members.size);
+    sortedEdges.forEach(({ members }) => mergeWithin(root, members));
 
-    return ordered;
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    return flatten(root, []).map((id) => byId.get(id));
   }
 
   // Two Lines' stops arrays are the SAME box the whole way down -- not
@@ -228,7 +252,7 @@
   // — GROUP_GAP's full worst-case clearance, sized for two lone BARRIERS'
   // boxes+labels, was being paid between rows that had no barrier at all).
   // Otherwise GROUP_GAP applies. This is intentionally NOT based on
-  // whether orderByAdjacency placed them in the same connected component:
+  // whether buildConsecutiveOrder placed them in the same hyperedge block:
   // that grouping exists to get the ORDER right (so a shared barrier
   // several hops downstream still pulls its two Causes adjacent), but two
   // adjacent entries can still each own a wholly separate barrier at depth
@@ -357,45 +381,18 @@
       return depth;
     }
 
-    // For every barrier in `barriers`, every pair of Lines passing through
-    // it (`linesThrough` — regardless of how many other stops separate
-    // each Line from that barrier) share it directly: their origins must
-    // end up adjacent, or the barrier's grown box (spanning both their
-    // lanes) will visually intercept whatever unrelated Cause/Outcome
-    // ends up between them. Returns `{ adjacency, tightness }` for
-    // orderByAdjacency: `adjacency` maps an origin id to the Set of other
-    // origin ids it directly shares at least one barrier with; `tightness`
-    // maps each such pair (key `smaller|larger`, lexicographic so lookup
-    // doesn't care which side is asked first) to the SMALLEST number of
-    // origins any single barrier connecting them serves — i.e. how many
-    // OTHER origins that barrier's own box already has to span regardless
-    // of ordering. A pair sharing a barrier with few (or no other)
-    // participants needs to end up strictly adjacent, since that
-    // barrier's box would otherwise balloon to cover whoever ends up
-    // between them; a pair that only shares a barrier with MANY other
-    // participants merely needs to be in the same general region. Two
-    // origins sharing more than one barrier take the smallest (tightest)
-    // arity among them, since that's the binding constraint.
-    _directAdjacency(barriers) {
-      const adjacency = new Map();
-      const tightness = new Map();
-      const addEdge = (a, b, arity) => {
-        if (!adjacency.has(a)) adjacency.set(a, new Set());
-        if (!adjacency.has(b)) adjacency.set(b, new Set());
-        adjacency.get(a).add(b);
-        adjacency.get(b).add(a);
-        const key = a < b ? `${a}|${b}` : `${b}|${a}`;
-        if (!tightness.has(key) || arity < tightness.get(key)) tightness.set(key, arity);
-      };
-      barriers.forEach((barrier) => {
-        const originIds = this.model.linesThrough(barrier.id).map((l) => l.originId);
-        for (let i = 0; i < originIds.length; i += 1) {
-          for (let j = i + 1; j < originIds.length; j += 1) {
-            addEdge(originIds[i], originIds[j], originIds.length);
-          }
-        }
-      });
-      return { adjacency, tightness };
+    // One entry per barrier in `barriers` with 2+ Lines through it
+    // (`linesThrough` — regardless of how many other stops separate each
+    // Line from that barrier): `{ members: Set<originId> }`, the exact set
+    // of origins that must end up contiguous for buildConsecutiveOrder, or
+    // that barrier's grown box (spanning from its shallowest to its
+    // deepest participating lane) will visually intercept whatever
+    // unrelated Cause/Outcome's row ends up caught inside that span.
+    _hyperedges(barriers) {
+      return barriers
+        .map((barrier) => new Set(this.model.linesThrough(barrier.id).map((l) => l.originId)))
+        .filter((members) => members.size >= 2)
+        .map((members) => ({ members }));
     }
 
     // The y-value(s) that directly feed `barrierId` from its leaf-ward side
@@ -476,9 +473,9 @@
       // below, purely as the midpoint of its own leafward neighbours,
       // independent of iteration order — only the leaf assignment order
       // actually determines a y (via assignLeafYs), so only Causes and
-      // Outcomes need to go through orderByAdjacency.
-      const causeCluster = orderByAdjacency(model.causes, this._directAdjacency(model.preventativeBarriers));
-      const outcomeCluster = orderByAdjacency(model.outcomes, this._directAdjacency(model.mitigativeBarriers));
+      // Outcomes need to go through buildConsecutiveOrder.
+      const causeCluster = buildConsecutiveOrder(model.causes, this._hyperedges(model.preventativeBarriers));
+      const outcomeCluster = buildConsecutiveOrder(model.outcomes, this._hyperedges(model.mitigativeBarriers));
 
       // Leaf rows (Causes/Outcomes) get their y first, with extra clearance
       // around any merge group; every barrier depth then propagates its y

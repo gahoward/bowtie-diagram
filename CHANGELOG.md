@@ -49,6 +49,18 @@
   short of where the diagram's actual barrier columns are. Every line's
   flat run now extends to at least the shallowest occupied barrier
   column on its side before turning, matching every other line.
+- Fixed auto-arrange still letting an unrelated Cause/Outcome's row land
+  inside a shared barrier's grown box in cases the previous fix (v0.1.3)
+  didn't cover — e.g. attaching a bare Cause to one barrier of a chain and
+  declining to inherit its further continuation ("Stop Here") could leave
+  that Cause sandwiched inside a separate, larger barrier's box it was
+  never attached to at all. Row ordering is now built from each barrier's
+  full shared-participant set directly (largest shared groups first, so a
+  smaller, tighter pair can always still pull its members together even
+  from inside an already-placed larger group) instead of a pairwise
+  adjacency heuristic, which could not always express that a node needs a
+  private neighbour without being absorbed into that neighbour's larger
+  group.
 
 ## v0.1.3 - 2026-09-07
 

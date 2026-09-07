@@ -740,3 +740,54 @@ def test_a_tighter_shared_barrier_clusters_correctly_within_a_broader_shared_gro
         "C_2 and C_4 (sharing PB_2 privately) must end up strictly adjacent, "
         "with no other Cause's row landing between them"
     )
+
+
+def test_a_lone_barrier_shared_only_by_one_member_of_a_broader_group_stays_out_of_its_box(page):
+    """Reported bug/regression, same demo topology as the test above but
+    C_4 declines to inherit PB_2's continuation to PB_3 (chooses "Stop
+    Here"), so C_4 ends up sharing ONLY PB_2 with C_2 -- unlike the test
+    above, C_4 is NOT a member of PB_3's shared group at all here. The
+    first fix for this bug (buildConsecutiveOrder) only merged hyperedges
+    at the top level, so once PB_3's 3-way group (C_1, C_2, C_3) had
+    already been built into one block, a smaller hyperedge fully NESTED
+    inside that block (PB_2: just C_2 and C_4) was never revisited -- C_4
+    stayed wherever plain array order put it, sandwiched inside PB_3's own
+    grown box despite never being attached to PB_3. Every barrier's
+    rendered box must only ever span rows that actually pass through it."""
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.loadFromJSON(Bowtie.DEMO_DATA);
+      m.attachInputToPreventativeControl('C_4', 'PB_2', false); // "Stop Here"
+    }""")
+    auto_arrange(page)
+    page.wait_for_timeout(150)
+
+    result = page.evaluate("""() => {
+      const m = window.__lastModel;
+      const view = window.__lastView;
+      // Scoped to the active page only -- the demo is multi-page, and a
+      // barrier's box on one page has no relationship to a Cause's row on
+      // another page (they aren't even rendered together).
+      const pageCauses = m.causes.filter((c) => c.pageId === 'PAGE_1');
+      const pagePbs = m.preventativeBarriers.filter((pb) => pb.pageId === 'PAGE_1');
+      const causeYs = Object.fromEntries(pageCauses.map((c) => [c.id, c.y]));
+      const throughIds = Object.fromEntries(
+        pagePbs.map((pb) => [pb.id, new Set(m.linesThrough(pb.id).map((l) => l.originId))])
+      );
+      const boundsById = {};
+      for (const pb of pagePbs) boundsById[pb.id] = view.boundsById[pb.id];
+      return { causeYs, throughIds: Object.fromEntries(
+        Object.entries(throughIds).map(([id, s]) => [id, Array.from(s)])
+      ), boundsById };
+    }""")
+    for pb_id, bounds in result["boundsById"].items():
+        top = bounds["cy"] - bounds["h"] / 2
+        bottom = bounds["cy"] + bounds["h"] / 2
+        through = set(result["throughIds"][pb_id])
+        for cause_id, y in result["causeYs"].items():
+            if cause_id in through:
+                continue
+            assert not (top < y < bottom), (
+                f"{cause_id}'s row must not fall inside {pb_id}'s grown box -- "
+                f"{cause_id}'s line never passes through {pb_id}"
+            )
