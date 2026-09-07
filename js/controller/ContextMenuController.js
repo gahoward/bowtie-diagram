@@ -149,7 +149,7 @@
           label,
           action: () => {
             if (eligible.length === 1) {
-              this.model.swapBarrierWithNeighbor(eligible[0].id, id, towardTle);
+              this.model.swapBarrierWithNeighbor([eligible[0].id], id, towardTle);
               return;
             }
             this._openLineSelectModal(
@@ -160,10 +160,14 @@
               // when nothing is checked (unlike insertBarrier's own
               // null-means-all convention) -- reordering a path the user
               // never selected would be a surprising side effect, not a
-              // sensible default.
-              (selected) => (selected || []).forEach(
-                (lineId) => this.model.swapBarrierWithNeighbor(lineId, id, towardTle),
-              ),
+              // sensible default. Every checked line is passed to ONE
+              // swapBarrierWithNeighbor call (one undo step for the whole
+              // batch) rather than one call per line -- see that method's
+              // own comment for why calling it repeatedly for the same
+              // barrier used to corrupt its position.
+              (selected) => {
+                if (selected && selected.length > 0) this.model.swapBarrierWithNeighbor(selected, id, towardTle);
+              },
               'This barrier carries multiple lines with a different neighbour here. '
                 + 'Select which path(s) to reorder — anything left unselected keeps its current order.',
             );

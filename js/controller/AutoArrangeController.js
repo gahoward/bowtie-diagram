@@ -166,14 +166,35 @@
     return ordered;
   }
 
+  // Two Lines' stops arrays are the SAME box the whole way down -- not
+  // just merged at the first hop, but never diverging into separate
+  // barriers at any later hop either. Used by assignLeafYs below to decide
+  // whether two adjacent rows can share the cheap ROW_SPACING gap: sharing
+  // only `stops[0]` used to be treated as enough (two Causes exiting into
+  // the same first barrier), but the manual path-reorder feature
+  // (BowtieModel.swapBarrierWithNeighbor) can now produce a line whose
+  // stops[0] matches a neighbour's while its LATER stops diverge into a
+  // wholly separate barrier -- e.g. two Causes merge into one shared
+  // barrier, then each continues through its OWN further barrier before
+  // the TLE. Those later barriers are two distinct boxes (each with its
+  // own label) needing GROUP_GAP's full clearance from each other, exactly
+  // like any other two lone barriers would -- checking only stops[0] would
+  // grant them ROW_SPACING instead and let one row's barrier label overlap
+  // the very next row's barrier box (reported bug: shifting a shared
+  // barrier away from the TLE on two of its lines at once).
+  function stopsFullyMatch(a, b) {
+    return a.length === b.length && a.every((stopId, i) => stopId === b[i]);
+  }
+
   // Assigns y-positions down an adjacency-ordered leaf array (Causes or
   // Outcomes). The gap between two consecutive entries is ROW_SPACING —
-  // not the full barrier-collision GROUP_GAP — in either of two cases:
-  // they share the exact same immediate barrier (`Line.stops[0]`), meaning
-  // they are, at the very first depth column, literally the same box, not
-  // two; or NEITHER has any barrier at all (`Line.stops` empty for both),
-  // meaning there is no barrier box or label anywhere near this particular
-  // pair's shared boundary for GROUP_GAP to actually be protecting (a real
+  // not the full barrier-collision GROUP_GAP — only when their entire
+  // remaining chains are identical (see stopsFullyMatch above): either
+  // they share the exact same full path to the TLE (meaning every barrier
+  // along it is, for both of them, literally the same box, not two), or
+  // NEITHER has any barrier at all (`Line.stops` empty for both), meaning
+  // there is no barrier box or label anywhere near this particular pair's
+  // shared boundary for GROUP_GAP to actually be protecting (a real
   // reported case: several Causes/Outcomes with few barriers between them
   // — GROUP_GAP's full worst-case clearance, sized for two lone BARRIERS'
   // boxes+labels, was being paid between rows that had no barrier at all).
@@ -193,11 +214,9 @@
     nodes.forEach((node, i) => {
       if (i > 0) {
         const prevNode = nodes[i - 1];
-        const prevFirstStop = model._lineFor(prevNode.id).stops[0];
-        const firstStop = model._lineFor(node.id).stops[0];
-        const shareImmediateBarrier = prevFirstStop && firstStop && prevFirstStop === firstStop;
-        const neitherHasABarrier = !prevFirstStop && !firstStop;
-        const baseGap = (shareImmediateBarrier || neitherHasABarrier) ? ROW_SPACING : GROUP_GAP;
+        const prevStops = model._lineFor(prevNode.id).stops;
+        const stops = model._lineFor(node.id).stops;
+        const baseGap = stopsFullyMatch(prevStops, stops) ? ROW_SPACING : GROUP_GAP;
         // Neither ROW_SPACING nor GROUP_GAP alone accounts for a wrapped,
         // multi-line name growing THIS PARTICULAR row's (or its neighbour's)
         // own box taller than the default — see LEAF_ROW_MARGIN above. Take

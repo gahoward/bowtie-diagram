@@ -585,8 +585,22 @@ def test_mixed_bare_and_barrier_rows_never_overlap_in_either_spacing_mode(page):
               });
             }
           });
+          // boundsById entries carry `w`/`h` always, but `cx` never (a
+          // barrier's own x IS its model x; a Cause/Outcome's bounds don't
+          // even carry `cy` -- it's always just its model y) -- build cx/cy
+          // from the model directly rather than assuming the bounds object
+          // has them, or every comparison below silently compares
+          // `undefined` and never reports an overlap.
           const view = window.__lastView;
-          const boxes = Object.values(view.boundsById);
+          const m = window.__lastModel;
+          const allIds = [
+            ...m.causes, ...m.outcomes, ...m.preventativeBarriers, ...m.mitigativeBarriers,
+          ].map((n) => n.id);
+          const boxes = allIds.map((id) => {
+            const node = m.findById(id);
+            const b = view.boundsById[id];
+            return { id, cx: node.x, cy: b.cy !== undefined ? b.cy : node.y, w: b.w, h: b.h };
+          });
           let overlapCount = 0;
           for (let i = 0; i < boxes.length; i += 1) {
             for (let j = i + 1; j < boxes.length; j += 1) {
@@ -617,3 +631,71 @@ def test_mixed_bare_and_barrier_rows_never_overlap_in_either_spacing_mode(page):
     tight = violations(page)
     assert tight["lineViolations"] == 0
     assert tight["boxOverlaps"] == 0
+
+
+def test_diverging_after_a_shared_barrier_keeps_full_clearance_between_rows(page):
+    """Reported bug: two Causes merge into one shared barrier, then each
+    continues through its OWN separate further barrier before the TLE (the
+    manual path-reorder feature's "Shift Away From TLE", applied to a
+    shared barrier across two of its lines at once, produces exactly this
+    shape). assignLeafYs used to grant these two Causes only ROW_SPACING
+    because they share their FIRST stop, ignoring that their chains
+    diverge again right after -- concretely reproduced: one barrier's
+    label overlapped the very next row's barrier box after Auto-arrange.
+    Built directly via the model (mirrors what the reorder feature
+    produces) rather than by driving the context menu, since this is
+    fundamentally an Auto-arrange/layout correctness property, not a
+    reorder-UI one -- test_barrier_placement.py separately covers the
+    context-menu flow end-to-end."""
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.addCause({x: 150, y: 90});
+      const ownA = m.addPreventativeControl(m.causes[0].id);
+      const shared = m.insertBarrier('preventativeBarrier', 'after', ownA.id); // C_1: [ownA, shared]
+      m.addCause({x: 150, y: 300});
+      const ownB = m.addPreventativeControl(m.causes[1].id);
+      m.attachExistingBarrier('preventativeBarrier', 'after', ownB.id, shared.id); // C_2: [ownB, shared]
+      // Now reorder `shared` away from the TLE on BOTH lines, exactly like
+      // ticking both Causes in the "Shift Away From TLE" picker:
+      const line1 = m._lineFor(m.causes[0].id).id;
+      const line2 = m._lineFor(m.causes[1].id).id;
+      m.swapBarrierWithNeighbor([line1, line2], shared.id, false);
+      // Lines are now C_1: [shared, ownA], C_2: [shared, ownB] -- shared,
+      // sharing stops[0], but diverging at stops[1] into two separate boxes.
+    }""")
+    auto_arrange(page)
+    page.wait_for_timeout(150)
+
+    boxes = page.evaluate("""() => {
+      const m = window.__lastModel;
+      const view = window.__lastView;
+      return m.preventativeBarriers.map((pb) => {
+        const b = view.boundsById[pb.id];
+        return {
+          id: pb.id, cy: b.cy, h: b.h,
+          labelCenterY: b.labelCenterY, labelHalfHeight: b.labelHalfHeight,
+          lines: m.linesThrough(pb.id).map((l) => l.id),
+        };
+      });
+    }""")
+
+    def box_span(b):
+        return b["cy"] - b["h"] / 2, b["cy"] + b["h"] / 2
+
+    def label_span(b):
+        return b["labelCenterY"] - b["labelHalfHeight"], b["labelCenterY"] + b["labelHalfHeight"]
+
+    for i, a in enumerate(boxes):
+        for b in boxes[i + 1:]:
+            if set(a["lines"]) & set(b["lines"]):
+                continue
+            a_label_top, a_label_bot = label_span(a)
+            b_top, b_bot = box_span(b)
+            assert not (a_label_top < b_bot and b_top < a_label_bot), (
+                f"{a['id']}'s label must not overlap unrelated {b['id']}'s box"
+            )
+            b_label_top, b_label_bot = label_span(b)
+            a_top, a_bot = box_span(a)
+            assert not (b_label_top < a_bot and a_top < b_label_bot), (
+                f"{b['id']}'s label must not overlap unrelated {a['id']}'s box"
+            )

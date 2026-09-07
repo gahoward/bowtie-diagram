@@ -53,7 +53,13 @@ step for the app itself, so tests run directly against `index.html` as-is.
   the TLE in one Line's own `stops` — an actual topology change, not a
   position nudge — is a no-op at either end of a chain, only ever touches
   the named line even when the barrier is shared with others, and is
-  undoable.
+  undoable. Also covers reordering a shared barrier against several of
+  its lines in ONE call (as the multi-line picker now does): when every
+  line agrees on the same neighbour, the immediate position feedback still
+  applies; when lines disagree, position is left untouched rather than
+  corrupted (a real bug — a barrier ended up on the exact same spot as an
+  unrelated one when each line was swapped in a separate call instead),
+  and the whole batch is one undo step.
 - **`test_barrier_placement.py`**, **`test_rendering.py`**,
   **`test_autoarrange.py`**, **`test_focus_hover.py`**,
   **`test_attach_and_truncate_ui.py`** — UI-driven coverage of the same
@@ -69,13 +75,21 @@ step for the app itself, so tests run directly against `index.html` as-is.
   to protect between them — including a stress check (both spacing modes)
   that a mix of bare and barrier-bearing rows still produces zero box
   overlaps and zero bare-line/barrier-box crossings once those gaps
-  shrink. `test_barrier_placement.py`
+  shrink, and two Causes that merge into one shared barrier and then
+  DIVERGE AGAIN into their own separate further barriers still get full
+  GROUP_GAP clearance from each other, not the cheaper ROW_SPACING sharing
+  a first stop alone used to grant (real reported bug: one barrier's label
+  overlapped the very next barrier's box after Auto-arrange — see
+  `stopsFullyMatch` in `AutoArrangeController.js`). `test_barrier_placement.py`
   also covers the "Shift Toward/Away From TLE" context-menu items
   (shared_barrier_column_collision_fix.md §3): each item only appears when
   a swap in that direction would do something, reorders the underlying
   Line when clicked, and prompts with a line picker (only reordering the
   path(s) actually checked) when the barrier is shared and its lines
-  disagree on the neighbour.
+  disagree on the neighbour — including the exact reported repro (load the
+  demo, shift PB_3 away from the TLE on both C_1 and C_2 at once): no
+  position corruption beforehand, and no label/box overlap after
+  Auto-arrange.
 - **`test_undo_redo.py`**, **`test_drag_ordering.py`** — snapshot-based
   undo/redo (stack capping, phantom-step avoidance on a failed mutation,
   one-undo-step-per-drag-gesture) and `DragController`'s ordering/overlap

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Fixed two compounding bugs when "Shift Away From TLE" (or Toward) is
+  applied to a shared barrier on more than one of its paths at once
+  (e.g. PB_3 in the demo, ticking both C_1 and C_2): the immediate
+  position feedback used to corrupt the barrier onto the exact same spot
+  as an unrelated one before Auto-arrange even ran, and Auto-arrange
+  itself then let one barrier's label overlap the very next barrier's box
+  — both because the code assumed two Causes sharing a first barrier
+  never diverge into separate barriers afterward, which this feature
+  makes possible for the first time.
+
 ## v0.1.3 - 2026-09-07
 
 - Fixed auto-arrange placing a barrier on top of another when it's shared
