@@ -251,3 +251,90 @@ def test_swap_barrier_with_neighbor_is_undoable(page):
     }""")
     assert result["swapped"] == ["PB_2", "PB_1"]
     assert result["restored"] == result["before"]
+
+
+def test_swap_barrier_with_neighbor_batches_multiple_lines_in_one_call(page):
+    """Reported bug: reordering a shared barrier against two DIFFERENT
+    neighbours (one per line) by calling swapBarrierWithNeighbor once per
+    selected line let each call's "swap x with my neighbour" step corrupt
+    the previous call's result -- the barrier ended up landing exactly on
+    top of an unrelated third barrier. Passing every line to ONE call must
+    reorder each line correctly and, since the two neighbours differ,
+    leave `x` on all three barriers untouched (no single unambiguous new
+    position exists) rather than guessing wrong."""
+    result = page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.addCause({x: 150, y: 90});
+      const pb1 = m.addPreventativeControl(m.causes[0].id);
+      const shared = m.insertBarrier('preventativeBarrier', 'after', pb1.id); // C_1: [PB_1, shared]
+      m.addCause({x: 150, y: 300});
+      const pb2 = m.addPreventativeControl(m.causes[1].id);
+      m.attachExistingBarrier('preventativeBarrier', 'after', pb2.id, shared.id); // C_2: [PB_2, shared]
+      const line1 = m._lineFor(m.causes[0].id);
+      const line2 = m._lineFor(m.causes[1].id);
+      const xBefore = { pb1: pb1.x, pb2: pb2.x, shared: shared.x };
+      m.swapBarrierWithNeighbor([line1.id, line2.id], shared.id, false);
+      return {
+        stops1: line1.stops, stops2: line2.stops,
+        pb1: pb1.id, pb2: pb2.id, shared: shared.id,
+        xBefore, xAfter: { pb1: pb1.x, pb2: pb2.x, shared: shared.x },
+      };
+    }""")
+    assert result["stops1"] == [result["shared"], result["pb1"]]
+    assert result["stops2"] == [result["shared"], result["pb2"]]
+    assert result["xAfter"] == result["xBefore"], (
+        "with two different neighbours in the same batch, no position is well-defined -- "
+        "x must be left exactly as it was, not guessed (and definitely not corrupted)"
+    )
+
+
+def test_swap_barrier_with_neighbor_batch_still_swaps_x_when_all_lines_agree(page):
+    """Mirrors the case above: when every line in the batch shares the
+    SAME neighbour, that neighbour is unambiguous, so the immediate
+    visual x-swap should still apply -- the ambiguity guard must not
+    become overly conservative and silently stop doing this in the common
+    case."""
+    result = page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.addCause({x: 150, y: 90});
+      const pb1 = m.addPreventativeControl(m.causes[0].id);
+      const pb2 = m.insertBarrier('preventativeBarrier', 'after', pb1.id); // C_1: [PB_1, PB_2]
+      m.addCause({x: 150, y: 300});
+      m.attachInputToPreventativeControl(m.causes[1].id, pb1.id); // C_2 also: [PB_1, PB_2]
+      const line1 = m._lineFor(m.causes[0].id);
+      const line2 = m._lineFor(m.causes[1].id);
+      const before = { pb1: pb1.x, pb2: pb2.x };
+      m.swapBarrierWithNeighbor([line1.id, line2.id], pb1.id, true);
+      return { before, after: { pb1: pb1.x, pb2: pb2.x } };
+    }""")
+    assert result["after"]["pb1"] == result["before"]["pb2"]
+    assert result["after"]["pb2"] == result["before"]["pb1"]
+
+
+def test_swap_barrier_with_neighbor_batch_is_one_undo_step(page):
+    result = page.evaluate("""() => {
+      const undo = window.__lastUndo;
+      const m = undo.model;
+      m.addCause({x: 150, y: 90});
+      const pb1 = m.addPreventativeControl(m.causes[0].id);
+      const shared = m.insertBarrier('preventativeBarrier', 'after', pb1.id);
+      m.addCause({x: 150, y: 300});
+      const pb2 = m.addPreventativeControl(m.causes[1].id);
+      m.attachExistingBarrier('preventativeBarrier', 'after', pb2.id, shared.id);
+      const before = {
+        stops1: window.__lastModel._lineFor(window.__lastModel.causes[0].id).stops.slice(),
+        stops2: window.__lastModel._lineFor(window.__lastModel.causes[1].id).stops.slice(),
+      };
+      const line1Id = window.__lastModel._lineFor(window.__lastModel.causes[0].id).id;
+      const line2Id = window.__lastModel._lineFor(window.__lastModel.causes[1].id).id;
+      m.swapBarrierWithNeighbor([line1Id, line2Id], shared.id, false);
+      undo.undo(); // must revert BOTH lines' reordering in a single undo
+      return {
+        before,
+        restored: {
+          stops1: window.__lastModel._lineFor(window.__lastModel.causes[0].id).stops.slice(),
+          stops2: window.__lastModel._lineFor(window.__lastModel.causes[1].id).stops.slice(),
+        },
+      };
+    }""")
+    assert result["restored"] == result["before"]

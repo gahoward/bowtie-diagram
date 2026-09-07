@@ -5,7 +5,7 @@ model primitives already covered in test_model_splicing.py — the bug was
 specifically that the *placement* (x/y of the newly created barrier) used a
 fixed offset blind to which direction the splice was headed.
 """
-from helpers import click_menu_item, menu_items
+from helpers import auto_arrange, click_menu_item, menu_items
 
 
 def test_first_barrier_lands_right_of_its_cause(page):
@@ -201,3 +201,101 @@ def test_shift_toward_tle_on_a_shared_barrier_prompts_for_which_path(page):
     }""")
     assert state["line1"] == [ids["shared"], ids["pb1"]], "C_1's path must be reordered"
     assert state["line2"] == [ids["pb2"], ids["shared"]], "C_2's path, left unchecked, must be untouched"
+
+
+def test_shift_shared_barrier_on_both_paths_does_not_corrupt_positions(page):
+    """Exact reported bug, reproduced via the demo JSON: load the demo,
+    right-click PB_3, "Shift Away From TLE", tick BOTH C_1 and C_2 (not
+    just one) and confirm. This used to call swapBarrierWithNeighbor once
+    per ticked line, and each call's "swap x with my neighbour" step used
+    PB_3's already-mutated x from the previous call -- corrupting it onto
+    the exact same spot as PB_2 (visually: "PB_2 is hidden under PB_3"),
+    even before Auto-arrange ever runs. With two different neighbours in
+    one action, no single new x is well-defined, so all three barriers'
+    x must be left exactly as they started."""
+    page.evaluate("() => { window.__lastModel.loadFromJSON(Bowtie.DEMO_DATA); }")
+    page.wait_for_timeout(100)
+
+    before = page.evaluate("""() => {
+      const m = window.__lastModel;
+      return { PB_1: m.findById('PB_1').x, PB_2: m.findById('PB_2').x, PB_3: m.findById('PB_3').x };
+    }""")
+
+    pb3_node = page.locator('#bowtie-canvas .node.preventative-barrier[data-id="PB_3"]')
+    pb3_node.click(button="right")
+    click_menu_item(page, "Shift Away From TLE")
+    for label in ["C_1", "C_2"]:
+        page.locator(".modal-checkbox-row", has_text=label).locator("input[type=checkbox]").check()
+    page.get_by_role("button", name="Confirm", exact=True).click()
+    page.wait_for_timeout(100)
+
+    after = page.evaluate("""() => {
+      const m = window.__lastModel;
+      return { PB_1: m.findById('PB_1').x, PB_2: m.findById('PB_2').x, PB_3: m.findById('PB_3').x };
+    }""")
+    assert after == before, "with two different neighbours reordered at once, no x is well-defined -- must not move"
+
+    state = page.evaluate("""() => {
+      const m = window.__lastModel;
+      return {
+        c1: m._lineFor('C_1').stops,
+        c2: m._lineFor('C_2').stops,
+      };
+    }""")
+    assert state["c1"] == ["PB_3", "PB_1"]
+    assert state["c2"] == ["PB_3", "PB_2"]
+
+
+def test_shift_shared_barrier_on_both_paths_then_auto_arrange_has_no_overlap(page):
+    """Continuation of the bug above: pressing Auto-arrange afterward used
+    to leave PB_1's label overlapping PB_2's box, because C_1/C_2 (now
+    sharing PB_3 as their first stop) were granted only ROW_SPACING even
+    though they diverge again into separate barriers (PB_1, PB_2) right
+    after it."""
+    page.evaluate("() => { window.__lastModel.loadFromJSON(Bowtie.DEMO_DATA); }")
+    page.wait_for_timeout(100)
+
+    pb3_node = page.locator('#bowtie-canvas .node.preventative-barrier[data-id="PB_3"]')
+    pb3_node.click(button="right")
+    click_menu_item(page, "Shift Away From TLE")
+    for label in ["C_1", "C_2"]:
+        page.locator(".modal-checkbox-row", has_text=label).locator("input[type=checkbox]").check()
+    page.get_by_role("button", name="Confirm", exact=True).click()
+    page.wait_for_timeout(100)
+
+    auto_arrange(page)
+    page.wait_for_timeout(150)
+
+    boxes = page.evaluate("""() => {
+      const m = window.__lastModel;
+      const view = window.__lastView;
+      return m.preventativeBarriers.map((pb) => {
+        const b = view.boundsById[pb.id];
+        return {
+          id: pb.id, cy: b.cy, h: b.h,
+          labelCenterY: b.labelCenterY, labelHalfHeight: b.labelHalfHeight,
+          lines: m.linesThrough(pb.id).map((l) => l.id),
+        };
+      });
+    }""")
+
+    def box_span(b):
+        return b["cy"] - b["h"] / 2, b["cy"] + b["h"] / 2
+
+    def label_span(b):
+        return b["labelCenterY"] - b["labelHalfHeight"], b["labelCenterY"] + b["labelHalfHeight"]
+
+    for i, a in enumerate(boxes):
+        for b in boxes[i + 1:]:
+            if set(a["lines"]) & set(b["lines"]):
+                continue
+            a_label_top, a_label_bot = label_span(a)
+            b_top, b_bot = box_span(b)
+            assert not (a_label_top < b_bot and b_top < a_label_bot), (
+                f"{a['id']}'s label must not overlap unrelated {b['id']}'s box"
+            )
+            b_label_top, b_label_bot = label_span(b)
+            a_top, a_bot = box_span(a)
+            assert not (b_label_top < a_bot and a_top < b_label_bot), (
+                f"{b['id']}'s label must not overlap unrelated {a['id']}'s box"
+            )

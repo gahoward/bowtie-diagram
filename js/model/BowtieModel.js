@@ -440,7 +440,7 @@
     // here, unlike the x-pixel arithmetic the old version of this method
     // needed.
     //
-    // Scoped to a single line on purpose: a barrier shared by several
+    // Each swap is meaningful only per-line -- a barrier shared by several
     // lines can have a different neighbour (or none at all) in each one,
     // so "swap with your neighbour" only has one unambiguous meaning per
     // line -- exactly the same reasoning `attachExistingBarrier` already
@@ -449,40 +449,62 @@
     // even one that also passes through both of the swapped barriers,
     // since every Line owns its stops independently.
     //
-    // A no-op (returns without changing anything) if `barrierId` is
-    // already at that end of THIS line -- e.g. asking to shift it further
-    // toward the TLE when it's already that line's TLE-adjacent stop.
-    // Callers should check for this ahead of time (ContextMenuController
-    // only offers the action for lines where it would do something) rather
-    // than rely on the no-op, since this still counts as a call for
-    // undo-snapshotting purposes even when nothing actually moves.
+    // `lineIds` takes every line to reorder `barrierId` within, applied as
+    // ONE call (one undo step) -- this matters beyond convenience: an
+    // earlier version took a single lineId and was called once per
+    // selected line from a multi-line picker, and *also* tried to swap the
+    // barrier's on-screen `x` with its neighbour's on EVERY call. For a
+    // barrier reordered against two DIFFERENT neighbours across two lines
+    // in the same action, the second call's "neighbour" swap used the
+    // barrier's already-mutated x from the first call, not its original
+    // position -- corrupting it onto the wrong spot entirely (observed:
+    // the barrier landed exactly on top of a completely unrelated third
+    // barrier). Seeing the whole batch at once here means the x-adjustment
+    // below can tell, structurally, whether "swap with your neighbour" is
+    // even well-defined for this action, rather than guessing per-call and
+    // getting it wrong.
+    //
+    // A given line is silently skipped (no-op) if `barrierId` is already
+    // at that end of it -- e.g. asking to shift further toward the TLE
+    // when it's already that line's TLE-adjacent stop. Callers should
+    // check for this ahead of time (ContextMenuController only offers a
+    // line when the shift would do something) rather than rely on the
+    // no-op, since an empty result still counts as a call for
+    // undo-snapshotting purposes.
     //
     // Also swaps the two barriers' own `x` (never `y`, which reflects each
     // barrier's own lane midpoint, unrelated to how many hops it is from
-    // the TLE) as an immediate best-effort visual approximation for the
-    // common case of a barrier that's only ever on this one line -- so the
-    // diagram doesn't look stale until the user thinks to re-run
-    // Auto-arrange. When either barrier is ALSO shared by other lines
-    // whose own ordering disagrees, this is only an approximation; a full
-    // Auto-arrange remains the authority that reconciles everything from
-    // the (now-updated) topology.
-    swapBarrierWithNeighbor(lineId, barrierId, towardTle) {
-      const line = this.lines.find((l) => l.id === lineId);
-      if (!line) throw new Error(`Unknown line id: ${lineId}`);
-      const idx = line.stops.indexOf(barrierId);
-      if (idx === -1) throw new Error(`${barrierId} is not on line ${lineId}`);
-      const neighborIdx = towardTle ? idx + 1 : idx - 1;
-      if (neighborIdx < 0 || neighborIdx >= line.stops.length) return; // already at that end of this line
+    // the TLE) as an immediate best-effort visual approximation -- but
+    // ONLY when every line in this call agrees on the same single
+    // neighbour, which is the only case "swap with your neighbour" has one
+    // unambiguous new x for. When lines disagree (a shared barrier
+    // reordered against two different neighbours at once), no position is
+    // guessed at all; a full Auto-arrange remains the authority that
+    // reconciles everything from the (now-updated) topology.
+    swapBarrierWithNeighbor(lineIds, barrierId, towardTle) {
+      const ids = Array.isArray(lineIds) ? lineIds : [lineIds];
+      const neighborIds = new Set();
+      ids.forEach((lineId) => {
+        const line = this.lines.find((l) => l.id === lineId);
+        if (!line) throw new Error(`Unknown line id: ${lineId}`);
+        const idx = line.stops.indexOf(barrierId);
+        if (idx === -1) throw new Error(`${barrierId} is not on line ${lineId}`);
+        const neighborIdx = towardTle ? idx + 1 : idx - 1;
+        if (neighborIdx < 0 || neighborIdx >= line.stops.length) return; // already at that end of this line
 
-      const neighborId = line.stops[neighborIdx];
-      line.stops[idx] = neighborId;
-      line.stops[neighborIdx] = barrierId;
+        const neighborId = line.stops[neighborIdx];
+        line.stops[idx] = neighborId;
+        line.stops[neighborIdx] = barrierId;
+        neighborIds.add(neighborId);
+      });
 
-      const barrier = this.findById(barrierId);
-      const neighbor = this.findById(neighborId);
-      const barrierX = barrier.x;
-      barrier.x = neighbor.x;
-      neighbor.x = barrierX;
+      if (neighborIds.size === 1) {
+        const barrier = this.findById(barrierId);
+        const neighbor = this.findById([...neighborIds][0]);
+        const barrierX = barrier.x;
+        barrier.x = neighbor.x;
+        neighbor.x = barrierX;
+      }
 
       this._emitChange();
     }
