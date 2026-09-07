@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.1.3 - 2026-09-07
 
 - Fixed auto-arrange placing a barrier on top of another when it's shared
   by two chains whose remaining length to the TLE differs (e.g. connecting
