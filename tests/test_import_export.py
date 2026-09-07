@@ -1,4 +1,4 @@
-"""Schema v6 round-trip, and the version-mismatch guard that replaced the
+"""Schema v7 round-trip, and the version-mismatch guard that replaced the
 old migration path (this project has exactly one user, so there is no
 migration code any more — an incompatible file is rejected outright rather
 than silently misread)."""
@@ -36,4 +36,4 @@ def test_wrong_schema_version_is_rejected_with_a_message(page):
       return { mismatch, current: Bowtie.BowtieModel.SCHEMA_VERSION };
     }""")
     assert shown["mismatch"] is True
-    assert shown["current"] == 6
+    assert shown["current"] == 7

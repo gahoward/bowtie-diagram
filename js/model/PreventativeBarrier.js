@@ -3,7 +3,7 @@
   // it, what it chains into) lives entirely on Line.stops now — see Line.js.
   class PreventativeBarrier {
     constructor({
-      id, name, x = 0, y = 0, w = 36, h = 110,
+      id, name, x = 0, y = 0, w = 36, h = 110, pageId,
     } = {}) {
       this.id = id;
       this.type = 'preventativeBarrier';
@@ -12,6 +12,7 @@
       this.y = y;
       this.w = w;
       this.h = h;
+      this.pageId = pageId;
     }
   }
 

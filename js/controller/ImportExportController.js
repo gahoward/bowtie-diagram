@@ -88,7 +88,15 @@
     // document it wasn't written to expect. Returns true/false so a caller
     // can tell whether the load actually happened.
     loadDocument(data) {
-      if (!data || !data.hazard || !data.topLevelEvent) {
+      // Schema v7 nests topLevelEvent/hazard under `pages` instead of
+      // carrying them as top-level keys (see BowtieModel's multi-page data
+      // model); a pre-multi-page document still has them at the top level.
+      // Neither controllers nor this shape check are page-aware yet, so
+      // this only needs to recognize a document was exported at all —
+      // accepting either shape here, not just the new one.
+      const hasPages = Array.isArray(data && data.pages) && data.pages.length > 0;
+      const hasLegacyShape = !!(data && data.hazard && data.topLevelEvent);
+      if (!hasPages && !hasLegacyShape) {
         this._showMessage('Invalid File', 'That file does not look like a bowtie diagram export.');
         return false;
       }

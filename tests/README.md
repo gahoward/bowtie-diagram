@@ -97,7 +97,19 @@ step for the app itself, so tests run directly against `index.html` as-is.
   movement) leaving undo/redo history completely untouched — a real,
   previously-uncaught bug an architecture review found (see
   `DESIGN_NOTES.md`'s `DRAG_THRESHOLD_PX` entry).
-- **`test_import_export.py`** — schema v6 round-trip and the
+- **`test_model_pages.py`** — BowtieModel's multi-page primitives: page CRUD,
+  the `*ForPage` filters, per-page `_findClearY` scoping, `findById` across
+  pages, global id uniqueness, `toJSON`/`fromJSON` round-tripping across
+  multiple pages, `deleteElement`/`reassignId` retiredIds `pageId` tracking,
+  and `getPageJSON`/`loadPageFromJSON` page-level isolation.
+- **`test_multi_page.py`** — end-to-end multi-page UI flows: wizard validation
+  (Analysis title, Page name/description), add/edit/delete page tabs,
+  cross-page isolation for canvas elements and auto-arrange/drag, the
+  many-pages scrollable tab strip + "Jump to page ▾" dropdown, full two-tier
+  undo/redo (per-page vs document-level), JSON export/reimport and Load Demo
+  across pages, SVG export reflecting only the active page, and identifier
+  manager page-context labels.
+- **`test_import_export.py`** — schema v7 round-trip and the
   version-mismatch guard (there is no migration path for older schema
   versions; an incompatible file is rejected outright).
 - **`test_file_handlers.py`** — import/export preferring the native File

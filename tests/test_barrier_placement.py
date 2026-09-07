@@ -269,7 +269,8 @@ def test_shift_shared_barrier_on_both_paths_then_auto_arrange_has_no_overlap(pag
     boxes = page.evaluate("""() => {
       const m = window.__lastModel;
       const view = window.__lastView;
-      return m.preventativeBarriers.map((pb) => {
+      const pageId = m.pages[0].id;
+      return m.preventativeBarriersForPage(pageId).map((pb) => {
         const b = view.boundsById[pb.id];
         return {
           id: pb.id, cy: b.cy, h: b.h,

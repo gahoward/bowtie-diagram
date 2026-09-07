@@ -55,7 +55,7 @@
           </div>
         </div>
       </div>
-      <button id="bowtie-name" type="button" class="toolbar-name" title="Rename this bowtie">Untitled Bowtie</button>
+      <button id="bowtie-name" type="button" class="toolbar-name" title="Rename this analysis">Untitled Bowtie</button>
       <div class="toolbar-group toolbar-right">
         <button id="btn-warnings" type="button" class="warning-badge" hidden title="Warnings">
           <span class="warning-icon">&#9888;</span><span class="warning-count">0</span>
@@ -70,6 +70,7 @@
       </svg>
       <div id="minimap-container"></div>
     </div>
+    <div id="page-tabs"></div>
   </div>
 
   <script src="js/model/TopLevelEvent.js"></script>
@@ -80,6 +81,7 @@
   <script src="js/model/MitigativeBarrier.js"></script>
   <script src="js/model/Line.js"></script>
   <script src="js/model/BowtieModel.js"></script>
+  <script src="js/model/PageScopedModel.js"></script>
 
   <script src="js/data/DemoData.js"></script>
 
@@ -91,8 +93,10 @@
   <script src="js/view/ExportUtil.js"></script>
   <script src="js/view/MinimapView.js"></script>
   <script src="js/view/ModalView.js"></script>
+  <script src="js/view/PageTabsView.js"></script>
 
   <script src="js/controller/UndoController.js"></script>
+  <script src="js/controller/PageTabsController.js"></script>
   <script src="js/controller/ToolbarController.js"></script>
   <script src="js/controller/MenuBarController.js"></script>
   <script src="js/controller/DragController.js"></script>

@@ -94,6 +94,15 @@
       idSpan.className = 'id-manager-id';
       idSpan.textContent = entry.id;
 
+      // `entry.pageId` is the page the element belonged to at the moment
+      // it was deleted (see BowtieModel.deleteElement) — that page may
+      // itself have since been deleted too, so this can't assume it still
+      // exists.
+      const page = this.model.getPage(entry.pageId);
+      const pageSpan = document.createElement('span');
+      pageSpan.className = 'id-manager-page';
+      pageSpan.textContent = page ? `Page: ${page.name}` : '(page since deleted)';
+
       const statusSpan = document.createElement('span');
       statusSpan.className = 'id-manager-status';
       statusSpan.textContent = entry.reEnabled ? 'Re-enabled' : 'Retired';
@@ -108,6 +117,7 @@
       });
 
       row.appendChild(idSpan);
+      row.appendChild(pageSpan);
       row.appendChild(statusSpan);
       row.appendChild(toggleBtn);
       return row;
@@ -121,7 +131,9 @@
       liveElements.forEach((el) => {
         const opt = document.createElement('option');
         opt.value = el.id;
-        opt.textContent = `${el.id} — ${el.name}`;
+        // A live element's own page can't have been deleted out from under
+        // it — getPage(el.pageId) is always resolvable here.
+        opt.textContent = `${el.id} — ${el.name} (Page: ${this.model.getPage(el.pageId).name})`;
         elementSelect.appendChild(opt);
       });
 

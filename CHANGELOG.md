@@ -1,16 +1,31 @@
 # Changelog
 
-## Unreleased
+## v0.2.0 - 2026-09-07
 
+- Added multi-page support: an analysis document can now contain multiple
+  pages (tabs), each with its own TopLevelEvent, Hazard, and independent
+  diagram content (Causes, Outcomes, Barriers, and Lines).
+- Added bottom tab bar UI with tab selection, page creation, renaming,
+  description editing, deletion with fallback, and a "Jump to page ▾"
+  quick navigation dropdown.
+- Implemented two-tier undo/redo architecture: independent per-page undo
+  stacks for diagram content edits, and a document-level undo stack for
+  page structure mutations (add, delete, rename), ensuring edits on one
+  page never affect or revert undo history on another.
+- Updated New Bowtie Wizard to configure Analysis title, Page name, and
+  optional Page description alongside the Top Level Event and Hazard.
+- Updated Identifier Manager: retired IDs and warnings now display and
+  track the page they originated from.
+- Upgraded file format schema to version 7 to support multi-page documents,
+  and updated built-in demo data to a two-page bowtie diagram.
 - Fixed two compounding bugs when "Shift Away From TLE" (or Toward) is
-  applied to a shared barrier on more than one of its paths at once
-  (e.g. PB_3 in the demo, ticking both C_1 and C_2): the immediate
-  position feedback used to corrupt the barrier onto the exact same spot
-  as an unrelated one before Auto-arrange even ran, and Auto-arrange
-  itself then let one barrier's label overlap the very next barrier's box
-  — both because the code assumed two Causes sharing a first barrier
-  never diverge into separate barriers afterward, which this feature
-  makes possible for the first time.
+  applied to a shared barrier across more than one of its paths at once:
+  immediate position feedback now only adjusts position when all selected
+  lines agree on a single neighbor, avoiding node misplacement.
+- Fixed Auto-arrange vertical spacing calculation for chains that merge
+  into a shared barrier and then diverge again into separate barriers,
+  ensuring full group-gap protection between diverging chains rather than
+  reduced spacing.
 
 ## v0.1.3 - 2026-09-07
 

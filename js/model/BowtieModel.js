@@ -6,7 +6,7 @@
   const CANVAS_H = 800;
   const ROW_SPACING = 110;
   const TOP_MARGIN = 90;
-  const SCHEMA_VERSION = 6;
+  const SCHEMA_VERSION = 7;
   const CONTROL_TYPES = ['cause', 'outcome', 'preventativeBarrier', 'mitigativeBarrier'];
   // Both barrier types splice the same way underneath (toward the TLE or
   // toward the origin), but "after"/"before" — the UI's own vocabulary,
@@ -24,8 +24,12 @@
     constructor() {
       this._listeners = [];
       this.name = 'Untitled Bowtie';
-      this.topLevelEvent = new Bowtie.TopLevelEvent({ x: CANVAS_W / 2, y: CANVAS_H / 2 });
-      this.hazard = new Bowtie.Hazard();
+      // Each page owns its own TopLevelEvent+Hazard pair; see addPage().
+      // Causes/outcomes/barriers/lines stay flat, document-wide arrays
+      // (below), each tagged with a pageId, rather than nested under a
+      // page — this keeps every splice/attach/delete/findById primitive
+      // below working unchanged across a multi-page document.
+      this.pages = [];
       this.causes = [];
       this.outcomes = [];
       this.preventativeBarriers = [];
@@ -36,6 +40,7 @@
       // below. See js/model/Line.js.
       this.lines = [];
       this.idCounters = {
+        page: 0,
         cause: 0,
         outcome: 0,
         preventativeBarrier: 0,
@@ -43,14 +48,24 @@
         line: 0,
       };
       // Posterity of identifiers: every id, once used, is remembered here
-      // forever after its element is deleted. { id, reEnabled } — reEnabled
-      // ids are eligible for manual (never automatic) reassignment. Lines
-      // are not part of this system — they are not user-facing identifiers,
-      // they die with their Cause/Outcome, and baseline posterity wording
-      // only ever enumerates Causes/Outcomes/Barriers.
+      // forever after its element is deleted. { id, reEnabled, pageId } —
+      // reEnabled ids are eligible for manual (never automatic)
+      // reassignment; pageId remembers which page the id used to belong to
+      // even after that element (and possibly the whole page) is gone.
+      // Lines are not part of this system — they are not user-facing
+      // identifiers, they die with their Cause/Outcome, and baseline
+      // posterity wording only ever enumerates Causes/Outcomes/Barriers.
       this.retiredIds = {
         cause: [], outcome: [], preventativeBarrier: [], mitigativeBarrier: [],
       };
+      // Bridging default: no controller is page-aware yet (that lands in a
+      // later phase, via a PageScopedModel facade and WelcomeController's
+      // "New" flow calling addPage() itself) — every existing call site
+      // still reads model.topLevelEvent/model.hazard as a single
+      // document-wide pair (see the getters below) and calls
+      // addCause/addOutcome without a pageId. Auto-creating one page here
+      // keeps all of that working unchanged until that wiring lands.
+      this.addPage();
     }
 
     onChange(fn) {
@@ -61,20 +76,132 @@
       this._listeners.forEach((fn) => fn(this));
     }
 
+    // --- Backward-compatible single-page accessors -----------------------
+    //
+    // Every controller/view still reads model.topLevelEvent / model.hazard
+    // as a single document-wide pair — none of them are page-aware yet.
+    // These read-only getters expose the first page's TLE/Hazard so that
+    // code keeps working unmodified; they go away once every caller is
+    // migrated to page-scoped access.
+    get topLevelEvent() {
+      return this.pages[0] ? this.pages[0].topLevelEvent : undefined;
+    }
+
+    get hazard() {
+      return this.pages[0] ? this.pages[0].hazard : undefined;
+    }
+
+    // --- Pages ----------------------------------------------------------
+
+    addPage(opts = {}) {
+      this.idCounters.page += 1;
+      const n = this.idCounters.page;
+      const pageId = `PAGE_${n}`;
+      const topLevelEvent = new Bowtie.TopLevelEvent({
+        id: `TLE_${n}`, x: CANVAS_W / 2, y: CANVAS_H / 2, pageId,
+      });
+      const hazard = new Bowtie.Hazard({ id: `HAZARD_${n}`, pageId });
+      // Page name/description are their own user-set fields, independent
+      // of the TLE's name — a page is not just "the TLE's name relabelled."
+      // Name is required at the UI layer (the wizard/tab-creation flow
+      // validates it before ever calling this); the fallback below is a
+      // defensive floor, not the primary mechanism. Description may be
+      // blank throughout.
+      const page = {
+        id: pageId,
+        name: opts.name || 'Untitled Page',
+        description: opts.description || '',
+        topLevelEvent,
+        hazard,
+      };
+      this.pages.push(page);
+      this._emitChange();
+      return page;
+    }
+
+    renamePage(pageId, opts = {}) {
+      const page = this.getPage(pageId);
+      if (!page) return;
+      if (opts.name !== undefined) page.name = opts.name;
+      if (opts.description !== undefined) page.description = opts.description;
+      this._emitChange();
+    }
+
+    // Removes the page entry and cascades: every cause/outcome/barrier/line
+    // tagged with this pageId goes with it. Throws if it's the last
+    // remaining page (defensive; the UI also won't offer delete on the
+    // last tab).
+    deletePage(pageId) {
+      if (this.pages.length <= 1) throw new Error('Cannot delete the last remaining page');
+      const idx = this.pages.findIndex((p) => p.id === pageId);
+      if (idx === -1) return;
+      this.pages.splice(idx, 1);
+      this.causes = this.causes.filter((c) => c.pageId !== pageId);
+      this.outcomes = this.outcomes.filter((o) => o.pageId !== pageId);
+      this.preventativeBarriers = this.preventativeBarriers.filter((p) => p.pageId !== pageId);
+      this.mitigativeBarriers = this.mitigativeBarriers.filter((m) => m.pageId !== pageId);
+      this.lines = this.lines.filter((l) => l.pageId !== pageId);
+      this._emitChange();
+    }
+
+    getPage(pageId) {
+      return this.pages.find((p) => p.id === pageId) || null;
+    }
+
+    causesForPage(pageId) {
+      return this.causes.filter((c) => c.pageId === pageId);
+    }
+
+    outcomesForPage(pageId) {
+      return this.outcomes.filter((o) => o.pageId === pageId);
+    }
+
+    preventativeBarriersForPage(pageId) {
+      return this.preventativeBarriers.filter((p) => p.pageId === pageId);
+    }
+
+    mitigativeBarriersForPage(pageId) {
+      return this.mitigativeBarriers.filter((m) => m.pageId === pageId);
+    }
+
+    linesForPage(pageId) {
+      return this.lines.filter((l) => l.pageId === pageId);
+    }
+
+    // Resolves the pageId a new cause/outcome should be tagged with: the
+    // caller's explicit choice, validated against this.pages, or — for
+    // call sites that predate multi-page support (and every existing test)
+    // — a default-to-first-page fallback, so omitting pageId keeps working
+    // exactly as a single-page document always has.
+    _resolvePageId(pageId) {
+      if (pageId !== undefined && pageId !== null) {
+        if (!this.getPage(pageId)) throw new Error(`Unknown page id: ${pageId}`);
+        return pageId;
+      }
+      if (this.pages.length === 0) throw new Error('Cannot create an element: the document has no pages');
+      return this.pages[0].id;
+    }
+
     // --- Placement ----------------------------------------------------
 
     // Nudges `y` downward in ROW_SPACING steps at a fixed `x` until the
     // approximate bounding box (using each node's own stored w/h) no longer
-    // overlaps any existing element — new nodes must never land on top of
-    // existing ones.
-    _findClearY(x, w, h, startY) {
+    // overlaps any existing element on the SAME page — new nodes must never
+    // land on top of existing ones, and two pages are independent
+    // coordinate spaces, so a page's placement search only ever looks at
+    // its own elements and its own TLE.
+    _findClearY(pageId, x, w, h, startY) {
+      const page = this.getPage(pageId);
       const boxes = [
-        ...this.causes, ...this.outcomes, ...this.preventativeBarriers, ...this.mitigativeBarriers,
+        ...this.causesForPage(pageId), ...this.outcomesForPage(pageId),
+        ...this.preventativeBarriersForPage(pageId), ...this.mitigativeBarriersForPage(pageId),
       ].map((n) => ({ x: n.x, y: n.y, w: n.w, h: n.h }));
-      boxes.push({
-        x: this.topLevelEvent.x, y: this.topLevelEvent.y,
-        w: this.topLevelEvent.r * 2, h: this.topLevelEvent.r * 2,
-      });
+      if (page) {
+        boxes.push({
+          x: page.topLevelEvent.x, y: page.topLevelEvent.y,
+          w: page.topLevelEvent.r * 2, h: page.topLevelEvent.r * 2,
+        });
+      }
 
       const overlapsAt = (y) => boxes.some((b) => (
         Math.abs(x - b.x) < (w + b.w) / 2 && Math.abs(y - b.y) < (h + b.h) / 2
@@ -92,34 +219,40 @@
     // --- Creation -----------------------------------------------------
 
     addCause(opts = {}) {
+      const pageId = this._resolvePageId(opts.pageId);
       this.idCounters.cause += 1;
       const id = `C_${this.idCounters.cause}`;
       const w = 140;
       const h = 60;
       const x = opts.x ?? 150;
-      const y = opts.y ?? this._findClearY(x, w, h, TOP_MARGIN);
-      const cause = new Bowtie.Cause({ id, name: opts.name || `Cause ${this.idCounters.cause}`, x, y, w, h });
+      const y = opts.y ?? this._findClearY(pageId, x, w, h, TOP_MARGIN);
+      const cause = new Bowtie.Cause({
+        id, name: opts.name || `Cause ${this.idCounters.cause}`, x, y, w, h, pageId,
+      });
       this.causes.push(cause);
       this.idCounters.line += 1;
       this.lines.push(new Bowtie.Line({
-        id: `LINE_${this.idCounters.line}`, originType: 'cause', originId: id,
+        id: `LINE_${this.idCounters.line}`, originType: 'cause', originId: id, pageId,
       }));
       this._emitChange();
       return cause;
     }
 
     addOutcome(opts = {}) {
+      const pageId = this._resolvePageId(opts.pageId);
       this.idCounters.outcome += 1;
       const id = `O_${this.idCounters.outcome}`;
       const w = 140;
       const h = 60;
       const x = opts.x ?? (CANVAS_W - 150);
-      const y = opts.y ?? this._findClearY(x, w, h, TOP_MARGIN);
-      const outcome = new Bowtie.Outcome({ id, name: opts.name || `Outcome ${this.idCounters.outcome}`, x, y, w, h });
+      const y = opts.y ?? this._findClearY(pageId, x, w, h, TOP_MARGIN);
+      const outcome = new Bowtie.Outcome({
+        id, name: opts.name || `Outcome ${this.idCounters.outcome}`, x, y, w, h, pageId,
+      });
       this.outcomes.push(outcome);
       this.idCounters.line += 1;
       this.lines.push(new Bowtie.Line({
-        id: `LINE_${this.idCounters.line}`, originType: 'outcome', originId: id,
+        id: `LINE_${this.idCounters.line}`, originType: 'outcome', originId: id, pageId,
       }));
       this._emitChange();
       return outcome;
@@ -179,9 +312,15 @@
       const w = 36;
       const h = 110;
       const x = opts.x ?? (anchor.x + anchor.w + 60);
-      const y = this._findClearY(x, w, h, opts.y ?? anchor.y);
+      const y = this._findClearY(cause.pageId, x, w, h, opts.y ?? anchor.y);
       const pb = new Bowtie.PreventativeBarrier({
-        id, name: opts.name || `Preventative Barrier ${this.idCounters.preventativeBarrier}`, x, y, w, h,
+        id,
+        name: opts.name || `Preventative Barrier ${this.idCounters.preventativeBarrier}`,
+        x,
+        y,
+        w,
+        h,
+        pageId: cause.pageId,
       });
       this.preventativeBarriers.push(pb);
       line.stops.push(id);
@@ -205,9 +344,15 @@
       const w = 36;
       const h = 110;
       const x = opts.x ?? (anchor.x - anchor.w - 60);
-      const y = this._findClearY(x, w, h, opts.y ?? anchor.y);
+      const y = this._findClearY(outcome.pageId, x, w, h, opts.y ?? anchor.y);
       const mb = new Bowtie.MitigativeBarrier({
-        id, name: opts.name || `Mitigative Barrier ${this.idCounters.mitigativeBarrier}`, x, y, w, h,
+        id,
+        name: opts.name || `Mitigative Barrier ${this.idCounters.mitigativeBarrier}`,
+        x,
+        y,
+        w,
+        h,
+        pageId: outcome.pageId,
       });
       this.mitigativeBarriers.push(mb);
       line.stops.push(id);
@@ -272,9 +417,11 @@
       const w = 36;
       const h = 110;
       const x = opts.x ?? (anchor.x + dir * 60);
-      const y = this._findClearY(x, w, h, opts.y ?? anchor.y);
+      const y = this._findClearY(anchor.pageId, x, w, h, opts.y ?? anchor.y);
       const Ctor = kind === 'preventativeBarrier' ? Bowtie.PreventativeBarrier : Bowtie.MitigativeBarrier;
-      const barrier = new Ctor({ id, name: opts.name || `${label} ${this.idCounters[counterKey]}`, x, y, w, h });
+      const barrier = new Ctor({
+        id, name: opts.name || `${label} ${this.idCounters[counterKey]}`, x, y, w, h, pageId: anchor.pageId,
+      });
       this._barrierCollection(kind).push(barrier);
       return barrier;
     }
@@ -364,18 +511,22 @@
       const usedPb = new Set(this.lines.filter((l) => l.originType === 'cause').flatMap((l) => l.stops));
       this.preventativeBarriers.forEach((pb) => {
         if (!usedPb.has(pb.id)) {
+          // Always safe: a live barrier's page can't have been deleted,
+          // since deletePage cascades to remove it too.
+          const page = this.getPage(pb.pageId);
           warnings.push({
             id: pb.id, type: 'orphaned-preventative-control',
-            message: `${pb.id} (${pb.name}) is not connected to any Cause.`,
+            message: `${pb.id} (${pb.name}) on page "${page.name}" is not connected to any Cause.`,
           });
         }
       });
       const usedMb = new Set(this.lines.filter((l) => l.originType === 'outcome').flatMap((l) => l.stops));
       this.mitigativeBarriers.forEach((mb) => {
         if (!usedMb.has(mb.id)) {
+          const page = this.getPage(mb.pageId);
           warnings.push({
             id: mb.id, type: 'orphaned-mitigative-control',
-            message: `${mb.id} (${mb.name}) is not connected to any Outcome.`,
+            message: `${mb.id} (${mb.name}) on page "${page.name}" is not connected to any Outcome.`,
           });
         }
       });
@@ -385,8 +536,10 @@
     // --- Lookup ---------------------------------------------------------
 
     findById(id) {
-      if (this.topLevelEvent.id === id) return this.topLevelEvent;
-      if (this.hazard.id === id) return this.hazard;
+      const tleOrHazard = this.pages
+        .flatMap((p) => [p.topLevelEvent, p.hazard])
+        .find((el) => el.id === id);
+      if (tleOrHazard) return tleOrHazard;
       return (
         this.causes.find((c) => c.id === id) ||
         this.outcomes.find((o) => o.id === id) ||
@@ -530,12 +683,12 @@
         case 'cause':
           this.causes = this.causes.filter((c) => c.id !== id);
           this.lines = this.lines.filter((l) => l.originId !== id);
-          this.retiredIds.cause.push({ id, reEnabled: false });
+          this.retiredIds.cause.push({ id, reEnabled: false, pageId: el.pageId });
           break;
         case 'outcome':
           this.outcomes = this.outcomes.filter((o) => o.id !== id);
           this.lines = this.lines.filter((l) => l.originId !== id);
-          this.retiredIds.outcome.push({ id, reEnabled: false });
+          this.retiredIds.outcome.push({ id, reEnabled: false, pageId: el.pageId });
           break;
         case 'preventativeBarrier':
           this.preventativeBarriers = this.preventativeBarriers.filter((p) => p.id !== id);
@@ -543,7 +696,7 @@
             const idx = line.stops.indexOf(id);
             if (idx !== -1) line.stops.splice(idx, 1);
           });
-          this.retiredIds.preventativeBarrier.push({ id, reEnabled: false });
+          this.retiredIds.preventativeBarrier.push({ id, reEnabled: false, pageId: el.pageId });
           break;
         case 'mitigativeBarrier':
           this.mitigativeBarriers = this.mitigativeBarriers.filter((m) => m.id !== id);
@@ -551,7 +704,7 @@
             const idx = line.stops.indexOf(id);
             if (idx !== -1) line.stops.splice(idx, 1);
           });
-          this.retiredIds.mitigativeBarrier.push({ id, reEnabled: false });
+          this.retiredIds.mitigativeBarrier.push({ id, reEnabled: false, pageId: el.pageId });
           break;
         default:
           break;
@@ -646,7 +799,7 @@
       });
 
       this.retiredIds[el.type] = pool.filter((e) => e.id !== newId);
-      this.retiredIds[el.type].push({ id: oldId, reEnabled: false });
+      this.retiredIds[el.type].push({ id: oldId, reEnabled: false, pageId: el.pageId });
 
       this._emitChange();
     }
@@ -657,8 +810,7 @@
     loadFromJSON(data) {
       const fresh = BowtieModel.fromJSON(data);
       this.name = fresh.name;
-      this.topLevelEvent = fresh.topLevelEvent;
-      this.hazard = fresh.hazard;
+      this.pages = fresh.pages;
       this.causes = fresh.causes;
       this.outcomes = fresh.outcomes;
       this.preventativeBarriers = fresh.preventativeBarriers;
@@ -666,6 +818,83 @@
       this.lines = fresh.lines;
       this.idCounters = fresh.idCounters;
       this.retiredIds = fresh.retiredIds;
+      this._emitChange();
+    }
+
+    // --- Per-page serialization -------------------------------------------
+    //
+    // Used by UndoController's per-page undo/redo tier: a snapshot/restore
+    // scoped to exactly one page's own header (name/description/TLE/Hazard)
+    // plus its content subset, leaving every other page, idCounters,
+    // retiredIds, and the document name untouched. Deliberately NOT the
+    // shape a whole-document toJSON()/fromJSON() produces (that nests only
+    // the header per page, with content flat across the whole document) —
+    // this is a page-scoped slice of the same data, for a different caller.
+
+    _pageHeaderJSON(page) {
+      return {
+        id: page.id,
+        name: page.name,
+        description: page.description,
+        topLevelEvent: {
+          id: page.topLevelEvent.id,
+          name: page.topLevelEvent.name,
+          x: page.topLevelEvent.x,
+          y: page.topLevelEvent.y,
+          r: page.topLevelEvent.r,
+        },
+        hazard: { id: page.hazard.id, name: page.hazard.name },
+      };
+    }
+
+    _pageHeaderFromJSON(data) {
+      return {
+        id: data.id,
+        name: data.name,
+        description: data.description || '',
+        topLevelEvent: new Bowtie.TopLevelEvent(data.topLevelEvent),
+        hazard: new Bowtie.Hazard(data.hazard),
+      };
+    }
+
+    getPageJSON(pageId) {
+      const page = this.getPage(pageId);
+      if (!page) throw new Error(`Unknown page id: ${pageId}`);
+      return {
+        ...this._pageHeaderJSON(page),
+        causes: this.causesForPage(pageId).map((c) => ({
+          id: c.id, name: c.name, x: c.x, y: c.y, w: c.w, h: c.h, pageId: c.pageId,
+        })),
+        outcomes: this.outcomesForPage(pageId).map((o) => ({
+          id: o.id, name: o.name, x: o.x, y: o.y, w: o.w, h: o.h, pageId: o.pageId,
+        })),
+        preventativeBarriers: this.preventativeBarriersForPage(pageId).map((p) => ({
+          id: p.id, name: p.name, x: p.x, y: p.y, w: p.w, h: p.h, pageId: p.pageId,
+        })),
+        mitigativeBarriers: this.mitigativeBarriersForPage(pageId).map((m) => ({
+          id: m.id, name: m.name, x: m.x, y: m.y, w: m.w, h: m.h, pageId: m.pageId,
+        })),
+        lines: this.linesForPage(pageId).map((l) => ({
+          id: l.id, originType: l.originType, originId: l.originId, stops: l.stops.slice(), pageId: l.pageId,
+        })),
+      };
+    }
+
+    // Replaces exactly one page's header and content subset in place.
+    loadPageFromJSON(pageId, data) {
+      const idx = this.pages.findIndex((p) => p.id === pageId);
+      if (idx === -1) throw new Error(`Unknown page id: ${pageId}`);
+      this.pages[idx] = this._pageHeaderFromJSON(data);
+      this.causes = this.causes.filter((c) => c.pageId !== pageId)
+        .concat((data.causes || []).map((c) => new Bowtie.Cause(c)));
+      this.outcomes = this.outcomes.filter((o) => o.pageId !== pageId)
+        .concat((data.outcomes || []).map((o) => new Bowtie.Outcome(o)));
+      this.preventativeBarriers = this.preventativeBarriers.filter((p) => p.pageId !== pageId)
+        .concat((data.preventativeBarriers || []).map((p) => new Bowtie.PreventativeBarrier(p)));
+      this.mitigativeBarriers = this.mitigativeBarriers.filter((m) => m.pageId !== pageId)
+        .concat((data.mitigativeBarriers || []).map((m) => new Bowtie.MitigativeBarrier(m)));
+      this.lines = this.lines.filter((l) => l.pageId !== pageId)
+        .concat((data.lines || []).map((l) => new Bowtie.Line(l)));
       this._emitChange();
     }
 
@@ -682,26 +911,26 @@
           preventativeBarrier: this.retiredIds.preventativeBarrier.map((e) => ({ ...e })),
           mitigativeBarrier: this.retiredIds.mitigativeBarrier.map((e) => ({ ...e })),
         },
-        topLevelEvent: {
-          id: this.topLevelEvent.id, name: this.topLevelEvent.name,
-          x: this.topLevelEvent.x, y: this.topLevelEvent.y, r: this.topLevelEvent.r,
-        },
-        hazard: { id: this.hazard.id, name: this.hazard.name },
-        causes: this.causes.map((c) => ({ id: c.id, name: c.name, x: c.x, y: c.y, w: c.w, h: c.h })),
-        outcomes: this.outcomes.map((o) => ({ id: o.id, name: o.name, x: o.x, y: o.y, w: o.w, h: o.h })),
+        pages: this.pages.map((p) => this._pageHeaderJSON(p)),
+        causes: this.causes.map((c) => ({
+          id: c.id, name: c.name, x: c.x, y: c.y, w: c.w, h: c.h, pageId: c.pageId,
+        })),
+        outcomes: this.outcomes.map((o) => ({
+          id: o.id, name: o.name, x: o.x, y: o.y, w: o.w, h: o.h, pageId: o.pageId,
+        })),
         preventativeBarriers: this.preventativeBarriers.map((p) => ({
-          id: p.id, name: p.name, x: p.x, y: p.y, w: p.w, h: p.h,
+          id: p.id, name: p.name, x: p.x, y: p.y, w: p.w, h: p.h, pageId: p.pageId,
         })),
         mitigativeBarriers: this.mitigativeBarriers.map((m) => ({
-          id: m.id, name: m.name, x: m.x, y: m.y, w: m.w, h: m.h,
+          id: m.id, name: m.name, x: m.x, y: m.y, w: m.w, h: m.h, pageId: m.pageId,
         })),
         lines: this.lines.map((l) => ({
-          id: l.id, originType: l.originType, originId: l.originId, stops: l.stops.slice(),
+          id: l.id, originType: l.originType, originId: l.originId, stops: l.stops.slice(), pageId: l.pageId,
         })),
       };
     }
 
-    // Loads a schema-v6 export. There is no migration path for older
+    // Loads a schema-v7 export. There is no migration path for older
     // schema versions — ImportExportController rejects a version mismatch
     // before this is ever called, so this only ever needs to read the
     // current shape.
@@ -709,8 +938,20 @@
       const model = new BowtieModel();
       model.idCounters = { ...model.idCounters, ...(data.idCounters || {}) };
       model.name = data.name || 'Untitled Bowtie';
-      model.topLevelEvent = new Bowtie.TopLevelEvent(data.topLevelEvent);
-      model.hazard = new Bowtie.Hazard(data.hazard);
+      if (data.pages && data.pages.length > 0) {
+        model.pages = data.pages.map((p) => model._pageHeaderFromJSON(p));
+      } else if (data.topLevelEvent && data.hazard) {
+        // Back-compat for a pre-multi-page (schema-v6-shaped) document
+        // handed straight to fromJSON: hazard/topLevelEvent used to be
+        // top-level keys instead of nested under `pages`. A real v6 export
+        // never reaches here — ImportExportController's version check
+        // rejects it first — this only matters for hand-built
+        // fixtures/tests still using the old top-level shape.
+        model.pages = [model._pageHeaderFromJSON({
+          id: 'PAGE_1', name: 'Untitled Page', description: '',
+          topLevelEvent: data.topLevelEvent, hazard: data.hazard,
+        })];
+      }
       model.causes = (data.causes || []).map((c) => new Bowtie.Cause(c));
       model.outcomes = (data.outcomes || []).map((o) => new Bowtie.Outcome(o));
       model.preventativeBarriers = (data.preventativeBarriers || []).map((p) => new Bowtie.PreventativeBarrier(p));

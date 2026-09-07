@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Wraps js/data/demo-bowtie.json (a plain schema-v6 export -- the source of
+// Wraps js/data/demo-bowtie.json (a plain schema-v7 export -- the source of
 // truth you edit/replace) into js/data/DemoData.js, a normal loaded-via-
 // <script> file exposing Bowtie.DEMO_DATA, exactly like every other file in
 // js/. This exists because the app deliberately makes no fetch() calls (it
@@ -23,7 +23,7 @@ const data = JSON.parse(json); // fail loudly here if the source isn't valid JSO
 
 const out = `// GENERATED FILE -- do not edit directly.
 // Source of truth: js/data/demo-bowtie.json -- edit that file (plain,
-// schema-v6 JSON, the same shape "Export to JSON" produces), then run
+// schema-v7 JSON, the same shape "Export to JSON" produces), then run
 // \`node scripts/build-demo-data.js\` to regenerate this file.
 //
 // Wrapped into a real script (rather than fetched as JSON) so it works
