@@ -124,36 +124,65 @@
   // gap exactly rather than picking another, still-guessable ceiling.
   const LEAF_ROW_MARGIN = 20;
 
-  // Orders `nodes` by a depth-first walk of `adjacency` (a Map from id to
-  // the Set of ids it directly shares a barrier with) so that any two
-  // nodes linked — directly OR transitively through a chain of shared
-  // barriers — end up adjacent, with NO unrelated node between them. This
-  // is stronger than grouping by a single shared key: two Causes can share
-  // a barrier several hops downstream while their own immediate next
-  // barriers differ (Cause A -> PB1 -> PB3, Cause C -> PB4 -> PB3), and a
-  // third barrier can bridge two otherwise-unconnected pairs through a
-  // shared Cause (A-B share one barrier, B-C share a different one) — a
-  // DFS naturally chains A-B-C together in that case, which a simple
-  // "group by shared key" can't express at all. Returns the flat, fully
-  // ordered array (one DFS traversal per connected component, started in
-  // original array order for stability) — see `assignLeafYs` for how the
-  // GAP between two adjacent entries is decided; it is deliberately NOT
-  // "same DFS component", since — as in the Cause A -> PB1 -> PB3, Cause C
-  // -> PB4 -> PB3 example above — two nodes can end up correctly adjacent
-  // here while still having two entirely distinct barriers in the very
-  // first depth column, which still need full separation from each other.
-  function orderByAdjacency(nodes, adjacency) {
+  // Orders `nodes` by a depth-first walk of `adjacency` (built by
+  // _directAdjacency below: {adjacency, tightness} — a Map from id to the
+  // Set of ids it directly shares a barrier with, plus a Map from each
+  // edge to the SMALLEST number of origins any barrier connecting that
+  // pair serves) so that any two nodes linked — directly OR transitively
+  // through a chain of shared barriers — end up adjacent, with NO
+  // unrelated node between them. This is stronger than grouping by a
+  // single shared key: two Causes can share a barrier several hops
+  // downstream while their own immediate next barriers differ (Cause A ->
+  // PB1 -> PB3, Cause C -> PB4 -> PB3), and a third barrier can bridge two
+  // otherwise-unconnected pairs through a shared Cause (A-B share one
+  // barrier, B-C share a different one) — a DFS naturally chains A-B-C
+  // together in that case, which a simple "group by shared key" can't
+  // express at all. Returns the flat, fully ordered array (one DFS
+  // traversal per connected component, started in original array order
+  // for stability) — see `assignLeafYs` for how the GAP between two
+  // adjacent entries is decided; it is deliberately NOT "same DFS
+  // component", since — as in the Cause A -> PB1 -> PB3, Cause C -> PB4 ->
+  // PB3 example above — two nodes can end up correctly adjacent here while
+  // still having two entirely distinct barriers in the very first depth
+  // column, which still need full separation from each other.
+  //
+  // `tightness` breaks a real, previously-unhandled ambiguity: when a
+  // node has several unvisited neighbours, which to visit (and thus
+  // cluster adjacent to) FIRST? Sorting by original array index alone
+  // (the old behaviour) assumes every shared-barrier edge deserves equal
+  // priority, which breaks down the moment one pair shares a barrier with
+  // FEW participants (needs to be strictly next to each other, or that
+  // barrier's own small box balloons to cover whoever ends up between
+  // them) while ALSO both belonging to a much LARGER shared-barrier group
+  // (which only needs everyone in the same general region, not in any
+  // particular sub-order) — reported bug: Cause A and Cause D privately
+  // share barrier X (just the two of them), while A, B, C, and D all
+  // separately share a later barrier Y; sorting by index alone visited B
+  // and C (index order) before D, inserting them between A and D and
+  // making X's box balloon to cover B and C's rows too, even though
+  // neither B nor C is attached to X at all. Visiting the TIGHTEST
+  // (fewest-participant) unvisited neighbour first — index order only as
+  // the tie-break — clusters A and D adjacently before the looser Y
+  // relationship gets a chance to interleave anyone else.
+  function orderByAdjacency(nodes, { adjacency, tightness }) {
     const byId = new Map(nodes.map((n) => [n.id, n]));
     const indexOf = new Map(nodes.map((n, i) => [n.id, i]));
     const visited = new Set();
     const ordered = [];
+    const tightnessOf = (a, b) => {
+      const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+      return tightness.has(key) ? tightness.get(key) : Infinity;
+    };
 
     const visit = (node) => {
       visited.add(node.id);
       ordered.push(node);
       const neighborIds = Array.from(adjacency.get(node.id) || [])
         .filter((id) => byId.has(id) && !visited.has(id))
-        .sort((a, b) => indexOf.get(a) - indexOf.get(b));
+        .sort((a, b) => {
+          const diff = tightnessOf(node.id, a) - tightnessOf(node.id, b);
+          return diff !== 0 ? diff : indexOf.get(a) - indexOf.get(b);
+        });
       neighborIds.forEach((id) => {
         if (!visited.has(id)) visit(byId.get(id));
       });
@@ -333,26 +362,40 @@
     // each Line from that barrier) share it directly: their origins must
     // end up adjacent, or the barrier's grown box (spanning both their
     // lanes) will visually intercept whatever unrelated Cause/Outcome
-    // ends up between them. Returns a Map from origin id to the Set of
-    // other origin ids it directly shares at least one barrier with, fed
-    // into orderByAdjacency.
+    // ends up between them. Returns `{ adjacency, tightness }` for
+    // orderByAdjacency: `adjacency` maps an origin id to the Set of other
+    // origin ids it directly shares at least one barrier with; `tightness`
+    // maps each such pair (key `smaller|larger`, lexicographic so lookup
+    // doesn't care which side is asked first) to the SMALLEST number of
+    // origins any single barrier connecting them serves — i.e. how many
+    // OTHER origins that barrier's own box already has to span regardless
+    // of ordering. A pair sharing a barrier with few (or no other)
+    // participants needs to end up strictly adjacent, since that
+    // barrier's box would otherwise balloon to cover whoever ends up
+    // between them; a pair that only shares a barrier with MANY other
+    // participants merely needs to be in the same general region. Two
+    // origins sharing more than one barrier take the smallest (tightest)
+    // arity among them, since that's the binding constraint.
     _directAdjacency(barriers) {
       const adjacency = new Map();
-      const addEdge = (a, b) => {
+      const tightness = new Map();
+      const addEdge = (a, b, arity) => {
         if (!adjacency.has(a)) adjacency.set(a, new Set());
         if (!adjacency.has(b)) adjacency.set(b, new Set());
         adjacency.get(a).add(b);
         adjacency.get(b).add(a);
+        const key = a < b ? `${a}|${b}` : `${b}|${a}`;
+        if (!tightness.has(key) || arity < tightness.get(key)) tightness.set(key, arity);
       };
       barriers.forEach((barrier) => {
         const originIds = this.model.linesThrough(barrier.id).map((l) => l.originId);
         for (let i = 0; i < originIds.length; i += 1) {
           for (let j = i + 1; j < originIds.length; j += 1) {
-            addEdge(originIds[i], originIds[j]);
+            addEdge(originIds[i], originIds[j], originIds.length);
           }
         }
       });
-      return adjacency;
+      return { adjacency, tightness };
     }
 
     // The y-value(s) that directly feed `barrierId` from its leaf-ward side

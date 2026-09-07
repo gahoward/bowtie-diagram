@@ -80,7 +80,16 @@ step for the app itself, so tests run directly against `index.html` as-is.
   GROUP_GAP clearance from each other, not the cheaper ROW_SPACING sharing
   a first stop alone used to grant (real reported bug: one barrier's label
   overlapped the very next barrier's box after Auto-arrange — see
-  `stopsFullyMatch` in `AutoArrangeController.js`). `test_barrier_placement.py`
+  `stopsFullyMatch` in `AutoArrangeController.js`). Also covers a real
+  reported bug reproduced via the demo itself (attach C_4 to PB_2): two
+  Causes privately sharing a barrier with few participants must end up
+  strictly adjacent even when they — along with other, unrelated Causes —
+  also all separately share a later barrier with many participants;
+  `orderByAdjacency` used to sort by original array index alone, letting
+  an unrelated Cause land between them and making the tightly-shared
+  barrier's box balloon to cover that unrelated row too (see `tightness`
+  in `_directAdjacency`/`orderByAdjacency`, `AutoArrangeController.js`).
+  `test_barrier_placement.py`
   also covers the "Shift Toward/Away From TLE" context-menu items
   (shared_barrier_column_collision_fix.md §3): each item only appears when
   a swap in that direction would do something, reorders the underlying

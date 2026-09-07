@@ -11,6 +11,14 @@
   — both because the code assumed two Causes sharing a first barrier
   never diverge into separate barriers afterward, which this feature
   makes possible for the first time.
+- Fixed auto-arrange placing an unrelated Cause/Outcome's row between two
+  others that privately share a barrier, whenever all of them also share
+  a LATER barrier further down the line (e.g. attaching a bare Cause to
+  an existing barrier that a different Cause also uses) — the shared
+  barrier's box then grew tall enough to visually swallow the unrelated
+  row in between. Two rows sharing a barrier with few participants are
+  now clustered strictly adjacent, ahead of a looser, many-participant
+  relationship they might also both be part of.
 
 ## v0.1.3 - 2026-09-07
 
