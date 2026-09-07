@@ -2,6 +2,24 @@
 
 ## v0.2.1 - 2026-09-07
 
+- Added a randomized/generative auto-arrange test (30 seeded random
+  Cause/Outcome + shared-barrier topologies per run) alongside the existing
+  hand-written scenario tests, checking the same general invariant every
+  reported overlap bug in this file has violated: a barrier's rendered box
+  must only ever span rows whose line actually passes through it. It
+  immediately found a further real gap (below).
+- Fixed another gap in auto-arrange's row ordering, found by the new
+  generative test: merging a hyperedge whose members are split across more
+  than one already-built block always pushed the LAST touched block's
+  shared member to that block's own tail end, when it needed to be pushed
+  to the block's front (the edge actually facing its neighbor in the
+  merged run) whenever that block wasn't the first of the touched group —
+  e.g. one Cause sharing a barrier with the FRONT of an already-3-way-
+  shared block, while a different Cause shares another barrier with a
+  member further inside that same block, could leave the first Cause's own
+  barrier separated from its actual shared partner by two unrelated rows,
+  and its box ended up overlapping a second, unrelated barrier's box as a
+  result.
 - Auto-arrange now runs automatically right after "Shift Toward TLE",
   "Shift Away From TLE", "Attach to Existing Preventative/Mitigative
   Barrier…", and "Connect Directly to TLE" — each of these changes a

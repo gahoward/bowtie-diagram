@@ -205,12 +205,24 @@
         return;
       }
 
-      // Bring each touched child's matching part to its own trailing edge
-      // so concatenating the touched children end-to-end keeps THIS
-      // hyperedge's members contiguous even when a child also carries
-      // other members from a bigger, already-built hyperedge.
-      touchedIdx.forEach((i) => {
-        if (Array.isArray(parent[i])) promoteToEdge(parent[i], members, 'end');
+      // Bring each touched child's matching part to whichever edge faces
+      // its neighbor in the merged run, so concatenating the touched
+      // children end-to-end keeps THIS hyperedge's members contiguous even
+      // when a child also carries other members from a bigger, already-
+      // built hyperedge. The LAST touched child is promoted toward 'start'
+      // (it needs to face the touched child before it); every other touched
+      // child is promoted toward 'end' (it needs to face the touched child
+      // after it) — getting this backwards for the last child was a
+      // reported bug: two Causes/Outcomes each privately paired with one
+      // member of an already-built, larger shared-barrier block (one member
+      // at the FRONT of that block, one further downstream) landed the
+      // second pairing's shared member at the block's tail instead of the
+      // head facing its actual partner, leaving unrelated rows sandwiched
+      // between them and their two hyperedges' boxes overlapping.
+      touchedIdx.forEach((i, pos) => {
+        if (!Array.isArray(parent[i])) return;
+        const edge = pos === touchedIdx.length - 1 ? 'start' : 'end';
+        promoteToEdge(parent[i], members, edge);
       });
 
       const touchedSet = new Set(touchedIdx);

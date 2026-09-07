@@ -5,6 +5,122 @@ they are not associated with").
 """
 from helpers import auto_arrange
 
+RANDOM_TOPOLOGY_SEEDS = range(30)
+
+# A seeded PRNG (mulberry32) plus a generator that builds a random chain of
+# Causes/PreventativeBarriers and Outcomes/MitigativeBarriers, mixing three
+# ways a barrier can end up shared: a fresh node attaching straight into an
+# existing barrier ("inherit downstream" true or false, both exercised), and
+# a node extending its own line further with brand-new, unshared barriers
+# after that point. Every previous hand-written regression test in this file
+# was written AFTER a specific real topology broke the layout; this is the
+# generalization of that pattern -- instead of re-encoding one more reported
+# shape by hand each time, it throws many random shapes at the same
+# invariant every one of those bugs actually violated: a barrier's rendered
+# box must only ever span rows whose line actually passes through it. `seed`
+# makes each run fully deterministic and reproducible on its own.
+_BUILD_RANDOM_TOPOLOGY_JS = """(seed) => {
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const rng = mulberry32(seed);
+
+  const m = window.__lastModel;
+  m.loadFromJSON(window.__emptyDoc);
+
+  function buildSide(addNode, addBarrier, attach, baseX) {
+    const count = 2 + Math.floor(rng() * 4); // 2..5 nodes
+    const barrierIds = [];
+    for (let i = 0; i < count; i++) {
+      const node = addNode({ x: baseX, y: 90 + i * 220 });
+
+      // Maybe fan this node's line straight into an already-existing
+      // barrier from an earlier node, before adding any of its own.
+      if (barrierIds.length > 0 && rng() < 0.5) {
+        const target = barrierIds[Math.floor(rng() * barrierIds.length)];
+        attach(target, node.id, rng() < 0.5);
+      }
+
+      // Maybe extend further with 0-2 brand-new barriers of its own.
+      const extra = Math.floor(rng() * 3); // 0..2
+      for (let k = 0; k < extra; k++) {
+        barrierIds.push(addBarrier(node.id).id);
+      }
+    }
+  }
+
+  buildSide(
+    (opts) => m.addCause(opts),
+    (causeId) => m.addPreventativeControl(causeId),
+    (pcId, causeId, inherit) => m.attachInputToPreventativeControl(causeId, pcId, inherit),
+    150,
+  );
+  buildSide(
+    (opts) => m.addOutcome(opts),
+    (outcomeId) => m.addMitigativeControl(outcomeId),
+    (mcId, outcomeId, inherit) => m.attachOutputToMitigativeControl(mcId, outcomeId, inherit),
+    1200,
+  );
+}"""
+
+_CHECK_NO_FOREIGN_ROW_IN_ANY_BOX_JS = """() => {
+  const m = window.__lastModel;
+  const view = window.__lastView;
+  const pageId = m.pages[0].id;
+
+  const causes = m.causesForPage(pageId).map((c) => ({ id: c.id, y: c.y }));
+  const outcomes = m.outcomesForPage(pageId).map((o) => ({ id: o.id, y: o.y }));
+
+  const violations = [];
+  function check(barrier, rows) {
+    const b = view.boundsById[barrier.id];
+    if (!b) return;
+    const top = b.cy - b.h / 2;
+    const bottom = b.cy + b.h / 2;
+    const through = new Set(m.linesThrough(barrier.id).map((l) => l.originId));
+    rows.forEach((row) => {
+      if (through.has(row.id)) return;
+      if (top < row.y && row.y < bottom) {
+        violations.push({ barrierId: barrier.id, rowId: row.id, top, bottom, rowY: row.y });
+      }
+    });
+  }
+  m.preventativeBarriersForPage(pageId).forEach((pb) => check(pb, causes));
+  m.mitigativeBarriersForPage(pageId).forEach((mb) => check(mb, outcomes));
+  return violations;
+}"""
+
+
+def test_random_topologies_keep_every_barriers_box_scoped_to_its_own_rows(page):
+    """Generative counterpart to the hand-written regression tests above:
+    each of those was added only after one specific real topology broke
+    auto-arrange's core promise (baseline5). Rather than trust that the
+    handful of shapes captured so far are exhaustive, this throws many
+    random Cause/Outcome + barrier-sharing topologies at the same
+    underlying invariant and fails fast (with the seed and a full JSON
+    dump of the offending topology, replayable via loadFromJSON) the
+    moment any one of them violates it."""
+    page.evaluate("() => { window.__emptyDoc = window.__lastModel.toJSON(); }")
+
+    for seed in RANDOM_TOPOLOGY_SEEDS:
+        page.evaluate(_BUILD_RANDOM_TOPOLOGY_JS, seed)
+        auto_arrange(page)
+        page.wait_for_timeout(150)
+
+        violations = page.evaluate(_CHECK_NO_FOREIGN_ROW_IN_ANY_BOX_JS)
+        if violations:
+            doc = page.evaluate("() => window.__lastModel.toJSON()")
+            raise AssertionError(
+                f"seed={seed} produced a barrier whose box swallows a row its line "
+                f"never passes through: {violations}\n"
+                f"Reproduce directly via window.__lastModel.loadFromJSON(<doc>) with:\n{doc}"
+            )
+
 
 def test_topmost_cause_and_outcome_clear_the_tle(page):
     page.evaluate("""() => {
