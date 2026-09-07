@@ -23,6 +23,12 @@
     // — see PageTabsController.js for why. Constructed early, before every
     // controller below that needs `pageScopedModel`.
     const pageTabs = new Bowtie.PageTabsController(model, document.getElementById('page-tabs'));
+    // UndoController needs to know the active page to decide which per-page
+    // stack undo()/redo() should compare against the document stack — but
+    // PageTabsController itself has to be constructed with `undo.model`
+    // (above), so this can't be a constructor argument without a circular
+    // dependency. Bound here instead, right after pageTabs exists.
+    undo.bindActivePage(() => pageTabs.getActivePageId());
 
     // Gives every canvas-manipulation controller (and the view) a single
     // page's drawable content, shaped exactly like the old single-page
@@ -71,8 +77,10 @@
     // `undo.snapshot` fires once per drag gesture (on pointerdown) — see
     // UndoController.js: `moveElement` itself is excluded from its generic
     // per-method-call snapshot hook, since it's called on every
-    // pointermove, not once per gesture.
-    new Bowtie.DragController(pageScopedModel, svgRoot, () => undo.snapshot());
+    // pointermove, not once per gesture. Scoped to whichever page is
+    // active at that moment — DragController (wired through
+    // PageScopedModel) can only ever be dragging an element on that page.
+    new Bowtie.DragController(pageScopedModel, svgRoot, () => undo.snapshot(pageTabs.getActivePageId()));
     new Bowtie.ContextMenuController(pageScopedModel, svgRoot);
     new Bowtie.FocusController(pageScopedModel, svgRoot);
     new Bowtie.AutoArrangeController(
@@ -132,12 +140,13 @@
       const hasContent = model.causes.length > 0 || model.outcomes.length > 0
         || model.preventativeBarriers.length > 0 || model.mitigativeBarriers.length > 0;
       if (hasContent) panZoom.fitToBounds(view.getContentBounds());
-      // The welcome flow's own name/TLE/Hazard renames (or a completed
+      // The welcome flow's own name/page/TLE/Hazard renames (or a completed
       // import) shouldn't leave anything undo-able back to a blank state.
       // Deferred a tick: this callback fires on the FIRST of the "Create"
-      // step's three model changes (setName, then two renameElement calls)
-      // — resetting synchronously here would run before the other two,
-      // which would then repopulate the stack right after this clears it.
+      // step's four model changes (setName, renamePage, then two
+      // renameElement calls) — resetting synchronously here would run
+      // before the rest, which would then repopulate the stack right after
+      // this clears it.
       setTimeout(() => undo.reset(), 0);
     });
   });

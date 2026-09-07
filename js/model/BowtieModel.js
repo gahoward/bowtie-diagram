@@ -730,6 +730,83 @@
       this._emitChange();
     }
 
+    // --- Per-page serialization -------------------------------------------
+    //
+    // Used by UndoController's per-page undo/redo tier: a snapshot/restore
+    // scoped to exactly one page's own header (name/description/TLE/Hazard)
+    // plus its content subset, leaving every other page, idCounters,
+    // retiredIds, and the document name untouched. Deliberately NOT the
+    // shape a whole-document toJSON()/fromJSON() produces (that nests only
+    // the header per page, with content flat across the whole document) —
+    // this is a page-scoped slice of the same data, for a different caller.
+
+    _pageHeaderJSON(page) {
+      return {
+        id: page.id,
+        name: page.name,
+        description: page.description,
+        topLevelEvent: {
+          id: page.topLevelEvent.id,
+          name: page.topLevelEvent.name,
+          x: page.topLevelEvent.x,
+          y: page.topLevelEvent.y,
+          r: page.topLevelEvent.r,
+        },
+        hazard: { id: page.hazard.id, name: page.hazard.name },
+      };
+    }
+
+    _pageHeaderFromJSON(data) {
+      return {
+        id: data.id,
+        name: data.name,
+        description: data.description || '',
+        topLevelEvent: new Bowtie.TopLevelEvent(data.topLevelEvent),
+        hazard: new Bowtie.Hazard(data.hazard),
+      };
+    }
+
+    getPageJSON(pageId) {
+      const page = this.getPage(pageId);
+      if (!page) throw new Error(`Unknown page id: ${pageId}`);
+      return {
+        ...this._pageHeaderJSON(page),
+        causes: this.causesForPage(pageId).map((c) => ({
+          id: c.id, name: c.name, x: c.x, y: c.y, w: c.w, h: c.h, pageId: c.pageId,
+        })),
+        outcomes: this.outcomesForPage(pageId).map((o) => ({
+          id: o.id, name: o.name, x: o.x, y: o.y, w: o.w, h: o.h, pageId: o.pageId,
+        })),
+        preventativeBarriers: this.preventativeBarriersForPage(pageId).map((p) => ({
+          id: p.id, name: p.name, x: p.x, y: p.y, w: p.w, h: p.h, pageId: p.pageId,
+        })),
+        mitigativeBarriers: this.mitigativeBarriersForPage(pageId).map((m) => ({
+          id: m.id, name: m.name, x: m.x, y: m.y, w: m.w, h: m.h, pageId: m.pageId,
+        })),
+        lines: this.linesForPage(pageId).map((l) => ({
+          id: l.id, originType: l.originType, originId: l.originId, stops: l.stops.slice(), pageId: l.pageId,
+        })),
+      };
+    }
+
+    // Replaces exactly one page's header and content subset in place.
+    loadPageFromJSON(pageId, data) {
+      const idx = this.pages.findIndex((p) => p.id === pageId);
+      if (idx === -1) throw new Error(`Unknown page id: ${pageId}`);
+      this.pages[idx] = this._pageHeaderFromJSON(data);
+      this.causes = this.causes.filter((c) => c.pageId !== pageId)
+        .concat((data.causes || []).map((c) => new Bowtie.Cause(c)));
+      this.outcomes = this.outcomes.filter((o) => o.pageId !== pageId)
+        .concat((data.outcomes || []).map((o) => new Bowtie.Outcome(o)));
+      this.preventativeBarriers = this.preventativeBarriers.filter((p) => p.pageId !== pageId)
+        .concat((data.preventativeBarriers || []).map((p) => new Bowtie.PreventativeBarrier(p)));
+      this.mitigativeBarriers = this.mitigativeBarriers.filter((m) => m.pageId !== pageId)
+        .concat((data.mitigativeBarriers || []).map((m) => new Bowtie.MitigativeBarrier(m)));
+      this.lines = this.lines.filter((l) => l.pageId !== pageId)
+        .concat((data.lines || []).map((l) => new Bowtie.Line(l)));
+      this._emitChange();
+    }
+
     // --- Serialization ----------------------------------------------------
 
     toJSON() {
@@ -743,19 +820,7 @@
           preventativeBarrier: this.retiredIds.preventativeBarrier.map((e) => ({ ...e })),
           mitigativeBarrier: this.retiredIds.mitigativeBarrier.map((e) => ({ ...e })),
         },
-        pages: this.pages.map((p) => ({
-          id: p.id,
-          name: p.name,
-          description: p.description,
-          topLevelEvent: {
-            id: p.topLevelEvent.id,
-            name: p.topLevelEvent.name,
-            x: p.topLevelEvent.x,
-            y: p.topLevelEvent.y,
-            r: p.topLevelEvent.r,
-          },
-          hazard: { id: p.hazard.id, name: p.hazard.name },
-        })),
+        pages: this.pages.map((p) => this._pageHeaderJSON(p)),
         causes: this.causes.map((c) => ({
           id: c.id, name: c.name, x: c.x, y: c.y, w: c.w, h: c.h, pageId: c.pageId,
         })),
@@ -783,13 +848,7 @@
       model.idCounters = { ...model.idCounters, ...(data.idCounters || {}) };
       model.name = data.name || 'Untitled Bowtie';
       if (data.pages && data.pages.length > 0) {
-        model.pages = data.pages.map((p) => ({
-          id: p.id,
-          name: p.name,
-          description: p.description || '',
-          topLevelEvent: new Bowtie.TopLevelEvent(p.topLevelEvent),
-          hazard: new Bowtie.Hazard(p.hazard),
-        }));
+        model.pages = data.pages.map((p) => model._pageHeaderFromJSON(p));
       } else if (data.topLevelEvent && data.hazard) {
         // Back-compat for a pre-multi-page (schema-v6-shaped) document
         // handed straight to fromJSON: hazard/topLevelEvent used to be
@@ -797,13 +856,10 @@
         // never reaches here — ImportExportController's version check
         // rejects it first — this only matters for hand-built
         // fixtures/tests still using the old top-level shape.
-        model.pages = [{
-          id: 'PAGE_1',
-          name: 'Untitled Page',
-          description: '',
-          topLevelEvent: new Bowtie.TopLevelEvent(data.topLevelEvent),
-          hazard: new Bowtie.Hazard(data.hazard),
-        }];
+        model.pages = [model._pageHeaderFromJSON({
+          id: 'PAGE_1', name: 'Untitled Page', description: '',
+          topLevelEvent: data.topLevelEvent, hazard: data.hazard,
+        })];
       }
       model.causes = (data.causes || []).map((c) => new Bowtie.Cause(c));
       model.outcomes = (data.outcomes || []).map((o) => new Bowtie.Outcome(o));
