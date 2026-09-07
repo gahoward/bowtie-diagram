@@ -29,6 +29,16 @@
     return label;
   }
 
+  // `line.originId` is the origin Cause/Outcome's own PLACEMENT id (an
+  // internal, never-rendered bookkeeping key -- see "Two id spaces" in
+  // node_library_proposal.md) -- the annotation must show the origin
+  // NODE's own display identifier (C_1/O_1, or its custom label) instead.
+  function originDisplayId(model, line) {
+    const origin = model.findById(line.originId);
+    const node = model.getNode(origin.nodeId);
+    return model.displayIdentifierFor(node);
+  }
+
   // Draws every Line as a single continuous, perfectly straight run at its
   // own origin's y (its "lane") — it never bends to meet a barrier; barriers
   // instead grow tall enough (Layout.controlBounds) to visually intersect
@@ -150,7 +160,7 @@
           if (model.laneYsThrough(stopId).length <= 1) return;
           const sb = boundsById[stopId];
           const sn = model.findById(stopId);
-          frag.appendChild(makeLabel({ x: sn.x + sb.w / 2 + LABEL_GAP, y: laneY }, line.originId));
+          frag.appendChild(makeLabel({ x: sn.x + sb.w / 2 + LABEL_GAP, y: laneY }, originDisplayId(model, line)));
         });
       }
     });
@@ -200,7 +210,7 @@
           if (model.laneYsThrough(stopId).length <= 1) return;
           const sb = boundsById[stopId];
           const sn = model.findById(stopId);
-          frag.appendChild(makeLabel({ x: sn.x + sb.w / 2 + LABEL_GAP, y: laneY }, line.originId));
+          frag.appendChild(makeLabel({ x: sn.x + sb.w / 2 + LABEL_GAP, y: laneY }, originDisplayId(model, line)));
         });
       }
     });

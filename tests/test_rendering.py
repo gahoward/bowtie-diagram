@@ -32,6 +32,39 @@ def test_annotation_label_does_not_overlap_its_own_barrier(page):
     assert not overlap["overlap"]
 
 
+def test_shared_barrier_labels_show_node_display_ids_not_placement_ids(page):
+    """Regression: `line.originId` is the origin Cause/Outcome's own
+    PLACEMENT id (an internal bookkeeping key, never meant to be shown --
+    see "Two id spaces" in node_library_proposal.md), but ConnectionRenderer
+    used to pass it straight to the label instead of resolving it through
+    the origin's NODE, so a shared barrier's lane annotations showed
+    "PLACEMENT_3" instead of "C_1"/"C_2"."""
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.addCause({x: 150, y: 200});
+      const pb1 = m.addPreventativeControl(m.causes[0].id);
+      m.addCause({x: 150, y: 400});
+      m.attachInputToPreventativeControl(m.causes[1].id, pb1.id); // gives PB_1 two lanes -> labels drawn
+    }""")
+    page.wait_for_timeout(150)
+
+    # MinimapView clones the whole live #connections-layer <g> -- id and all
+    # -- into #minimap-container (same reasoning as #nodes-layer, see
+    # test_multi_page.py's `_node_count`), so a bare, unscoped selector would
+    # double-count every label via its minimap clone.
+    labels = page.evaluate("""
+      () => Array.from(document.getElementById('connections-layer').querySelectorAll('.connection-label'))
+        .map((l) => l.textContent)
+    """)
+    display_ids = page.evaluate("""() => {
+      const m = window.__lastModel;
+      return m.causes.map((c) => m.getNode(c.nodeId).id);
+    }""")
+    assert len(labels) == 2
+    assert sorted(labels) == sorted(display_ids)
+    assert all(not l.startswith('PLACEMENT_') for l in labels)
+
+
 def test_content_bounds_include_lowest_barrier_label(page):
     page.evaluate("""() => {
       const m = window.__lastModel;

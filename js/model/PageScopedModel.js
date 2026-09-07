@@ -60,6 +60,12 @@
 
     displayIdentifierFor(node) { return this.realModel.displayIdentifierFor(node); }
 
+    // ContextMenuController's rename modal (constructed with this facade)
+    // resolves a Cause/Outcome/Barrier's rename to the underlying node --
+    // a node's identity is document-wide, so this passes straight through
+    // to the real model exactly like setName/addCause above.
+    renameNode(nodeId, opts) { return this.realModel.renameNode(nodeId, opts); }
+
     // The "Choose existing" list for the create-or-choose modal (ask 3):
     // every library node of `type` NOT already placed on the active page
     // (node_library_proposal.md "at most one placement per node per page").
