@@ -14,13 +14,18 @@
   // events/year display-unit preference used by the Properties modal's and
   // canvas's read-only computed values.
   //
-  // Scope note (inherited from the old ModeController): risk matrix
-  // selection is preset SELECTION (a bundled matrix, e.g. Leaflet 5, or
-  // none), not a full custom-matrix authoring grid editor.
+  // Scope note: risk matrix selection is bundled-preset selection PLUS
+  // import/export of a hand-authored custom one (see _buildMatrixPicker
+  // below) -- not a live, click-to-edit cell grid. Import/export covers the
+  // practical need (author or tweak a matrix in a spreadsheet/text editor,
+  // matching the RiskMatrixDefinition JSON shape any bundled preset under
+  // js/data/risk-matrices/*.json already demonstrates) without the much
+  // larger surface a full in-browser grid editor would be.
   class ProjectSettingsController {
-    constructor(model, button, onDisplayUnitChange) {
+    constructor(model, button, onDisplayUnitChange, importFileInput) {
       this.model = model;
       this.onDisplayUnitChange = onDisplayUnitChange;
+      this.importFileInput = importFileInput;
       this.modal = null;
       // Session-only display preference (like SettingsController's visual
       // toggles) -- never part of the diagram data, never round-trips
@@ -28,6 +33,7 @@
       this.displayUnit = 'hour';
       button.addEventListener('click', () => this._open());
       model.onChange(() => this._refresh());
+      importFileInput.addEventListener('change', (e) => this._onImportFile(e));
     }
 
     getDisplayUnit() {
@@ -171,6 +177,8 @@
     }
 
     _buildMatrixPicker() {
+      const wrap = document.createElement('div');
+
       const field = document.createElement('label');
       field.className = 'modal-field';
       const label = document.createElement('span');
@@ -191,6 +199,17 @@
         select.appendChild(opt);
       });
       const current = this.model.riskMatrix;
+      const currentIsPreset = current && presets[current.id];
+      // An imported/custom matrix isn't one of the bundled presets -- give
+      // it its own (disabled, selectable-only-by-code) option rather than
+      // silently falling back to "(none selected)", which would misstate
+      // that nothing is active.
+      if (current && !currentIsPreset) {
+        const customOpt = document.createElement('option');
+        customOpt.value = current.id;
+        customOpt.textContent = `${current.name} (imported)`;
+        select.appendChild(customOpt);
+      }
       select.value = current ? current.id : '';
 
       select.addEventListener('change', () => {
@@ -198,12 +217,90 @@
           this.model.setRiskMatrix(null);
           return;
         }
+        if (!presets[select.value]) return; // the informational "(imported)" option -- re-import to restore it
         // Embedded as a full, independent copy (per the design doc: exports
         // stay self-contained even if the bundled preset is later edited).
         this.model.setRiskMatrix(JSON.parse(JSON.stringify(presets[select.value])));
       });
       field.appendChild(select);
-      return field;
+      wrap.appendChild(field);
+      wrap.appendChild(this._buildMatrixImportExportRow(current));
+      return wrap;
+    }
+
+    // "Import Risk Matrix..." / "Export Risk Matrix..." (see the class doc
+    // comment's scope note): a hand-authored or hand-edited
+    // RiskMatrixDefinition JSON file, validated with the exact same rules
+    // a bundled preset is built with (RiskMatrixValidator.js) rather than a
+    // second, driftable reimplementation.
+    _buildMatrixImportExportRow(current) {
+      const row = document.createElement('div');
+      row.className = 'node-library-add-row';
+
+      const importBtn = document.createElement('button');
+      importBtn.type = 'button';
+      importBtn.className = 'modal-btn';
+      importBtn.textContent = 'Import Risk Matrix…';
+      importBtn.addEventListener('click', () => this._importRiskMatrix());
+      row.appendChild(importBtn);
+
+      const exportBtn = document.createElement('button');
+      exportBtn.type = 'button';
+      exportBtn.className = 'modal-btn';
+      exportBtn.textContent = 'Export Risk Matrix…';
+      exportBtn.disabled = !current;
+      exportBtn.addEventListener('click', () => {
+        const denormalized = Bowtie.denormalizeRiskMatrixForExport(this.model.riskMatrix);
+        Bowtie.ExportUtil.exportJsonObject(denormalized, `${denormalized.id || 'risk-matrix'}.json`);
+      });
+      row.appendChild(exportBtn);
+      return row;
+    }
+
+    // Prefers the real native "Open" dialog (mirrors ImportExportController's
+    // own whole-document import); falls back to the hidden <input
+    // type=file> everywhere that API doesn't exist.
+    async _importRiskMatrix() {
+      const result = await Bowtie.ExportUtil.pickJsonFileText();
+      if (result.supported) {
+        if (result.text != null) this._applyImportedMatrixText(result.text);
+        return;
+      }
+      this.importFileInput.click();
+    }
+
+    _onImportFile(e) {
+      const file = e.target.files[0];
+      e.target.value = ''; // allow re-importing the same filename later
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => this._applyImportedMatrixText(reader.result);
+      reader.onerror = () => this._showImportError('Failed to read the file.');
+      reader.readAsText(file);
+    }
+
+    _applyImportedMatrixText(text) {
+      let raw;
+      try {
+        raw = JSON.parse(text);
+      } catch (err) {
+        this._showImportError('That file is not valid JSON.');
+        return;
+      }
+      const result = Bowtie.validateRiskMatrix(raw);
+      if (!result.ok) {
+        this._showImportError(`That file isn't a valid risk matrix: ${result.error}`);
+        return;
+      }
+      this.model.setRiskMatrix(result.matrix);
+    }
+
+    _showImportError(message) {
+      const body = document.createElement('div');
+      const p = document.createElement('p');
+      p.textContent = message;
+      body.appendChild(p);
+      Bowtie.ModalView.openModal({ title: 'Cannot Import Risk Matrix', bodyEl: body, actions: [{ label: 'OK', primary: true }] });
     }
 
     _buildDisplayUnitToggle() {

@@ -78,6 +78,20 @@
       return `${converted.toDisplayNumber(3)}/${displayUnit === 'year' ? 'yr' : 'hr'}`;
     }
 
+    // Risk-reduction-factor "at a glance" summary, underneath a barrier's
+    // own id/name label -- shared by both Preventative and Mitigative
+    // barriers. An explicit "Unknown" line matters here too: an Unknown
+    // barrier isn't excluded like an Unknown cause, it's silently SKIPPED
+    // from the product instead (BowtieModel.computeTleLikelihood/
+    // computeConsequenceLikelihood's own "conservative" skip rule) -- worth
+    // flagging on the barrier itself since nothing else surfaces it.
+    _barrierInfoLines(model, node) {
+      if (model.mode !== 'quantitative' || !node.riskReductionFactor) return [];
+      if (node.riskReductionFactor.unknown) return ['RRF: Unknown'];
+      const rrf = Bowtie.RiskMatrix.quantityToDecimal(node.riskReductionFactor);
+      return rrf ? [`RRF: ${rrf.toDisplayNumber(3)}`] : [];
+    }
+
     render(model, opts = {}) {
       const displayUnit = opts.displayUnit || 'hour';
       const boundsById = {};
@@ -149,6 +163,35 @@
         boundsById[stableId] = result.bounds;
         nodeGroups.push(result.g);
         extend(cause.x, cause.y, result.bounds.w / 2, result.bounds.h / 2);
+
+        // Likelihood/frequency "at a glance" summary, underneath the
+        // Cause's own box -- mirrors the Outcome summary below. An explicit
+        // "Unknown" line (rather than silence) matters here: an Unknown
+        // frequency isn't just "not shown", it EXCLUDES this cause from the
+        // TLE's max-of-known-frequencies calculation entirely (BowtieModel.
+        // computeTleLikelihood) -- worth flagging on the cause itself, not
+        // just as an aggregate count at the TLE.
+        if (model.mode !== 'simple') {
+          const causeNode = model.getNode(cause.nodeId);
+          const infoLines = [];
+          if (model.mode === 'qualitative' && model.riskMatrix && causeNode.likelihoodClassId) {
+            const likelihood = Bowtie.RiskMatrix.likelihoodClass(model.riskMatrix, causeNode.likelihoodClassId);
+            if (likelihood) infoLines.push(`Likelihood: ${likelihood.label}`);
+          } else if (model.mode === 'quantitative' && causeNode.frequency) {
+            if (causeNode.frequency.unknown) {
+              infoLines.push('Frequency: Unknown');
+            } else {
+              const freq = Bowtie.RiskMatrix.quantityToDecimal(causeNode.frequency);
+              const text = this._formatLikelihood(freq, displayUnit);
+              if (text) infoLines.push(`Frequency: ${text}`);
+            }
+          }
+          if (infoLines.length > 0) {
+            const infoY = cause.y + result.bounds.h / 2 + 14;
+            nodeGroups.push(this._renderInfoText(cause.x, infoY, infoLines));
+            extend(cause.x, infoY + infoLines.length * 13, result.bounds.w / 2, 10);
+          }
+        }
       });
 
       model.outcomes.forEach((outcome) => {
@@ -215,6 +258,14 @@
         nodeGroups.push(result.g);
         extend(pb.x, result.bounds.cy, result.bounds.w / 2, result.bounds.h / 2);
         extend(pb.x, result.bounds.labelCenterY, result.bounds.labelHalfWidth, result.bounds.labelHalfHeight);
+
+        const pbNode = model.getNode(pb.nodeId);
+        const infoLines = this._barrierInfoLines(model, pbNode);
+        if (infoLines.length > 0) {
+          const infoY = result.bounds.labelCenterY + result.bounds.labelHalfHeight + 14;
+          nodeGroups.push(this._renderInfoText(pb.x, infoY, infoLines));
+          extend(pb.x, infoY + infoLines.length * 13, result.bounds.labelHalfWidth, 10);
+        }
       });
 
       model.mitigativeBarriers.forEach((mb) => {
@@ -228,6 +279,14 @@
         nodeGroups.push(result.g);
         extend(mb.x, result.bounds.cy, result.bounds.w / 2, result.bounds.h / 2);
         extend(mb.x, result.bounds.labelCenterY, result.bounds.labelHalfWidth, result.bounds.labelHalfHeight);
+
+        const mbNode = model.getNode(mb.nodeId);
+        const infoLines = this._barrierInfoLines(model, mbNode);
+        if (infoLines.length > 0) {
+          const infoY = result.bounds.labelCenterY + result.bounds.labelHalfHeight + 14;
+          nodeGroups.push(this._renderInfoText(mb.x, infoY, infoLines));
+          extend(mb.x, infoY + infoLines.length * 13, result.bounds.labelHalfWidth, 10);
+        }
       });
 
       const connectionsFragment = Bowtie.ConnectionRenderer.render(model, boundsById, hazardLayout, opts);

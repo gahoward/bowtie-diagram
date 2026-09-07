@@ -70,6 +70,7 @@
     // arrangeSpacing/pullChainsCloser callbacks below.
     const projectSettings = new Bowtie.ProjectSettingsController(
       model, document.getElementById('btn-project-settings'), renderAll,
+      document.getElementById('import-risk-matrix-input'),
     );
 
     new Bowtie.ToolbarController(pageScopedModel, {

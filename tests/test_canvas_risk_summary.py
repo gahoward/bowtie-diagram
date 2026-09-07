@@ -109,3 +109,89 @@ def test_outcome_shows_nothing_when_no_risk_fields_are_set(page):
       m.addOutcome({x: 1200, y: 200});
     """)
     assert _info_texts(page) == []
+
+
+# --- Cause: likelihood (qualitative) / frequency (quantitative) -----------
+
+def test_cause_shows_likelihood_text_in_qualitative_mode(page):
+    _setup_and_emit(page, """
+      const m = window.__lastModel;
+      m.setMode('qualitative');
+      m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
+      const c = m.addCause({x: 150, y: 200});
+      m.getNode(c.nodeId).likelihoodClassId = m.riskMatrix.likelihoodClasses[1].id;
+    """)
+    texts = _info_texts(page)
+    likelihood_label = page.evaluate("() => window.__lastModel.riskMatrix.likelihoodClasses[1].label")
+    assert any(f"Likelihood: {likelihood_label}" == t for t in texts)
+
+
+def test_cause_shows_frequency_text_in_quantitative_mode(page):
+    _setup_and_emit(page, """
+      const m = window.__lastModel;
+      m.setMode('quantitative');
+      const c = m.addCause({x: 150, y: 200});
+      m.getNode(c.nodeId).frequency = { value: '1E-3' };
+    """)
+    texts = _info_texts(page)
+    assert any("Frequency: 0.001/hr" == t for t in texts)
+
+
+def test_cause_shows_frequency_unknown_explicitly(page):
+    _setup_and_emit(page, """
+      const m = window.__lastModel;
+      m.setMode('quantitative');
+      const c = m.addCause({x: 150, y: 200});
+      m.getNode(c.nodeId).frequency = { unknown: true };
+    """)
+    texts = _info_texts(page)
+    assert any("Frequency: Unknown" == t for t in texts)
+
+
+def test_cause_shows_nothing_when_no_risk_fields_are_set(page):
+    _setup_and_emit(page, """
+      const m = window.__lastModel;
+      m.setMode('quantitative');
+      m.addCause({x: 150, y: 200});
+    """)
+    assert _info_texts(page) == []
+
+
+# --- Barrier: risk reduction factor (quantitative only) --------------------
+
+def test_preventative_barrier_shows_risk_reduction_factor(page):
+    _setup_and_emit(page, """
+      const m = window.__lastModel;
+      m.setMode('quantitative');
+      const c = m.addCause({x: 150, y: 200});
+      const pb = m.addPreventativeControl(c.id);
+      m.getNode(pb.nodeId).riskReductionFactor = { value: '0.1' };
+    """)
+    texts = _info_texts(page)
+    assert any("RRF: 0.1" == t for t in texts)
+
+
+def test_mitigative_barrier_shows_risk_reduction_factor_unknown(page):
+    _setup_and_emit(page, """
+      const m = window.__lastModel;
+      m.setMode('quantitative');
+      const o = m.addOutcome({x: 1200, y: 200});
+      const mb = m.addMitigativeControl(o.id);
+      m.getNode(mb.nodeId).riskReductionFactor = { unknown: true };
+    """)
+    texts = _info_texts(page)
+    assert any("RRF: Unknown" == t for t in texts)
+
+
+def test_barrier_shows_no_rrf_text_in_qualitative_mode(page):
+    # riskReductionFactor is quantitative-only (qualitative mode never
+    # stores it -- RiskFieldsForm.js only renders that field in Quantitative
+    # mode), so a barrier must never show an RRF line outside it.
+    _setup_and_emit(page, """
+      const m = window.__lastModel;
+      m.setMode('qualitative');
+      m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
+      const c = m.addCause({x: 150, y: 200});
+      m.addPreventativeControl(c.id);
+    """)
+    assert not any("RRF" in t for t in _info_texts(page))

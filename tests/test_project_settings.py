@@ -126,3 +126,131 @@ def test_project_settings_display_unit_toggle_changes_canvas_likelihood_text(pag
     page.wait_for_timeout(80)
 
     assert "/yr" in tle_info_text()
+
+
+# --- Risk matrix import/export ---------------------------------------------
+#
+# Mirrors test_file_handlers.py's own convention: mock the two File System
+# Access API entry points to test the "native path" deterministically
+# (a real OS picker can't be driven from an automated test), and delete the
+# API to test the legacy `<input type=file>` fallback.
+
+_CUSTOM_MATRIX = {
+    "id": "custom-import-test",
+    "name": "Custom Import Test",
+    "authoringUnit": "hour",
+    "severityClasses": [{"id": "minor", "ordinal": 0, "label": "Minor"}],
+    "likelihoodClasses": [{"id": "common", "ordinal": 0, "label": "Common", "minValue": "0"}],
+    "riskClasses": [{"id": "x", "label": "X", "colour": "#888"}],
+    "cells": [["x"]],
+}
+
+
+def test_export_risk_matrix_button_disabled_until_a_matrix_is_active(page):
+    _open_project_settings(page)
+    page.locator("input[name=analysis-mode][value=quantitative]").check()
+    page.wait_for_timeout(80)
+    assert page.get_by_role("button", name="Export Risk Matrix…", exact=True).is_disabled()
+
+    page.locator(".modal-field:has-text('Risk matrix') select").select_option("leaflet5")
+    page.wait_for_timeout(80)
+    assert page.get_by_role("button", name="Export Risk Matrix…", exact=True).is_enabled()
+
+
+def test_import_risk_matrix_via_native_picker_sets_it_active(page):
+    _open_project_settings(page)
+    page.locator("input[name=analysis-mode][value=quantitative]").check()
+    page.wait_for_timeout(80)
+
+    page.evaluate(
+        """(matrix) => {
+          window.showOpenFilePicker = async () => [{
+            getFile: async () => ({ text: async () => JSON.stringify(matrix) }),
+          }];
+        }""",
+        _CUSTOM_MATRIX,
+    )
+    page.get_by_role("button", name="Import Risk Matrix…", exact=True).click()
+    page.wait_for_timeout(150)
+
+    active_id = page.evaluate("() => window.__lastModel.riskMatrix && window.__lastModel.riskMatrix.id")
+    assert active_id == "custom-import-test"
+
+
+def test_import_risk_matrix_falls_back_to_hidden_input_when_api_unavailable(page, tmp_path):
+    _open_project_settings(page)
+    page.locator("input[name=analysis-mode][value=quantitative]").check()
+    page.wait_for_timeout(80)
+    page.evaluate("() => { delete window.showOpenFilePicker; }")
+
+    file_path = tmp_path / "matrix.json"
+    file_path.write_text(__import__("json").dumps(_CUSTOM_MATRIX))
+
+    with page.expect_file_chooser() as fc_info:
+        page.get_by_role("button", name="Import Risk Matrix…", exact=True).click()
+    fc_info.value.set_files(str(file_path))
+    page.wait_for_timeout(150)
+
+    active_id = page.evaluate("() => window.__lastModel.riskMatrix && window.__lastModel.riskMatrix.id")
+    assert active_id == "custom-import-test"
+
+
+def test_import_risk_matrix_rejects_an_invalid_file(page):
+    _open_project_settings(page)
+    page.locator("input[name=analysis-mode][value=quantitative]").check()
+    page.wait_for_timeout(80)
+
+    page.evaluate("""() => {
+      window.showOpenFilePicker = async () => [{
+        getFile: async () => ({ text: async () => '{"id": "bad"}' }),
+      }];
+    }""")
+    page.get_by_role("button", name="Import Risk Matrix…", exact=True).click()
+    page.wait_for_timeout(150)
+
+    assert page.locator(".modal-title", has_text="Cannot Import Risk Matrix").count() == 1
+    page.get_by_role("button", name="OK", exact=True).click()
+    assert page.evaluate("() => window.__lastModel.riskMatrix") is None
+
+
+def test_export_then_reimport_risk_matrix_round_trips(page):
+    _open_project_settings(page)
+    page.locator("input[name=analysis-mode][value=quantitative]").check()
+    page.wait_for_timeout(80)
+    page.locator(".modal-field:has-text('Risk matrix') select").select_option("leaflet5")
+    page.wait_for_timeout(80)
+
+    page.evaluate("""() => {
+      window.__written = null;
+      window.showSaveFilePicker = async () => ({
+        createWritable: async () => ({
+          write: async (blob) => { window.__written = await blob.text(); },
+          close: async () => {},
+        }),
+      });
+    }""")
+    page.get_by_role("button", name="Export Risk Matrix…", exact=True).click()
+    page.wait_for_timeout(150)
+    written = page.evaluate("() => window.__written")
+    assert written is not None
+
+    original_min_values = page.evaluate(
+        "() => window.__lastModel.riskMatrix.likelihoodClasses.map((c) => c.minValue)"
+    )
+
+    # Reset to no matrix, then reimport the exported file.
+    page.locator(".modal-field:has-text('Risk matrix') select").select_option("")
+    page.wait_for_timeout(80)
+    page.evaluate(
+        """(text) => {
+          window.showOpenFilePicker = async () => [{ getFile: async () => ({ text: async () => text }) }];
+        }""",
+        written,
+    )
+    page.get_by_role("button", name="Import Risk Matrix…", exact=True).click()
+    page.wait_for_timeout(150)
+
+    reimported_min_values = page.evaluate(
+        "() => window.__lastModel.riskMatrix.likelihoodClasses.map((c) => c.minValue)"
+    )
+    assert reimported_min_values == original_min_values
