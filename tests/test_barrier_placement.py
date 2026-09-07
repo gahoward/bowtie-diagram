@@ -69,3 +69,50 @@ def test_menu_offers_no_barrier_wide_attach_from_a_barrier_node(page):
     pb_node.click(button="right")
     items = menu_items(page)
     assert not any("Attach Output" in i for i in items)
+
+
+def test_shift_toward_and_away_from_tle_nudge_a_preventative_barrier_one_column(page):
+    """The manual column-shunt escape hatch (see BowtieModel.
+    nudgeBarrierColumn): a lone barrier, isolated from anything else it
+    could land on top of, must move by exactly one Loose-mode column width
+    (320px) toward the TLE (increasing x, since Causes sit left of the TLE)
+    when "Shift Toward TLE" is clicked, and back when "Shift Away From
+    TLE" is clicked afterward."""
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.addCause({x: 150, y: 200});
+      m.addPreventativeControl(m.causes[0].id);
+    }""")
+    page.wait_for_timeout(100)
+
+    pb_node = page.locator('#bowtie-canvas .node.preventative-barrier[data-id="PB_1"]')
+    before_x = page.evaluate("() => window.__lastModel.findById('PB_1').x")
+
+    pb_node.click(button="right")
+    click_menu_item(page, "Shift Toward TLE")
+    toward_x = page.evaluate("() => window.__lastModel.findById('PB_1').x")
+    assert toward_x == before_x + 320
+
+    pb_node.click(button="right")
+    click_menu_item(page, "Shift Away From TLE")
+    away_x = page.evaluate("() => window.__lastModel.findById('PB_1').x")
+    assert away_x == before_x
+
+
+def test_shift_toward_tle_nudges_a_mitigative_barrier_the_opposite_direction(page):
+    """Mirrors the Preventative case: a MitigativeBarrier sits right of the
+    TLE, so "Shift Toward TLE" must DECREASE its x instead."""
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.addOutcome({x: 1200, y: 200});
+      m.addMitigativeControl(m.outcomes[0].id);
+    }""")
+    page.wait_for_timeout(100)
+
+    mb_node = page.locator('#bowtie-canvas .node.mitigative-barrier[data-id="MB_1"]')
+    before_x = page.evaluate("() => window.__lastModel.findById('MB_1').x")
+
+    mb_node.click(button="right")
+    click_menu_item(page, "Shift Toward TLE")
+    toward_x = page.evaluate("() => window.__lastModel.findById('MB_1').x")
+    assert toward_x == before_x - 320

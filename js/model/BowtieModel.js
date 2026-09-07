@@ -418,6 +418,24 @@
       this._emitChange();
     }
 
+    // Manual escape hatch for the rare case auto-arrange still can't
+    // resolve on its own: shifts a single barrier by one auto-arrange
+    // "column" toward or away from the TLE, leaving every other element
+    // untouched. `colSpacing` is the caller's job to supply (the auto-
+    // arrange column width, Loose or Tight per current Settings) so this
+    // method stays a pure "move by this many px, in the right direction for
+    // this barrier kind" operation with no layout knowledge of its own.
+    // PreventativeBarriers sit left of the TLE (Causes -> TLE, ascending
+    // x), MitigativeBarriers sit right of it (TLE -> Outcomes, ascending
+    // x) -- so "toward the TLE" is +x for one kind and -x for the other.
+    nudgeBarrierColumn(kind, id, towardTle, colSpacing) {
+      const barrier = this._barrierCollection(kind).find((b) => b.id === id);
+      if (!barrier) throw new Error(`Unknown ${kind} id: ${id}`);
+      const sign = kind === 'preventativeBarrier' ? 1 : -1;
+      barrier.x += (towardTle ? 1 : -1) * sign * colSpacing;
+      this._emitChange();
+    }
+
     // Bulk position update (e.g. auto-arrange) that only triggers one
     // re-render instead of one per element.
     setPositions(updates) {

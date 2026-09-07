@@ -441,3 +441,66 @@ def test_lone_barrier_lands_in_the_tle_adjacent_column_not_the_cause_adjacent_on
         "the lone barrier's column must differ from the cause-adjacent "
         "first-barrier column it used to be wrongly placed in"
     )
+
+
+def test_shared_barrier_with_a_divergent_downstream_chain_gets_its_own_column(page):
+    """Regression test: a barrier shared by two lines whose continuations
+    toward the TLE have DIFFERENT lengths must be depth-ranked by the
+    LONGEST of them, not whichever line's continuation happens to be found
+    first.
+
+    Repro (matches the reported bug exactly: load the demo, then connect
+    C_2 to PB_1 by inserting it in front of C_2's own existing PB_2 --
+    i.e. "Attach to Existing Preventative Barrier" on the C_2-PB_2 line
+    segment, picking PB_1, not the Cause-node menu's replace-the-chain
+    version):
+
+      C_1 -> PB_1 -> PB_3        (PB_1's line to C_1 ends at PB_3)
+      C_2 -> PB_1 -> PB_2 -> PB_3 (PB_1's line to C_2 continues through PB_2)
+
+    PB_1 is shared by both lines. Depth-from-the-TLE used to be computed
+    from whichever line's continuation was found first when scanning
+    `model.lines` (C_1's, here) -- giving PB_1 depth 2 (1 + PB_3's depth of
+    1), the SAME depth as PB_2 (also 1 + PB_3's depth of 1). Auto-arrange
+    then placed both PB_1 and PB_2 in the exact same column, and since
+    PB_1's only leafward neighbours are C_1 and C_2 while PB_2's only
+    leafward neighbour is PB_1 itself (already positioned), they landed at
+    the IDENTICAL y too -- a hard, total overlap, not just a shared column.
+    Depth must instead be the DEEPEST continuation through a shared barrier
+    (here, via PB_2: 1 + (1 + PB_3's depth of 1) = 3), so PB_1, PB_2, and
+    PB_3 each land in their own column."""
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.addCause({x: 150, y: 90});
+      const pb1 = m.addPreventativeControl(m.causes[0].id);
+      const pb3 = m.insertBarrier('preventativeBarrier', 'after', pb1.id);
+      m.addCause({x: 150, y: 300});
+      m.attachInputToPreventativeControl(m.causes[1].id, pb1.id);
+      const c2Line = m.lines.find((l) => l.originId === m.causes[1].id);
+      m.insertBarrier('preventativeBarrier', 'after', pb1.id, {}, [c2Line.id]);
+      window.__pb1 = pb1.id;
+      window.__pb3 = pb3.id;
+    }""")
+    auto_arrange(page)
+    page.wait_for_timeout(150)
+
+    positions = page.evaluate("""() => {
+      const m = window.__lastModel;
+      const pb1 = m.findById(window.__pb1);
+      const pb3 = m.findById(window.__pb3);
+      const middle = m.preventativeBarriers.find((p) => p.id !== pb1.id && p.id !== pb3.id);
+      return {
+        pb1: { x: pb1.x, y: pb1.y },
+        middle: { x: middle.x, y: middle.y },
+        pb3: { x: pb3.x, y: pb3.y },
+      };
+    }""")
+    assert positions["pb1"]["x"] < positions["middle"]["x"] < positions["pb3"]["x"], (
+        "PB_1 (depth 3, feeds the longer chain), the middle barrier "
+        "(depth 2), and PB_3 (depth 1) must each land in their own column, "
+        "in that order from the causes side toward the TLE"
+    )
+    assert positions["pb1"] != positions["middle"], (
+        "PB_1 and the barrier it feeds through its longer chain must never "
+        "land on the exact same spot"
+    )

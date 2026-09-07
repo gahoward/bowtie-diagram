@@ -1,8 +1,14 @@
 (function (Bowtie) {
   class ContextMenuController {
-    constructor(model, svgRoot) {
+    // `getSpacingMode`, mirroring AutoArrangeController's own constructor
+    // param, is read fresh on every menu build (not just at construction) so
+    // a Settings change takes effect on the very next right-click — used
+    // only by the barrier "Shift Toward/Away From TLE" items below to size
+    // one manual nudge step the same as auto-arrange's own column width.
+    constructor(model, svgRoot, getSpacingMode) {
       this.model = model;
       this.svgRoot = svgRoot;
+      this.getSpacingMode = getSpacingMode || (() => 'loose');
       this.menuEl = null;
 
       svgRoot.addEventListener('contextmenu', (e) => this._onContextMenu(e));
@@ -112,15 +118,40 @@
         // through it along for the ride. Reattachment is line-scoped by
         // construction when done from the specific line segment instead
         // (see _gapInsertItemsForCauseLine/_gapInsertItemsForOutcomeLine).
+        items.push(...this._buildShuntItems('preventativeBarrier', el.id));
       }
       if (el.type === 'mitigativeBarrier') {
         items.push({ label: 'Add Mitigative Barrier', action: () => this._addMitigativeControlFrom(el) });
+        items.push(...this._buildShuntItems('mitigativeBarrier', el.id));
       }
       items.push({ label: 'Rename', action: () => this._rename(el) });
       if (el.type !== 'topLevelEvent' && el.type !== 'hazard') {
         items.push({ label: 'Delete', action: () => this.model.deleteElement(el.id) });
       }
       return items;
+    }
+
+    // Manual escape hatch (see BowtieModel.nudgeBarrierColumn): auto-arrange
+    // derives every barrier's column from the topology alone, and one
+    // barrier feeding both a short and a long remaining chain can still end
+    // up sharing a column with a genuinely different barrier in an edge
+    // case the algorithm doesn't (yet) untangle on its own. These two items
+    // let the user pull a specific barrier one column toward or away from
+    // the TLE by hand, sized to the exact same column width auto-arrange
+    // itself would use (Loose/Tight, per current Settings) so a manual
+    // shunt lines up with whatever a future re-arrange would produce.
+    _buildShuntItems(kind, id) {
+      const colSpacing = Bowtie.AutoArrangeController.colSpacingFor(this.getSpacingMode());
+      return [
+        {
+          label: 'Shift Toward TLE',
+          action: () => this.model.nudgeBarrierColumn(kind, id, true, colSpacing),
+        },
+        {
+          label: 'Shift Away From TLE',
+          action: () => this.model.nudgeBarrierColumn(kind, id, false, colSpacing),
+        },
+      ];
     }
 
     // Lines are interactable in their own right: right-clicking anywhere

@@ -228,21 +228,31 @@
       button.addEventListener('click', () => this.arrange());
     }
 
-    // The first-found barrier immediately TLE-ward (successor) of
-    // `barrierId` in some line's stops, or null if it connects straight to
-    // the TLE. Mirrors the pre-Line-rework model's "first found wins" for
-    // the rare case where a barrier's lines have diverged onto different
-    // next stops. Shared by both _pcDepth and _mcDepth below — Line.stops
-    // uses the same origin-nearest-first convention for both PB and MB
-    // chains (see Line.js), so "next stop toward the TLE" means the same
-    // thing for either.
-    _successorOf(barrierId) {
-      for (let i = 0; i < this.model.lines.length; i += 1) {
-        const line = this.model.lines[i];
+    // EVERY barrier immediately TLE-ward (successor) of `barrierId`, across
+    // every line currently passing through it — not just the first one
+    // found. Two lines can share `barrierId` and then diverge (one runs
+    // straight to the TLE, another continues through a further barrier
+    // first), and depth must be measured from whichever continuation is
+    // DEEPEST (see _pcDepth/_mcDepth below): picking only the first-found
+    // line's continuation under-counts a shared barrier's true distance
+    // from the TLE whenever a shorter and a longer chain both pass through
+    // it, landing it in the SAME column as the barrier that makes it
+    // longer (architecture review finding, 2026 — reported as "PB_1 and
+    // PB_2 land on the exact same spot after attaching a second Cause to
+    // PB_1 ahead of its own pre-existing PB_2 → PB_3 chain": PB_1's line to
+    // C_1 goes straight to PB_3, but its line to C_2 goes through PB_2
+    // first — the first-found rule picked C_1's shorter continuation,
+    // giving PB_1 the same depth as PB_2 itself). Shared by both _pcDepth
+    // and _mcDepth — Line.stops uses the same origin-nearest-first
+    // convention for both PB and MB chains (see Line.js), so "next stop(s)
+    // toward the TLE" means the same thing for either.
+    _successorsOf(barrierId) {
+      const successors = [];
+      this.model.lines.forEach((line) => {
         const idx = line.stops.indexOf(barrierId);
-        if (idx !== -1 && idx < line.stops.length - 1) return line.stops[idx + 1];
-      }
-      return null;
+        if (idx !== -1 && idx < line.stops.length - 1) successors.push(line.stops[idx + 1]);
+      });
+      return successors;
     }
 
     // Distance (in barrier hops) from the TopLevelEvent. A PB feeding
@@ -257,24 +267,36 @@
     // was landing a full column short of the TLE, alongside chains'
     // FIRST barriers instead of their LAST, because depth was previously
     // measured from the Cause end instead).
+    //
+    // When `barrierId` is shared by lines with different-length
+    // continuations (see _successorsOf above), depth is the DEEPEST of
+    // them, i.e. 1 + the max depth among every distinct successor —
+    // otherwise a barrier feeding both a short and a long remaining chain
+    // would be assigned the short chain's (shallower) depth, colliding
+    // with a barrier that's genuinely one or more columns further out.
     _pcDepth(pb, cache) {
       if (cache.has(pb.id)) return cache.get(pb.id);
-      const downstreamId = this._successorOf(pb.id);
-      const downstream = downstreamId ? this.model.preventativeBarriers.find((p) => p.id === downstreamId) : null;
-      const depth = downstream ? 1 + this._pcDepth(downstream, cache) : 1;
+      const downstreamDepths = this._successorsOf(pb.id)
+        .map((id) => this.model.preventativeBarriers.find((p) => p.id === id))
+        .filter(Boolean)
+        .map((downstream) => this._pcDepth(downstream, cache));
+      const depth = downstreamDepths.length > 0 ? 1 + Math.max(...downstreamDepths) : 1;
       cache.set(pb.id, depth);
       return depth;
     }
 
     // Mirrors _pcDepth exactly (both now measure distance from the
-    // TopLevelEvent). An MB fed directly by the TLE (nothing further toward
-    // the TLE in its Line.stops) is depth 1; one chained before it (toward
-    // the TLE) is one deeper.
+    // TopLevelEvent, and both take the deepest continuation when a barrier
+    // is shared by diverging lines). An MB fed directly by the TLE (nothing
+    // further toward the TLE in its Line.stops) is depth 1; one chained
+    // before it (toward the TLE) is one deeper.
     _mcDepth(mb, cache) {
       if (cache.has(mb.id)) return cache.get(mb.id);
-      const upstreamId = this._successorOf(mb.id);
-      const upstream = upstreamId ? this.model.mitigativeBarriers.find((m) => m.id === upstreamId) : null;
-      const depth = upstream ? 1 + this._mcDepth(upstream, cache) : 1;
+      const upstreamDepths = this._successorsOf(mb.id)
+        .map((id) => this.model.mitigativeBarriers.find((m) => m.id === id))
+        .filter(Boolean)
+        .map((upstream) => this._mcDepth(upstream, cache));
+      const depth = upstreamDepths.length > 0 ? 1 + Math.max(...upstreamDepths) : 1;
       cache.set(mb.id, depth);
       return depth;
     }
@@ -521,6 +543,14 @@
       if (this.onArranged) this.onArranged();
     }
   }
+
+  // Exposed so anything that needs "the same column width auto-arrange
+  // would use" (the barrier context-menu's manual column-shunt buttons —
+  // see ContextMenuController.js) reads the exact same numbers rather than
+  // duplicating them, and stays in sync if these are ever retuned.
+  AutoArrangeController.COL_SPACING_LOOSE = COL_SPACING_LOOSE;
+  AutoArrangeController.COL_SPACING_TIGHT = COL_SPACING_TIGHT;
+  AutoArrangeController.colSpacingFor = (mode) => (mode === 'tight' ? COL_SPACING_TIGHT : COL_SPACING_LOOSE);
 
   Bowtie.AutoArrangeController = AutoArrangeController;
 })(window.Bowtie = window.Bowtie || {});
