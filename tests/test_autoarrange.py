@@ -699,3 +699,44 @@ def test_diverging_after_a_shared_barrier_keeps_full_clearance_between_rows(page
             assert not (b_label_top < a_bot and a_top < b_label_bot), (
                 f"{b['id']}'s label must not overlap unrelated {a['id']}'s box"
             )
+
+
+def test_a_tighter_shared_barrier_clusters_correctly_within_a_broader_shared_group(page):
+    """Reported bug, reproduced with the demo's own topology: load the
+    demo (C_1 -> PB_1 -> PB_3, C_2 -> PB_2 -> PB_3, C_3 -> PB_3 directly,
+    C_4 bare), then attach C_4 to PB_2. C_2 and C_4 now privately share
+    PB_2 (just the two of them), while C_1, C_2, C_3, and C_4 ALL
+    separately share the later PB_3. orderByAdjacency used to sort a
+    node's unvisited neighbours by original array index alone, which
+    doesn't distinguish "this pair must be strictly adjacent" (PB_2, two
+    participants) from "these four just need to be in the same general
+    region" (PB_3, four participants) -- C_3 (index 2) got visited before
+    C_4 (index 3) purely because of array order, landing between C_2 and
+    C_4 and making PB_2's grown box balloon to cover C_3's own row even
+    though C_3 was never attached to PB_2 at all. The tighter (fewer-
+    participant) relationship must now win: C_2 and C_4 end up strictly
+    adjacent, and PB_2's box must not reach C_3's row."""
+    page.evaluate("""() => {
+      window.__lastModel.loadFromJSON(Bowtie.DEMO_DATA);
+      window.__lastModel.attachInputToPreventativeControl('C_4', 'PB_2');
+    }""")
+    auto_arrange(page)
+    page.wait_for_timeout(150)
+
+    result = page.evaluate("""() => {
+      const m = window.__lastModel;
+      const view = window.__lastView;
+      const causeYs = Object.fromEntries(m.causes.map((c) => [c.id, c.y]));
+      const b = view.boundsById['PB_2'];
+      return { causeYs, pb2Top: b.cy - b.h / 2, pb2Bottom: b.cy + b.h / 2 };
+    }""")
+    c3y = result["causeYs"]["C_3"]
+    assert not (result["pb2Top"] < c3y < result["pb2Bottom"]), (
+        "C_3's row must not fall inside PB_2's grown box -- C_3 was never attached to PB_2"
+    )
+    c2y, c4y = result["causeYs"]["C_2"], result["causeYs"]["C_4"]
+    other_ys = [y for cid, y in result["causeYs"].items() if cid not in ("C_2", "C_4")]
+    assert not any(min(c2y, c4y) < y < max(c2y, c4y) for y in other_ys), (
+        "C_2 and C_4 (sharing PB_2 privately) must end up strictly adjacent, "
+        "with no other Cause's row landing between them"
+    )

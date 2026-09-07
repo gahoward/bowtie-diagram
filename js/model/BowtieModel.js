@@ -714,45 +714,71 @@
 
     // --- Attachment of existing nodes (fan-in / chaining) ------------------
 
+    // The stops (if any) that continue on past `barrierId`, toward the TLE
+    // (for a PB) or the Outcome (for an MB), on some OTHER line already
+    // passing through it (not `excludeLineId`, so a line about to be
+    // replaced never answers its own question) — the first such line
+    // found, an accepted scope boundary for the rare case where
+    // `barrierId`'s existing lines have already diverged onto different
+    // continuations. Shared by attachInputToPreventativeControl/
+    // attachOutputToMitigativeControl's "inherit downstream" branch below,
+    // and by ContextMenuController to decide up front whether asking the
+    // user to choose would even matter (an empty result means there's
+    // nothing to inherit either way).
+    _donorContinuation(barrierId, excludeLineId) {
+      const donor = this.lines.find((l) => l.id !== excludeLineId && l.stops.includes(barrierId));
+      if (!donor) return [];
+      const idx = donor.stops.indexOf(barrierId);
+      return donor.stops.slice(idx + 1);
+    }
+
     // Attaches an existing Cause to the input side of `pcId`. The cause's
-    // own Line is replaced wholesale — it now enters directly at pcId,
-    // inheriting whatever continuation toward the TLE already exists there
-    // (the first existing line found through pcId, an accepted scope
-    // boundary for the rare case where pcId's existing lines have already
-    // diverged onto different continuations). Always single-line by
-    // construction (a Cause has exactly one Line), unlike reattaching an
-    // existing barrier's own output — which must be done from the specific
-    // Line segment instead (see attachExistingBarrier), since a barrier can
-    // carry more than one Line and there is no "which one" to ask here.
-    attachInputToPreventativeControl(causeId, pcId) {
+    // own Line is replaced wholesale — it now enters directly at pcId —
+    // but what happens AFTER pcId depends on `inheritDownstream`:
+    //   - true (default): follow whatever continuation toward the TLE
+    //     already exists on `pcId` for some other line (_donorContinuation
+    //     above) — the original, only-ever behavior before this option
+    //     existed, e.g. attaching a bare Cause to a barrier that already
+    //     continues on to a further shared barrier before the TLE.
+    //   - false: stop caring what pcId's OTHER lines do, and instead keep
+    //     whatever THIS cause's own line already had beyond pcId (if it
+    //     had any barriers of its own before this call) — or, if it had
+    //     none (the common bare-Cause case), the line simply ends at pcId
+    //     and connects directly to the TLE from there, exactly as if pcId
+    //     were freshly added rather than an existing, possibly-further-
+    //     chained barrier.
+    // ContextMenuController only surfaces this as a user choice when
+    // _donorContinuation is non-empty (only then does the choice actually
+    // change anything); it's silently irrelevant otherwise, and model-level
+    // callers (tests included) that don't pass it at all keep today's
+    // always-inherit behavior. Always single-line by construction (a Cause
+    // has exactly one Line), unlike reattaching an existing barrier's own
+    // output — which must be done from the specific Line segment instead
+    // (see attachExistingBarrier), since a barrier can carry more than one
+    // Line and there is no "which one" to ask here.
+    attachInputToPreventativeControl(causeId, pcId, inheritDownstream = true) {
       const target = this.preventativeBarriers.find((p) => p.id === pcId);
       const cause = this.causes.find((c) => c.id === causeId);
       if (!target || !cause) throw new Error('Unknown element id');
 
       const causeLine = this._lineFor(causeId);
-      const donor = this.lines.find((l) => l.id !== causeLine.id && l.stops.includes(pcId));
-      let continuation = [];
-      if (donor) {
-        const idx = donor.stops.indexOf(pcId);
-        continuation = donor.stops.slice(idx + 1);
-      }
+      const continuation = inheritDownstream
+        ? this._donorContinuation(pcId, causeLine.id)
+        : causeLine.stops.filter((id) => id !== pcId);
       causeLine.stops = [pcId, ...continuation];
       this._emitChange();
     }
 
     // Mirrors attachInputToPreventativeControl for the outcome/output side.
-    attachOutputToMitigativeControl(mcId, outcomeId) {
+    attachOutputToMitigativeControl(mcId, outcomeId, inheritDownstream = true) {
       const source = this.mitigativeBarriers.find((m) => m.id === mcId);
       const outcome = this.outcomes.find((o) => o.id === outcomeId);
       if (!source || !outcome) throw new Error('Unknown element id');
 
       const outcomeLine = this._lineFor(outcomeId);
-      const donor = this.lines.find((l) => l.id !== outcomeLine.id && l.stops.includes(mcId));
-      let continuation = [];
-      if (donor) {
-        const idx = donor.stops.indexOf(mcId);
-        continuation = donor.stops.slice(idx + 1);
-      }
+      const continuation = inheritDownstream
+        ? this._donorContinuation(mcId, outcomeLine.id)
+        : outcomeLine.stops.filter((id) => id !== mcId);
       outcomeLine.stops = [mcId, ...continuation];
       this._emitChange();
     }

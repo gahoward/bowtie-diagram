@@ -66,6 +66,10 @@
 
     linesThrough(barrierId) { return this.realModel.linesThrough(barrierId); }
 
+    _donorContinuation(barrierId, excludeLineId) {
+      return this.realModel._donorContinuation(barrierId, excludeLineId);
+    }
+
     laneYsThrough(barrierId) { return this.realModel.laneYsThrough(barrierId); }
 
     addPreventativeControl(causeId, opts = {}) { return this.realModel.addPreventativeControl(causeId, opts); }
@@ -80,12 +84,12 @@
       return this.realModel.attachExistingBarrier(kind, direction, anchorId, targetId, selectedLineIds);
     }
 
-    attachInputToPreventativeControl(causeId, pcId) {
-      return this.realModel.attachInputToPreventativeControl(causeId, pcId);
+    attachInputToPreventativeControl(causeId, pcId, inheritDownstream = true) {
+      return this.realModel.attachInputToPreventativeControl(causeId, pcId, inheritDownstream);
     }
 
-    attachOutputToMitigativeControl(mcId, outcomeId) {
-      return this.realModel.attachOutputToMitigativeControl(mcId, outcomeId);
+    attachOutputToMitigativeControl(mcId, outcomeId, inheritDownstream = true) {
+      return this.realModel.attachOutputToMitigativeControl(mcId, outcomeId, inheritDownstream);
     }
 
     connectLineDirectlyToTle(lineId, keepThroughId) {

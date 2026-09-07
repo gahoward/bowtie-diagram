@@ -259,3 +259,122 @@ def test_pull_chains_closer_mirrors_onto_outcomes(page):
     # how deep the rest of the diagram's chains are.
     assert result["bareOutcomeX"] < result["outcomesRightmostBarrierX"]
     assert result["bareOutcomeX"] > result["tleX"]
+
+
+def test_truncated_cause_line_still_extends_to_the_shallowest_barrier_column(page):
+    """Reported bug: C_1 has its own barrier that continues on to a second,
+    shared barrier (PB_B) before the TLE; C_2 attaches to that first
+    barrier (inheriting the continuation through PB_B), then the user
+    truncates C_2's own line back to just the first barrier via "Connect
+    Directly to TLE". C_2's line now ends at PB_A, which sits a whole
+    column short of the true TLE-adjacent column (PB_B, still used by
+    C_1). The rendered line used to bend immediately off PB_A's own edge,
+    cutting across PB_B's column at a sharp angle; it must instead stay
+    flat all the way to PB_B's edge -- the same column every other line on
+    this side already bends from -- and only then turn."""
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.addCause({x: 150, y: 90});
+      const ownA = m.addPreventativeControl(m.causes[0].id);
+      const shared = m.insertBarrier('preventativeBarrier', 'after', ownA.id); // C_1: [ownA, shared]
+      m.addCause({x: 150, y: 300});
+      m.attachInputToPreventativeControl(m.causes[1].id, ownA.id, true); // C_2: [ownA, shared]
+      const line2 = m._lineFor(m.causes[1].id);
+      m.connectLineDirectlyToTle(line2.id, ownA.id); // C_2: [ownA] only
+      window.__ownA = ownA.id;
+      window.__shared = shared.id;
+    }""")
+    auto_arrange(page)
+    page.wait_for_timeout(150)
+
+    result = page.evaluate("""() => {
+      const m = window.__lastModel;
+      const view = window.__lastView;
+      const sharedEdge = m.findById(window.__shared).x + view.boundsById[window.__shared].w / 2;
+      const line2 = m._lineFor(m.causes[1].id);
+      // Both the flat ('to-control') and bend ('to-hazard') segments
+      // share the data-role "cause-line" -- distinguish by CSS class, not
+      // by checking which one happens to render horizontal (a lane whose
+      // TLE-edge point lands close to its own y can make the bend segment
+      // horizontal too in a small enough diagram).
+      const flatSeg = Array.from(document.querySelectorAll('[data-role="cause-line"].to-control'))
+        .filter((el) => el.getAttribute('data-line-id') === line2.id)
+        .map((el) => ({ x2: +el.getAttribute('x2') }))[0];
+      return { sharedEdge, flatEndX: flatSeg.x2 };
+    }""")
+    assert result["flatEndX"] == result["sharedEdge"], (
+        "the truncated line's flat run must extend to the shared (shallowest) barrier's column, "
+        "not stop short at its own last stop"
+    )
+
+
+def test_truncated_outcome_line_mirrors_extending_to_the_shallowest_column(page):
+    """Mirrors the Cause-side case above for Outcomes/MBs."""
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.addOutcome({x: 1200, y: 90});
+      const ownA = m.addMitigativeControl(m.outcomes[0].id); // nearest O_1
+      // addMitigativeControl (not insertBarrier's generic 'after', which
+      // splices TOWARD THE OUTCOME for MBs) appends further toward the
+      // TLE each time -- O_1: [ownA, shared].
+      const shared = m.addMitigativeControl(m.outcomes[0].id);
+      m.addOutcome({x: 1200, y: 300});
+      m.attachOutputToMitigativeControl(ownA.id, m.outcomes[1].id, true);
+      const line2 = m._lineFor(m.outcomes[1].id);
+      m.connectLineDirectlyToTle(line2.id, ownA.id);
+      window.__ownA = ownA.id;
+      window.__shared = shared.id;
+    }""")
+    auto_arrange(page)
+    page.wait_for_timeout(150)
+
+    result = page.evaluate("""() => {
+      const m = window.__lastModel;
+      const view = window.__lastView;
+      const sharedEdge = m.findById(window.__shared).x - view.boundsById[window.__shared].w / 2;
+      const line2 = m._lineFor(m.outcomes[1].id);
+      // Both the bend ('from-hazard') and flat ('to-outcome') segments
+      // share the data-role "outcome-line" -- distinguish by CSS class,
+      // not by checking which one happens to render horizontal (a lane
+      // whose TLE-edge point lands close to its own y can make the bend
+      // segment horizontal too in a small enough diagram, as this minimal
+      // 2-outcome scenario does).
+      const flatSeg = Array.from(document.querySelectorAll('[data-role="outcome-line"].to-outcome'))
+        .filter((el) => el.getAttribute('data-line-id') === line2.id)
+        .map((el) => ({ x1: +el.getAttribute('x1'), x2: +el.getAttribute('x2') }))[0];
+      return { sharedEdge, flatStartX: flatSeg.x1 };
+    }""")
+    assert result["flatStartX"] == result["sharedEdge"], (
+        "the truncated line's flat run must extend to the shared (shallowest) barrier's column"
+    )
+
+
+def test_bare_cause_and_outcome_extend_to_the_shallowest_barrier_column(page):
+    """Reported alongside the bug above: even a fully bare (zero-stop)
+    origin's flat run should reach the diagram's actual shallowest barrier
+    column when that's further out than the fixed Hazard-clearance margin
+    alone would require -- not stop short of it. Reproduced directly with
+    the unmodified demo (C_4 and O_4 are both bare there already)."""
+    page.evaluate("() => { window.__lastModel.loadFromJSON(Bowtie.DEMO_DATA); }")
+    auto_arrange(page)
+    page.wait_for_timeout(150)
+
+    result = page.evaluate("""() => {
+      const m = window.__lastModel;
+      const view = window.__lastView;
+      const pb3Edge = m.findById('PB_3').x + view.boundsById['PB_3'].w / 2;
+      const mb3Edge = m.findById('MB_3').x - view.boundsById['MB_3'].w / 2;
+      // Distinguish the flat run from the bend by CSS class ('to-control'
+      // / 'to-outcome'), not by which happens to render horizontal.
+      const causeFlat = Array.from(document.querySelectorAll('[data-role="cause-direct"].to-control'))
+        .map((el) => ({ x2: +el.getAttribute('x2') }))[0];
+      const outcomeFlat = Array.from(document.querySelectorAll('[data-role="outcome-direct"].to-outcome'))
+        .map((el) => ({ x1: +el.getAttribute('x1') }))[0];
+      return {
+        pb3Edge, mb3Edge,
+        causeFlatEndX: causeFlat ? causeFlat.x2 : null,
+        outcomeFlatStartX: outcomeFlat ? outcomeFlat.x1 : null,
+      };
+    }""")
+    assert result["causeFlatEndX"] == result["pb3Edge"], "bare Cause's flat run must reach PB_3's column"
+    assert result["outcomeFlatStartX"] == result["mb3Edge"], "bare Outcome's flat run must reach MB_3's column"

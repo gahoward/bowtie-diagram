@@ -72,6 +72,38 @@
       return BARE_BEND_MARGIN + (verticalDrop * hazardHalfW) / (tleCenter.y - hazardBottomY);
     }
 
+    // The TLE-adjacent edge of the shallowest occupied PB/MB column, on
+    // whichever side -- PreventativeBarriers' x increases toward the TLE,
+    // so the shallowest column is whichever PB has the LARGEST x (its
+    // right edge); MitigativeBarriers' x decreases toward the TLE, so it's
+    // whichever MB has the SMALLEST x (its left edge). `null` when that
+    // side has no barriers at all (nothing to align with).
+    //
+    // Every Line's flat run must reach at least this far before bending —
+    // not just its own last stop's edge, and not just a bare line's fixed
+    // Hazard-clearance margin — or two different problems both surface as
+    // "this line's turn happens too early, well short of where every other
+    // line on this side already turns": (1) a barrier-terminated line
+    // whose own last stop sits at a column shy of the true TLE-adjacent
+    // one (reachable via connectLineDirectlyToTle truncating one of
+    // several lines sharing a barrier that others still continue past —
+    // reported bug: the truncated line's bend visibly cut across the
+    // column its former continuation used to occupy), and (2) a bare line
+    // whose fixed margin happens to fall short of where the diagram's
+    // actual barrier columns are (reported alongside it: a bare Outcome's
+    // bend stopping well before the nearest Mitigative Barrier's column).
+    // Real barrier positions are already Hazard-safe by construction
+    // (AutoArrangeController's TLE_ADJACENT_GAP_TIGHT/LOOSE), so reusing
+    // one as every other line's minimum reach is at least as safe as the
+    // line that already lives there — never a hazard risk in itself, only
+    // ever pulling other lines OUT of one that already existed.
+    const shallowestPcEdge = model.preventativeBarriers.length > 0
+      ? Math.max(...model.preventativeBarriers.map((pb) => pb.x + boundsById[pb.id].w / 2))
+      : null;
+    const shallowestMcEdge = model.mitigativeBarriers.length > 0
+      ? Math.min(...model.mitigativeBarriers.map((mb) => mb.x - boundsById[mb.id].w / 2))
+      : null;
+
     // --- Cause -> ... -> TLE ---
 
     model.causes.forEach((cause) => {
@@ -82,7 +114,15 @@
 
       if (line.stops.length === 0) {
         const attrs = { 'data-role': 'cause-direct', 'data-line-id': line.id };
-        const flatX = Math.max(start.x, tleCenter.x - bareBendRunLength(laneY));
+        // Hazard clearance is a hard ceiling on how far the flat run may
+        // extend (smaller x = more clearance); reaching the shallowest PB
+        // column is best-effort on top of that, never past it -- Math.min
+        // takes whichever demands the LONGER run, so a column that's
+        // further out than pure clearance would need still wins, but
+        // never at the cost of clearance itself.
+        const hazardCeiling = tleCenter.x - bareBendRunLength(laneY);
+        const desiredFlatX = shallowestPcEdge !== null ? Math.min(hazardCeiling, shallowestPcEdge) : hazardCeiling;
+        const flatX = Math.max(start.x, desiredFlatX);
         const flatEnd = { x: flatX, y: laneY };
         if (flatX > start.x) frag.appendChild(makeLine(start, flatEnd, 'to-control', attrs));
         const bendStart = flatX > start.x ? flatEnd : start;
@@ -94,7 +134,8 @@
       const lastId = line.stops[line.stops.length - 1];
       const lastBounds = boundsById[lastId];
       const lastBarrier = model.findById(lastId);
-      const flatEnd = { x: lastBarrier.x + lastBounds.w / 2, y: laneY };
+      const ownEdge = lastBarrier.x + lastBounds.w / 2;
+      const flatEnd = { x: shallowestPcEdge !== null ? Math.max(ownEdge, shallowestPcEdge) : ownEdge, y: laneY };
 
       frag.appendChild(makeLine(start, flatEnd, 'to-control', {
         'data-role': 'cause-line', 'data-line-id': line.id,
@@ -124,7 +165,14 @@
 
       if (line.stops.length === 0) {
         const attrs = { 'data-role': 'outcome-direct', 'data-line-id': line.id };
-        const flatX = Math.min(end.x, tleCenter.x + bareBendRunLength(laneY));
+        // Mirrors the Cause side: Hazard clearance is the hard floor on
+        // how close to the TLE the flat run may reach (larger x = more
+        // clearance here, since Outcomes sit right of the TLE); reaching
+        // the shallowest MB column is best-effort on top of that, via
+        // Math.max so whichever demands the longer run wins.
+        const hazardFloor = tleCenter.x + bareBendRunLength(laneY);
+        const desiredFlatX = shallowestMcEdge !== null ? Math.max(hazardFloor, shallowestMcEdge) : hazardFloor;
+        const flatX = Math.min(end.x, desiredFlatX);
         const flatStart = { x: flatX, y: laneY };
         const bendEnd = flatX < end.x ? flatStart : end;
         const bendStart = circleEdgePoint(tleCenter, tleR, bendEnd.x, laneY);
@@ -136,7 +184,8 @@
       const firstId = line.stops[line.stops.length - 1]; // nearest the TLE
       const firstBounds = boundsById[firstId];
       const firstBarrier = model.findById(firstId);
-      const flatStart = { x: firstBarrier.x - firstBounds.w / 2, y: laneY };
+      const ownEdge = firstBarrier.x - firstBounds.w / 2;
+      const flatStart = { x: shallowestMcEdge !== null ? Math.min(ownEdge, shallowestMcEdge) : ownEdge, y: laneY };
 
       const bendStart = circleEdgePoint(tleCenter, tleR, flatStart.x, laneY);
       frag.appendChild(makeLine(bendStart, flatStart, 'from-hazard', {

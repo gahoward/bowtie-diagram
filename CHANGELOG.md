@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.2.0 - 2026-09-07
+## v0.2.1 - 2026-09-07
 
 - Added multi-page support: an analysis document can now contain multiple
   pages (tabs), each with its own TopLevelEvent, Hazard, and independent
@@ -19,13 +19,36 @@
 - Upgraded file format schema to version 7 to support multi-page documents,
   and updated built-in demo data to a two-page bowtie diagram.
 - Fixed two compounding bugs when "Shift Away From TLE" (or Toward) is
-  applied to a shared barrier across more than one of its paths at once:
-  immediate position feedback now only adjusts position when all selected
-  lines agree on a single neighbor, avoiding node misplacement.
-- Fixed Auto-arrange vertical spacing calculation for chains that merge
-  into a shared barrier and then diverge again into separate barriers,
-  ensuring full group-gap protection between diverging chains rather than
-  reduced spacing.
+  applied to a shared barrier on more than one of its paths at once
+  (e.g. PB_3 in the demo, ticking both C_1 and C_2): the immediate
+  position feedback used to corrupt the barrier onto the exact same spot
+  as an unrelated one before Auto-arrange even ran, and Auto-arrange
+  itself then let one barrier's label overlap the very next barrier's box
+  — both because the code assumed two Causes sharing a first barrier
+  never diverge into separate barriers afterward, which this feature
+  makes possible for the first time.
+- Fixed auto-arrange placing an unrelated Cause/Outcome's row between two
+  others that privately share a barrier, whenever all of them also share
+  a LATER barrier further down the line (e.g. attaching a bare Cause to
+  an existing barrier that a different Cause also uses) — the shared
+  barrier's box then grew tall enough to visually swallow the unrelated
+  row in between. Two rows sharing a barrier with few participants are
+  now clustered strictly adjacent, ahead of a looser, many-participant
+  relationship they might also both be part of.
+- "Attach to Existing Preventative/Mitigative Barrier…" now asks whether
+  to follow that barrier's existing continuation toward the TLE (only
+  when it actually has one) instead of always silently inheriting it —
+  declining keeps whatever the attaching Cause/Outcome's own line already
+  had, or connects straight to the TLE if it had nothing of its own.
+- Fixed a line's final bend toward the TLE starting right at its own last
+  barrier's edge even when that barrier sits short of the diagram's true
+  TLE-adjacent column (reachable via the options above, or by truncating
+  one of several lines sharing a barrier that others still continue
+  past) — the bend cut across the intervening column at a sharp angle.
+  Also affected fully bare lines, whose fixed clearance margin could fall
+  short of where the diagram's actual barrier columns are. Every line's
+  flat run now extends to at least the shallowest occupied barrier
+  column on its side before turning, matching every other line.
 
 ## v0.1.3 - 2026-09-07
 

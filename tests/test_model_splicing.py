@@ -95,6 +95,102 @@ def test_attach_existing_barrier_rejects_cycle(page):
     assert message and "cycle" in message
 
 
+def test_attach_input_defaults_to_inheriting_downstream(page):
+    """Original, always-on-before-this-option behavior: attaching a bare
+    Cause to a barrier that already continues further (for another Cause)
+    follows that same continuation when `inheritDownstream` is omitted."""
+    result = page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.addCause({x: 150, y: 90});
+      const pb1 = m.addPreventativeControl(m.causes[0].id);
+      const pb2 = m.insertBarrier('preventativeBarrier', 'after', pb1.id); // C_1: [PB_1, PB_2]
+      m.addCause({x: 150, y: 300});
+      m.attachInputToPreventativeControl(m.causes[1].id, pb1.id); // no third arg
+      return m._lineFor(m.causes[1].id).stops;
+    }""")
+    assert result == ["PB_1", "PB_2"]
+
+
+def test_attach_input_declining_inherit_stops_at_the_target_barrier(page):
+    """Reported bug: attaching a bare Cause to a barrier that already
+    continues further for another Cause must NOT be forced to also adopt
+    that continuation -- passing inheritDownstream=false keeps the new
+    line's own (in this case empty) continuation, ending at the target
+    barrier and going straight to the TLE from there."""
+    result = page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.addCause({x: 150, y: 90});
+      const pb1 = m.addPreventativeControl(m.causes[0].id);
+      m.insertBarrier('preventativeBarrier', 'after', pb1.id); // C_1: [PB_1, PB_2]
+      m.addCause({x: 150, y: 300});
+      m.attachInputToPreventativeControl(m.causes[1].id, pb1.id, false);
+      return m._lineFor(m.causes[1].id).stops;
+    }""")
+    assert result == ["PB_1"], "declining inherit must end the line at the target barrier, not adopt PB_2 too"
+
+
+def test_attach_input_declining_inherit_keeps_the_lines_own_prior_chain(page):
+    """A Cause that already had its own further barriers before this
+    attach keeps THOSE when declining to inherit the target's -- not just
+    a bare dead-end at the target. Re-pointing C_2's existing chain
+    (currently through its own barrier) at C_1's first barrier (which
+    continues further, for C_1) while declining that continuation must
+    keep C_2's own further barrier, not adopt C_1's."""
+    result = page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.addCause({x: 150, y: 90});
+      const pb1 = m.addPreventativeControl(m.causes[0].id);
+      const pb1Continuation = m.insertBarrier('preventativeBarrier', 'after', pb1.id); // C_1: [pb1, pb1Continuation]
+      m.addCause({x: 150, y: 300});
+      const ownPb = m.addPreventativeControl(m.causes[1].id); // C_2: [ownPb]
+      m.attachInputToPreventativeControl(m.causes[1].id, pb1.id, false);
+      return { stops: m._lineFor(m.causes[1].id).stops, pb1: pb1.id, ownPb: ownPb.id, pb1Continuation: pb1Continuation.id };
+    }""")
+    assert result["stops"] == [result["pb1"], result["ownPb"]]
+    assert result["pb1Continuation"] not in result["stops"], "must not adopt PB_1's own continuation"
+
+
+def test_attach_output_inherits_downstream_by_default(page):
+    result = page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.addOutcome({x: 1200, y: 90});
+      const mb1 = m.addMitigativeControl(m.outcomes[0].id);
+      const mb2 = m.addMitigativeControl(m.outcomes[0].id); // O_1: [mb1, mb2]
+      m.addOutcome({x: 1200, y: 300});
+      m.attachOutputToMitigativeControl(mb1.id, m.outcomes[1].id);
+      return { stops: m._lineFor(m.outcomes[1].id).stops, mb1: mb1.id, mb2: mb2.id };
+    }""")
+    assert result["stops"] == [result["mb1"], result["mb2"]]
+
+
+def test_attach_output_declining_inherit_stops_at_the_target_barrier(page):
+    """Mirrors the Cause-side declined case for Outcomes/MBs."""
+    result = page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.addOutcome({x: 1200, y: 90});
+      const mb1 = m.addMitigativeControl(m.outcomes[0].id);
+      m.addMitigativeControl(m.outcomes[0].id); // O_1: [mb1, mb2]
+      m.addOutcome({x: 1200, y: 300});
+      m.attachOutputToMitigativeControl(mb1.id, m.outcomes[1].id, false);
+      return { stops: m._lineFor(m.outcomes[1].id).stops, mb1: mb1.id };
+    }""")
+    assert result["stops"] == [result["mb1"]]
+
+
+def test_donor_continuation_is_empty_when_the_target_has_no_further_barrier(page):
+    """The read-only lookup ContextMenuController uses to decide whether
+    to even ask the user must return empty when the target barrier is
+    already a terminal stop for every line through it -- there's nothing
+    to inherit either way."""
+    result = page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.addCause({x: 150, y: 90});
+      const pb1 = m.addPreventativeControl(m.causes[0].id); // C_1: [PB_1], nothing further
+      return m._donorContinuation(pb1.id, 'not-a-real-line-id');
+    }""")
+    assert result == []
+
+
 def test_connect_directly_to_tle_middle_gap_keeps_origin_side(page):
     result = page.evaluate("""() => {
       const m = window.__lastModel;
