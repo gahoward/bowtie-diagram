@@ -48,55 +48,15 @@
       Bowtie.ModalView.openModal({ title: 'Cannot Do That', bodyEl: body, actions: [{ label: 'OK', primary: true }] });
     }
 
+    // The identifier-display-mode toggle used to live here, but it's a
+    // document-wide setting alongside mode/risk-matrix, not a node-library
+    // concern -- moved to ProjectSettingsController so this modal stays
+    // focused on the nodes themselves (node_library_proposal.md ask 2).
     _buildBody() {
       const wrap = document.createElement('div');
       wrap.className = 'id-manager';
-      wrap.appendChild(this._buildIdentifierDisplayModeToggle());
       Object.keys(TYPE_LABELS).forEach((type) => wrap.appendChild(this._buildTypeSection(type)));
       return wrap;
-    }
-
-    // node_library_proposal.md "Display identifiers": changeable at any
-    // time from here (set once at wizard time otherwise -- see
-    // WelcomeController). Switching to 'custom' backfills every node's
-    // blank identifier with its own current id (BowtieModel.
-    // setIdentifierDisplayMode already does the backfill; this just warns
-    // about it, mirroring the wizard's own inline copy).
-    _buildIdentifierDisplayModeToggle() {
-      const field = document.createElement('div');
-      field.className = 'modal-field';
-      const label = document.createElement('span');
-      label.textContent = 'Show identifiers as';
-      field.appendChild(label);
-
-      const warning = document.createElement('p');
-      warning.className = 'welcome-choice-hint';
-      warning.textContent = 'Every Cause, Outcome, and Barrier now shows its current id as a starting identifier — '
-        + "rename any of them from the Node Library. New ones you create won't get an identifier automatically.";
-      warning.hidden = this.model.identifierDisplayMode !== 'custom';
-
-      [
-        { value: 'internal', text: 'Internal IDs' },
-        { value: 'custom', text: 'Custom Labels' },
-      ].forEach((opt) => {
-        const row = document.createElement('label');
-        row.className = 'modal-checkbox-row';
-        const radio = document.createElement('input');
-        radio.type = 'radio';
-        radio.name = 'identifier-display-mode-toggle';
-        radio.value = opt.value;
-        radio.checked = this.model.identifierDisplayMode === opt.value;
-        radio.addEventListener('change', () => {
-          if (radio.checked) this.model.setIdentifierDisplayMode(opt.value);
-        });
-        const span = document.createElement('span');
-        span.textContent = opt.text;
-        row.appendChild(radio);
-        row.appendChild(span);
-        field.appendChild(row);
-      });
-      field.appendChild(warning);
-      return field;
     }
 
     _buildTypeSection(type) {

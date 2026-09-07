@@ -82,7 +82,7 @@ def test_right_click_the_tle_offers_add_cause_and_add_outcome(page):
     items = menu_items(page)
     assert "Add Cause" in items
     assert "Add Outcome" in items
-    assert "Rename" in items
+    assert "Properties" in items
 
 
 def test_add_cause_from_wrong_side_falls_back_to_toolbar_placement(page):

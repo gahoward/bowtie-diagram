@@ -42,7 +42,44 @@
       return g;
     }
 
+    // "At a glance" text under a node -- one or more short lines (severity/
+    // likelihood on an Outcome, computed likelihood on the TLE), centered
+    // below its shape. Distinct from the risk-class badge above: the badge
+    // is a compact glanceable chip, this is the actual labeled figures
+    // (quantitative_mode_proposal.md's own "Node Library/rename modal is
+    // where the full picks live" note only scopes the CUSTOM MATRIX EDITOR
+    // out of the canvas, not a plain summary of the picks already made).
+    _renderInfoText(cx, topY, lines) {
+      const svgNs = 'http://www.w3.org/2000/svg';
+      const g = document.createElementNS(svgNs, 'g');
+      g.setAttribute('class', 'node-info-text');
+      lines.forEach((line, i) => {
+        const text = document.createElementNS(svgNs, 'text');
+        text.setAttribute('x', cx);
+        text.setAttribute('y', topY + i * 13);
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('font-size', '11');
+        text.setAttribute('fill', '#4b5563');
+        text.textContent = line;
+        g.appendChild(text);
+      });
+      return g;
+    }
+
+    // Canonical events/hour -> a short display string in whichever unit
+    // Project Settings' display-unit preference says -- read-only, purely
+    // for this text (never fed back into a calculation), same rule as
+    // PropertiesModal.js's own formatLikelihood.
+    _formatLikelihood(decimalValue, displayUnit) {
+      if (decimalValue === null) return null;
+      const converted = displayUnit === 'year'
+        ? Bowtie.convertHourYear(decimalValue, 'hourToYear')
+        : decimalValue;
+      return `${converted.toDisplayNumber(3)}/${displayUnit === 'year' ? 'yr' : 'hr'}`;
+    }
+
     render(model, opts = {}) {
+      const displayUnit = opts.displayUnit || 'hour';
       const boundsById = {};
       const nodeGroups = [];
       let minX = Infinity;
@@ -60,6 +97,23 @@
       boundsById[model.topLevelEvent.id] = tleResult.bounds;
       nodeGroups.push(tleResult.g);
       extend(model.topLevelEvent.x, model.topLevelEvent.y, tleResult.bounds.r, tleResult.bounds.r);
+
+      // TLE computed-likelihood summary (quantitative_mode_proposal.md
+      // "Canvas badges"): the highest contributing cause's frequency times
+      // its own known preventative barriers, Quantitative mode only --
+      // Qualitative mode has no arithmetic combination defined for causes
+      // (each is a direct class pick, nothing to combine at the TLE).
+      if (model.mode === 'quantitative') {
+        const residual = model.computeTleLikelihoodForActivePage();
+        const text = this._formatLikelihood(residual.value, displayUnit);
+        if (text) {
+          const lines = [`Likelihood: ${text}`];
+          if (residual.excludedThreatCount) lines.push(`(${residual.excludedThreatCount} excluded)`);
+          const infoY = model.topLevelEvent.y + tleResult.bounds.r + 14;
+          nodeGroups.push(this._renderInfoText(model.topLevelEvent.x, infoY, lines));
+          extend(model.topLevelEvent.x, infoY + lines.length * 13, 60, 10);
+        }
+      }
 
       const hazardLayout = Bowtie.Layout.hazardLayout(
         this.svgRoot, model.hazard, model.topLevelEvent, tleResult.bounds.r,
@@ -119,6 +173,33 @@
             if (riskClass) {
               nodeGroups.push(this._renderRiskBadge(outcome.x + result.bounds.w / 2, outcome.y - result.bounds.h / 2, riskClass));
             }
+          }
+        }
+
+        // Severity/likelihood "at a glance" summary, underneath the
+        // Outcome's own box: whichever of severity/likelihood is actually
+        // set, mode-aware (qualitative = the manual likelihood pick,
+        // quantitative = the computed residual likelihood) -- silent when
+        // this outcome's node has nothing set yet.
+        if (model.mode !== 'simple') {
+          const outcomeNode = model.getNode(outcome.nodeId);
+          const infoLines = [];
+          if (model.riskMatrix && outcomeNode.severityClassId) {
+            const severity = Bowtie.RiskMatrix.severityClass(model.riskMatrix, outcomeNode.severityClassId);
+            if (severity) infoLines.push(`Severity: ${severity.label}`);
+          }
+          if (model.mode === 'qualitative' && model.riskMatrix && outcomeNode.likelihoodClassId) {
+            const likelihood = Bowtie.RiskMatrix.likelihoodClass(model.riskMatrix, outcomeNode.likelihoodClassId);
+            if (likelihood) infoLines.push(`Likelihood: ${likelihood.label}`);
+          } else if (model.mode === 'quantitative') {
+            const residual = model.computeConsequenceLikelihood(outcome.id);
+            const text = this._formatLikelihood(residual.value, displayUnit);
+            if (text) infoLines.push(`Likelihood: ${text}`);
+          }
+          if (infoLines.length > 0) {
+            const infoY = outcome.y + result.bounds.h / 2 + 14;
+            nodeGroups.push(this._renderInfoText(outcome.x, infoY, infoLines));
+            extend(outcome.x, infoY + infoLines.length * 13, result.bounds.w / 2, 10);
           }
         }
       });

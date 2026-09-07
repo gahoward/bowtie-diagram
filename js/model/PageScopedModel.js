@@ -177,7 +177,7 @@
 
     deleteElement(id) { return this.realModel.deleteElement(id); }
 
-    renameElement(id, newName) { return this.realModel.renameElement(id, newName); }
+    renameElement(id, newName, description) { return this.realModel.renameElement(id, newName, description); }
 
     swapBarrierWithNeighbor(lineIds, barrierId, towardTle) {
       return this.realModel.swapBarrierWithNeighbor(lineIds, barrierId, towardTle);

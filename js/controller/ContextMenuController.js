@@ -6,10 +6,11 @@
     // TLE) — left alone, the diagram would keep showing stale x/y until the
     // user remembered to click Auto-arrange, which is exactly the kind of
     // manual step these actions are meant to replace.
-    constructor(model, svgRoot, triggerAutoArrange) {
+    constructor(model, svgRoot, triggerAutoArrange, getDisplayUnit = () => 'hour') {
       this.model = model;
       this.svgRoot = svgRoot;
       this.triggerAutoArrange = triggerAutoArrange;
+      this.getDisplayUnit = getDisplayUnit;
       this.menuEl = null;
 
       svgRoot.addEventListener('contextmenu', (e) => this._onContextMenu(e));
@@ -156,7 +157,7 @@
         items.push({ label: 'Add Mitigative Barrier', action: () => this._addMitigativeControlFrom(el) });
         items.push(...this._buildShuntItems(el.id));
       }
-      items.push({ label: 'Rename', action: () => this._rename(el) });
+      items.push({ label: 'Properties', action: () => this._rename(el) });
       if (el.type !== 'topLevelEvent' && el.type !== 'hazard') {
         // "Remove from Page" (node_library_proposal.md, decided): this only
         // ever called deleteElement and always will — the label just stops
@@ -547,50 +548,14 @@
       });
     }
 
-    // The four reusable types (cause/outcome/preventative/mitigative) now
-    // rename their shared library NODE (node_library_proposal.md — a
-    // placement no longer carries a name at all); TLE/Hazard, which were
-    // never nodes, are unaffected and still rename the placement directly.
+    // Opens the shared Properties modal (PropertiesModal.js) for any node
+    // type -- Identity (name/description/identifier), Risk Analysis
+    // (qualitative/quantitative fields, library nodes only), and read-only
+    // Computed values (Outcome risk class/likelihood, TLE computed
+    // likelihood). Reached from both double-click and the context menu's
+    // "Properties" item.
     _rename(el) {
-      const isNode = ['cause', 'outcome', 'preventativeBarrier', 'mitigativeBarrier'].includes(el.type);
-      const node = isNode ? this.model.getNode(el.nodeId) : null;
-      const currentName = isNode ? node.name : el.name;
-      const displayId = isNode ? this.model.displayIdentifierFor(node) : el.id;
-
-      const body = document.createElement('div');
-      const wrap = document.createElement('label');
-      wrap.className = 'modal-field';
-      const span = document.createElement('span');
-      span.textContent = 'Name';
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.value = currentName;
-      wrap.appendChild(span);
-      wrap.appendChild(input);
-      body.appendChild(wrap);
-
-      // Qualitative/quantitative risk fields (quantitative_mode_proposal.md)
-      // only ever apply to actual library nodes, and only once the
-      // document has left Simple mode.
-      const riskFields = isNode ? Bowtie.buildRiskFieldsForm(this.model, node, body) : null;
-
-      Bowtie.ModalView.openModal({
-        title: `Rename ${displayId}`,
-        bodyEl: body,
-        actions: [
-          { label: 'Cancel' },
-          {
-            label: 'Save',
-            primary: true,
-            onClick: () => {
-              const next = input.value.trim();
-              if (!next) return;
-              if (isNode) this.model.renameNode(el.nodeId, { name: next, ...riskFields.readValues() });
-              else this.model.renameElement(el.id, next);
-            },
-          },
-        ],
-      });
+      Bowtie.openPropertiesModal({ model: this.model, el, displayUnit: this.getDisplayUnit() });
     }
 
     _showError(message) {

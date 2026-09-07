@@ -871,11 +871,14 @@
     // For TLE/Hazard only, going forward (node_library_proposal.md: a
     // Cause/Outcome/Barrier's name now lives on its node — see renameNode
     // — this stays page-scoped and unaffected for the two singletons that
-    // were never nodes).
-    renameElement(id, newName) {
+    // were never nodes). `description` is optional and left untouched when
+    // omitted, so existing 2-arg callers (WelcomeController's wizard,
+    // pre-Properties-modal tests) keep working unchanged.
+    renameElement(id, newName, description) {
       const el = this.findById(id);
       if (!el) return;
       el.name = newName;
+      if (description !== undefined) el.description = description;
       this._emitChange();
     }
 
@@ -1302,11 +1305,12 @@
         topLevelEvent: {
           id: page.topLevelEvent.id,
           name: page.topLevelEvent.name,
+          description: page.topLevelEvent.description,
           x: page.topLevelEvent.x,
           y: page.topLevelEvent.y,
           r: page.topLevelEvent.r,
         },
-        hazard: { id: page.hazard.id, name: page.hazard.name },
+        hazard: { id: page.hazard.id, name: page.hazard.name, description: page.hazard.description },
       };
     }
 

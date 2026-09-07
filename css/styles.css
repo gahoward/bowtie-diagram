@@ -404,6 +404,16 @@ html, body {
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
 }
 
+.modal-dialog-wide {
+  width: min(600px, 92vw);
+}
+
+.modal-subtitle {
+  margin: -8px 0 12px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
 .modal-title {
   margin: 0 0 12px;
   font-size: 17px;
@@ -521,12 +531,104 @@ html, body {
   color: #111827;
 }
 
-.modal-field input {
+.modal-field input,
+.modal-field select,
+.modal-field textarea {
   padding: 8px 10px;
   font-size: 14px;
   font-weight: 400;
+  font-family: inherit;
+  color: #111827;
+  background: white;
   border: 1px solid var(--border);
   border-radius: 6px;
+}
+
+.modal-field textarea {
+  min-height: 56px;
+  resize: vertical;
+}
+
+.modal-field-error {
+  margin: 0;
+  font-size: 12px;
+  color: #b91c1c;
+}
+
+.modal-field-hint {
+  margin: 0;
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+/* Groups a Properties/Project Settings modal's fields into labeled
+   sections (Identity / Risk Analysis / Computed) rather than one long
+   undifferentiated column of fields. */
+.modal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.modal-section:first-of-type {
+  padding-top: 0;
+  border-top: none;
+}
+
+.modal-section-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+/* Read-only computed values (e.g. a consequence's computed likelihood/risk
+   class, the TLE's computed frequency) -- never an editable input, always
+   derived, so styled distinctly from the fields above it. */
+.modal-computed-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 10px;
+  font-size: 13px;
+  background: #f9fafb;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.modal-computed-label {
+  color: #6b7280;
+}
+
+.modal-computed-value {
+  font-weight: 600;
+  color: #111827;
+}
+
+.modal-risk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.modal-risk-chip-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+.modal-computed-note {
+  margin: 0;
+  font-size: 11px;
+  color: #b45309;
 }
 
 .modal-actions {
@@ -669,6 +771,87 @@ html, body {
   flex: 1;
   min-width: 0;
   padding: 5px 6px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.node-library-subsection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.node-library-subsection h4 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+
+.node-library-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.node-library-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.node-library-row .id-manager-id {
+  min-width: 40px;
+}
+
+.node-library-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-library-pages {
+  flex: 2;
+  min-width: 0;
+  overflow: hidden;
+  color: #9ca3af;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-library-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: -2px 0 4px;
+  padding: 10px;
+  background: #f9fafb;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.node-library-add-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.node-library-add-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
   font-size: 12px;
   border: 1px solid var(--border);
   border-radius: 6px;

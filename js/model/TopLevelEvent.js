@@ -4,11 +4,12 @@
   // node used to play before the Hazard/TLE split.
   class TopLevelEvent {
     constructor({
-      id = 'TLE', name = 'Top-Level Event', x = 0, y = 0, r = 70, pageId,
+      id = 'TLE', name = 'Top-Level Event', description = '', x = 0, y = 0, r = 70, pageId,
     } = {}) {
       this.id = id;
       this.type = 'topLevelEvent';
       this.name = name;
+      this.description = description;
       this.x = x;
       this.y = y;
       this.r = r;
