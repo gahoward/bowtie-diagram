@@ -63,12 +63,19 @@
   // says (a pure display choice -- see ProjectSettingsController -- never
   // fed back into a calculation, mirroring Decimal.toDisplayNumber's own
   // "only for on-screen display" rule).
-  function formatLikelihood(decimalValue, displayUnit) {
-    if (decimalValue === null) return null;
-    const converted = displayUnit === 'year'
-      ? Bowtie.convertHourYear(decimalValue, 'hourToYear')
-      : decimalValue;
-    return `${converted.toDisplayNumber(3)} events/${displayUnit === 'year' ? 'year' : 'hour'}`;
+  // `value` is the Bowtie.Rational the calculation produces (see
+  // Rational.js) -- the one division in the whole pipeline happens inside
+  // its toDisplayNumber, here. Converting to events/year scales the
+  // numerator by an exact 8760 rather than going through convertHourYear,
+  // so this direction costs no precision at all; only year -> hour ENTRY
+  // is irreducibly lossy, since that one divides.
+  function formatLikelihood(value, displayUnit) {
+    if (value === null) return null;
+    const perYear = displayUnit === 'year';
+    const shown = perYear
+      ? value.multiplyNumerator(Bowtie.Decimal.parse(String(Bowtie.HOURS_PER_YEAR)))
+      : value;
+    return `${shown.toDisplayNumber(3)} events/${perYear ? 'year' : 'hour'}`;
   }
 
   function appendExcludedNote(container, excludedThreatCount) {
@@ -203,13 +210,27 @@
               errorP.hidden = false;
               return false;
             }
+            // Risk fields validate themselves (RiskFieldsForm) -- a bad
+            // frequency or an RRF below 1 keeps the dialog open with the
+            // reason, rather than being stored and quietly changing the
+            // calculation.
+            let riskValues = {};
+            if (riskFields) {
+              const read = riskFields.readValues();
+              if (!read.ok) {
+                errorP.textContent = read.error;
+                errorP.hidden = false;
+                return false;
+              }
+              riskValues = read.values;
+            }
             try {
               if (isNode) {
                 model.renameNode(el.nodeId, {
                   name: next,
                   description: descriptionField.input.value.trim(),
                   ...(identifierField ? { identifier: identifierField.input.value.trim() } : {}),
-                  ...(riskFields ? riskFields.readValues() : {}),
+                  ...riskValues,
                 });
               } else {
                 model.renameElement(el.id, next, descriptionField.input.value.trim());

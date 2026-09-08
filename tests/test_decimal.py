@@ -243,12 +243,17 @@ def test_multiply_of_two_extremely_small_values_stays_exact(page):
 
 
 def test_multiply_chain_of_ten_barrier_reductions_reaching_1e_minus_15_is_exact(page):
-    """Simulates a realistic quantitative-mode ALARP chain: a TLE frequency
-    of 1 event/year converted to canonical events/hour, reduced by ten
-    independent preventative barriers each with riskReductionFactor 0.1 --
-    landing squarely in 1E-15-and-below territory. The result must be the
-    exact BigInt product, not a floating-point approximation that has
-    merely converged to within some epsilon of it."""
+    """A long multiplication chain at the magnitudes quantitative mode
+    reaches: a frequency of 1 event/year converted to canonical
+    events/hour, then scaled down ten times, landing squarely in
+    1E-15-and-below territory. The result must be the exact BigInt product,
+    not a floating-point approximation that has merely converged to within
+    some epsilon of it.
+
+    This exercises Decimal alone. The real barrier chain divides by an RRF
+    (>= 1) rather than multiplying by a fraction, and carries the quotient
+    exactly rather than evaluating it -- see Rational.js and
+    tests/test_rational.py."""
     result = page.evaluate("""() => {
       const freq = Bowtie.convertHourYear(Bowtie.Decimal.parse('1'), 'yearToHour');
       const rrf = Bowtie.Decimal.parse('0.1');

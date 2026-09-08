@@ -165,10 +165,10 @@ def test_preventative_barrier_shows_risk_reduction_factor(page):
       m.setMode('quantitative');
       const c = m.addCause({x: 150, y: 200});
       const pb = m.addPreventativeControl(c.id);
-      m.getNode(pb.nodeId).riskReductionFactor = { value: '0.1' };
+      m.getNode(pb.nodeId).riskReductionFactor = { value: '10' };
     """)
     texts = _info_texts(page)
-    assert any("RRF: 0.1" == t for t in texts)
+    assert any("RRF: 10" == t for t in texts)
 
 
 def test_mitigative_barrier_shows_risk_reduction_factor_unknown(page):

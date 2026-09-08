@@ -69,13 +69,17 @@
     // Canonical events/hour -> a short display string in whichever unit
     // Project Settings' display-unit preference says -- read-only, purely
     // for this text (never fed back into a calculation), same rule as
-    // PropertiesModal.js's own formatLikelihood.
-    _formatLikelihood(decimalValue, displayUnit) {
-      if (decimalValue === null) return null;
-      const converted = displayUnit === 'year'
-        ? Bowtie.convertHourYear(decimalValue, 'hourToYear')
-        : decimalValue;
-      return `${converted.toDisplayNumber(3)}/${displayUnit === 'year' ? 'yr' : 'hr'}`;
+    // PropertiesModal.js's own formatLikelihood. Accepts either the
+    // Bowtie.Rational a computed likelihood arrives as, or the plain
+    // Decimal a Cause's own entered frequency is.
+    _formatLikelihood(value, displayUnit) {
+      if (value === null) return null;
+      const rational = value instanceof Bowtie.Rational ? value : Bowtie.Rational.fromDecimal(value);
+      const perYear = displayUnit === 'year';
+      const shown = perYear
+        ? rational.multiplyNumerator(Bowtie.Decimal.parse(String(Bowtie.HOURS_PER_YEAR)))
+        : rational;
+      return `${shown.toDisplayNumber(3)}/${perYear ? 'yr' : 'hr'}`;
     }
 
     // Risk-reduction-factor "at a glance" summary, underneath a barrier's

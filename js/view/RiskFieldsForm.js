@@ -78,7 +78,30 @@
       return { input, unknownCheckbox };
     };
 
-    if (mode === 'simple') return { readValues: () => ({}) };
+    // Turns one Quantity field's current state into a storable Quantity, or
+    // reports why it can't be stored. Without this, `Decimal.parse`'s own
+    // warning came true: unparseable text was saved verbatim, and the
+    // calculation then treated it as Unknown -- silently EXCLUDING that
+    // threat from the top-event max while the field still showed what the
+    // user typed. Bounds are enforced here too, at the only boundary where
+    // there's a human to tell.
+    const parseQuantityInput = (handle, { label, min, exclusiveMin, boundMessage }) => {
+      if (handle.unknownCheckbox.checked) return { ok: true, quantity: { unknown: true } };
+      const text = handle.input.value.trim();
+      if (!text) return { ok: false, error: `${label} is empty — enter a value, or tick Unknown.` };
+      let parsed;
+      try {
+        parsed = Bowtie.Decimal.parse(text);
+      } catch {
+        return { ok: false, error: `${label} must be a number — for example 1E-3 or 0.001.` };
+      }
+      const floor = Bowtie.Decimal.parse(min);
+      const belowBound = exclusiveMin ? !parsed.greaterThan(floor) : parsed.lessThan(floor);
+      if (belowBound) return { ok: false, error: boundMessage };
+      return { ok: true, quantity: { value: text } };
+    };
+
+    if (mode === 'simple') return { readValues: () => ({ ok: true, values: {} }) };
 
     if (matrix && mode === 'qualitative' && (node.type === 'cause' || node.type === 'outcome')) {
       handles.likelihoodClassId = makeSelect(
@@ -98,23 +121,45 @@
       handles.frequency = makeQuantityField('Frequency (events/hour)', node.frequency);
     }
     if (mode === 'quantitative' && (node.type === 'preventativeBarrier' || node.type === 'mitigativeBarrier')) {
-      handles.riskReductionFactor = makeQuantityField('Risk Reduction Factor (< 1)', node.riskReductionFactor);
+      // RRF in the IEC 61511 sense: >= 1, equal to 1/PFD, so a barrier
+      // worth one order of magnitude is 10 and SIL 1 spans 10-100. It
+      // DIVIDES the frequency (see BowtieModel.computeTleLikelihood).
+      handles.riskReductionFactor = makeQuantityField(
+        'Risk Reduction Factor (≥ 1, e.g. 10 = one order of magnitude)',
+        node.riskReductionFactor,
+      );
     }
 
+    // Returns `{ ok: true, values }` for the caller to merge into its
+    // renameNode opts, or `{ ok: false, error }` for it to show inline and
+    // keep the dialog open.
     return {
       readValues() {
-        const result = {};
-        if (handles.likelihoodClassId) result.likelihoodClassId = handles.likelihoodClassId.value || null;
-        if (handles.severityClassId) result.severityClassId = handles.severityClassId.value || null;
+        const values = {};
+        if (handles.likelihoodClassId) values.likelihoodClassId = handles.likelihoodClassId.value || null;
+        if (handles.severityClassId) values.severityClassId = handles.severityClassId.value || null;
         if (handles.frequency) {
-          result.frequency = handles.frequency.unknownCheckbox.checked
-            ? { unknown: true } : { value: handles.frequency.input.value.trim() };
+          const parsed = parseQuantityInput(handles.frequency, {
+            label: 'Frequency',
+            min: '0',
+            exclusiveMin: true,
+            boundMessage: 'Frequency must be greater than 0.',
+          });
+          if (!parsed.ok) return parsed;
+          values.frequency = parsed.quantity;
         }
         if (handles.riskReductionFactor) {
-          result.riskReductionFactor = handles.riskReductionFactor.unknownCheckbox.checked
-            ? { unknown: true } : { value: handles.riskReductionFactor.input.value.trim() };
+          const parsed = parseQuantityInput(handles.riskReductionFactor, {
+            label: 'Risk Reduction Factor',
+            min: '1',
+            exclusiveMin: false,
+            boundMessage: 'Risk Reduction Factor must be 1 or greater. RRF is 1/PFD, so a barrier '
+              + 'worth one order of magnitude is 10 — a value below 1 would increase the risk.',
+          });
+          if (!parsed.ok) return parsed;
+          values.riskReductionFactor = parsed.quantity;
         }
-        return result;
+        return { ok: true, values };
       },
     };
   }

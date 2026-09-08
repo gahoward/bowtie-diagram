@@ -42,18 +42,27 @@
     return (row && row[sc.ordinal]) || null;
   }
 
-  // Bands a raw canonical-events/hour Decimal value against the matrix's
+  // Bands a computed canonical-events/hour likelihood against the matrix's
   // likelihoodClasses. Band i's range is [minValue_i, minValue_{i-1}) by
   // construction (see "Band boundaries" in the design doc) -- the array is
   // stored most-frequent-first, so the first entry whose minValue the
   // value is >= is its band; the value can't be below the last (bottom)
   // band's minValue in a well-formed matrix (bottom band's minValue is the
   // floor, typically "0").
-  function bandForValue(matrix, decimalValue) {
+  //
+  // `value` is a Bowtie.Rational (what the calculation pipeline produces --
+  // see Rational.js) or a plain Decimal. The Rational path compares by
+  // exact cross-multiplication rather than dividing first, so a likelihood
+  // sitting exactly ON a band boundary -- which round-numbered LOPA inputs
+  // routinely produce -- lands in the correct band instead of being nudged
+  // across it by a rounding step.
+  function bandForValue(matrix, value) {
     const sorted = matrix.likelihoodClasses; // already most-frequent-first per build validation
+    const atLeast = (minValue) => (value instanceof Bowtie.Rational
+      ? value.greaterThanOrEqualToDecimal(minValue)
+      : value.greaterThanOrEqual(minValue));
     for (let i = 0; i < sorted.length; i += 1) {
-      const minValue = Bowtie.Decimal.parse(sorted[i].minValue);
-      if (decimalValue.greaterThanOrEqual(minValue)) return sorted[i];
+      if (atLeast(Bowtie.Decimal.parse(sorted[i].minValue))) return sorted[i];
     }
     return sorted[sorted.length - 1] || null;
   }

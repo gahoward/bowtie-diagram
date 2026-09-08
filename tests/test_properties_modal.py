@@ -258,7 +258,7 @@ def test_properties_modal_saves_barrier_risk_reduction_factor_in_quantitative_mo
 
     _open_properties_modal(page, ".node.preventative-barrier")
     page.locator(".modal-field:has-text('Risk Reduction Factor') input[type=checkbox]").uncheck()
-    page.locator(".modal-field:has-text('Risk Reduction Factor') input[type=text]").fill("0.05")
+    page.locator(".modal-field:has-text('Risk Reduction Factor') input[type=text]").fill("20")
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_timeout(80)
 
@@ -267,7 +267,7 @@ def test_properties_modal_saves_barrier_risk_reduction_factor_in_quantitative_mo
       const pb = window.__lastModel.preventativeBarriers[0];
       return window.__lastModel.getNode(pb.nodeId).riskReductionFactor;
     }""")
-    assert rrf == {"value": "0.05"}
+    assert rrf == {"value": "20"}
 
 
 def test_properties_modal_marking_frequency_unknown_saves_unknown_quantity(page):
@@ -365,3 +365,88 @@ def test_properties_modal_shows_no_computed_section_for_outcome_without_severity
 
     _open_properties_modal(page, ".node.outcome")
     assert page.locator(".modal-section:has-text('Computed')").count() == 0
+
+
+# --- Quantitative input validation ----------------------------------------
+#
+# Before this, unparseable text was stored verbatim and the calculation then
+# treated it as Unknown -- silently EXCLUDING that threat from the top-event
+# max while the field still displayed what the user typed. Each case below
+# must keep the dialog open, explain itself, and leave the model untouched.
+
+def _cause_frequency(page):
+    return page.evaluate("""() => {
+      const c = window.__lastModel.causes[0];
+      return window.__lastModel.getNode(c.nodeId).frequency;
+    }""")
+
+
+def _try_saving_frequency(page, text):
+    _set_quantitative_mode(page)
+    page.evaluate("() => { window.__lastModel.addCause({x: 150, y: 200}); }")
+    page.wait_for_timeout(80)
+    _open_properties_modal(page, ".node.cause")
+    page.locator(".modal-field:has-text('Frequency') input[type=checkbox]").uncheck()
+    page.locator(".modal-field:has-text('Frequency') input[type=text]").fill(text)
+    page.get_by_role("button", name="Save", exact=True).click()
+    page.wait_for_timeout(80)
+
+
+def test_frequency_rejects_text_that_is_not_a_number(page):
+    _try_saving_frequency(page, "not-a-number")
+    assert page.locator(".modal-overlay").count() == 1, "must not close on invalid input"
+    assert "must be a number" in page.locator(".modal-field-error").text_content()
+    assert _cause_frequency(page) is None, "nothing may be stored"
+
+
+def test_frequency_rejects_a_negative_value(page):
+    _try_saving_frequency(page, "-1")
+    assert page.locator(".modal-overlay").count() == 1
+    assert "greater than 0" in page.locator(".modal-field-error").text_content()
+    assert _cause_frequency(page) is None
+
+
+def test_frequency_rejects_zero(page):
+    _try_saving_frequency(page, "0")
+    assert page.locator(".modal-overlay").count() == 1
+    assert _cause_frequency(page) is None
+
+
+def test_frequency_rejects_an_empty_box_rather_than_guessing(page):
+    _try_saving_frequency(page, "")
+    assert page.locator(".modal-overlay").count() == 1
+    assert "Unknown" in page.locator(".modal-field-error").text_content(), \
+        "the message should point at the Unknown checkbox as the deliberate choice"
+    assert _cause_frequency(page) is None
+
+
+def test_frequency_accepts_a_valid_value(page):
+    _try_saving_frequency(page, "1E-4")
+    assert page.locator(".modal-overlay").count() == 0
+    assert _cause_frequency(page) == {"value": "1E-4"}
+
+
+def test_risk_reduction_factor_rejects_a_value_below_one(page):
+    """RRF is 1/PFD, so a value below 1 would multiply the risk up rather
+    than reduce it -- the exact mistake the old '< 1' label invited."""
+    _set_quantitative_mode(page)
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      const cause = m.addCause({x: 150, y: 200});
+      m.addPreventativeControl(cause.id);
+    }""")
+    page.wait_for_timeout(80)
+
+    _open_properties_modal(page, ".node.preventative-barrier")
+    page.locator(".modal-field:has-text('Risk Reduction Factor') input[type=checkbox]").uncheck()
+    page.locator(".modal-field:has-text('Risk Reduction Factor') input[type=text]").fill("0.1")
+    page.get_by_role("button", name="Save", exact=True).click()
+    page.wait_for_timeout(80)
+
+    assert page.locator(".modal-overlay").count() == 1
+    assert "1 or greater" in page.locator(".modal-field-error").text_content()
+    stored = page.evaluate("""() => {
+      const pb = window.__lastModel.preventativeBarriers[0];
+      return window.__lastModel.getNode(pb.nodeId).riskReductionFactor;
+    }""")
+    assert stored is None

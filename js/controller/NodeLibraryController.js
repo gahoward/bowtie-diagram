@@ -188,12 +188,18 @@
           errorP.hidden = false;
           return;
         }
+        const read = riskFields.readValues();
+        if (!read.ok) {
+          errorP.textContent = read.error;
+          errorP.hidden = false;
+          return;
+        }
         try {
           this.model.renameNode(node.id, {
             name,
             description: descriptionInput.value.trim(),
             identifier: identifierInput.value.trim(),
-            ...riskFields.readValues(),
+            ...read.values,
           });
         } catch (err) {
           errorP.textContent = err.message;

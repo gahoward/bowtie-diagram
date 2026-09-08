@@ -6,7 +6,13 @@
   const CANVAS_H = 800;
   const ROW_SPACING = 110;
   const TOP_MARGIN = 90;
-  const SCHEMA_VERSION = 8;
+  // v9: `riskReductionFactor` changed MEANING without changing shape --
+  // it was a PFD-like fraction that multiplied the frequency, and is now
+  // an RRF in the IEC 61511 sense (>= 1, equal to 1/PFD) that divides it.
+  // A v8 document would still parse cleanly and silently invert every
+  // barrier's effect, so the version bump is what turns a silent misread
+  // into the outright rejection ImportExportController already does.
+  const SCHEMA_VERSION = 9;
   const CONTROL_TYPES = ['cause', 'outcome', 'preventativeBarrier', 'mitigativeBarrier'];
   const NODE_ID_PREFIX = {
     cause: 'C', outcome: 'O', preventativeBarrier: 'PB', mitigativeBarrier: 'MB',
@@ -1177,7 +1183,7 @@
     // anywhere in the chain.
 
     // Max, over every Cause on `pageId` with a KNOWN frequency, of
-    // `frequency x product(known preventive barriers on that Cause's own
+    // `frequency / product(known preventive barriers on that Cause's own
     // Line)` -- barriers marked Unknown are skipped from the product
     // entirely (conservative: an unknown barrier is credited with no risk
     // reduction). Causes marked Unknown are excluded from the max
@@ -1186,6 +1192,14 @@
     // in the design doc). `includeBarriers: false` computes the INHERENT
     // likelihood (every barrier ignored) for the standard ALARP
     // before/after picture; the default (true) is the RESIDUAL likelihood.
+    //
+    // A barrier's riskReductionFactor is an RRF in the IEC 61511 sense --
+    // >= 1, equal to 1/PFD, so SIL 1 is 10-100 -- and therefore DIVIDES the
+    // frequency. `value` is a Bowtie.Rational rather than a Decimal so that
+    // division never actually happens here: the frequency stays the
+    // numerator, RRFs multiply into the denominator, and both the max below
+    // and the risk-matrix banding compare by exact cross-multiplication.
+    // See Rational.js for why that matters.
     computeTleLikelihood(pageId, { includeBarriers = true } = {}) {
       let excludedThreatCount = 0;
       const contributions = [];
@@ -1196,33 +1210,34 @@
           excludedThreatCount += 1;
           return;
         }
-        let product = freq;
+        let contribution = Bowtie.Rational.fromDecimal(freq);
         if (includeBarriers) {
           const line = this._lineFor(cause.id);
           line.stops.forEach((stopId) => {
             const barrier = this.preventativeBarriers.find((p) => p.id === stopId);
             if (!barrier) return;
             const rrf = Bowtie.RiskMatrix.quantityToDecimal(this.getNode(barrier.nodeId).riskReductionFactor);
-            if (rrf === null) return; // Unknown barrier: skip from the product (conservative)
-            product = product.multiply(rrf);
+            if (rrf === null) return; // Unknown barrier: skip entirely (conservative)
+            contribution = contribution.divideBy(rrf);
           });
         }
-        contributions.push(product);
+        contributions.push(contribution);
       });
-      return { value: Bowtie.Decimal.max(contributions), excludedThreatCount };
+      return { value: Bowtie.Rational.max(contributions), excludedThreatCount };
     }
 
     // One consequence's (Outcome's) likelihood = the TLE likelihood (on
-    // that Outcome's own page) x product(known mitigative barriers on its
-    // own Line) -- same Unknown-barrier skip rule as the TLE side.
-    // `excludedThreatCount` is inherited from the TLE calculation, since a
-    // consequence's likelihood derives from the exact same threat set.
+    // that Outcome's own page) / product(known mitigative barriers on its
+    // own Line) -- same Unknown-barrier skip rule, and the same RRF
+    // convention, as the TLE side above. `excludedThreatCount` is inherited
+    // from the TLE calculation, since a consequence's likelihood derives
+    // from the exact same threat set.
     computeConsequenceLikelihood(outcomeId, { includeBarriers = true } = {}) {
       const outcome = this.outcomes.find((o) => o.id === outcomeId);
       if (!outcome) return { value: null, excludedThreatCount: 0 };
       const tle = this.computeTleLikelihood(outcome.pageId, { includeBarriers });
       if (tle.value === null) return { value: null, excludedThreatCount: tle.excludedThreatCount };
-      let product = tle.value;
+      let contribution = tle.value;
       if (includeBarriers) {
         const line = this._lineFor(outcomeId);
         line.stops.forEach((stopId) => {
@@ -1230,10 +1245,10 @@
           if (!barrier) return;
           const rrf = Bowtie.RiskMatrix.quantityToDecimal(this.getNode(barrier.nodeId).riskReductionFactor);
           if (rrf === null) return;
-          product = product.multiply(rrf);
+          contribution = contribution.divideBy(rrf);
         });
       }
-      return { value: product, excludedThreatCount: tle.excludedThreatCount };
+      return { value: contribution, excludedThreatCount: tle.excludedThreatCount };
     }
 
     // Risk class for one consequence, mode-aware per quantitative_mode_

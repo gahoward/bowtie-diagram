@@ -10,7 +10,7 @@
 (function (Bowtie) {
   Bowtie.DEMO_DATA_VARIANTS = {
   "simple": {
-    "version": 8,
+    "version": 9,
     "name": "Demo: Pipeline Overpressure Release",
     "idCounters": {
       "page": 2,
@@ -535,7 +535,7 @@
     "riskMatrix": null
   },
   "qualitative": {
-    "version": 8,
+    "version": 9,
     "name": "Demo: Pipeline Overpressure Release",
     "idCounters": {
       "page": 2,
@@ -1242,7 +1242,7 @@
     }
   },
   "quantitative": {
-    "version": 8,
+    "version": 9,
     "name": "Demo: Pipeline Overpressure Release",
     "idCounters": {
       "page": 2,
@@ -1690,7 +1690,7 @@
           "severityClassId": null,
           "frequency": null,
           "riskReductionFactor": {
-            "value": "0.1"
+            "value": "10"
           }
         },
         {
@@ -1703,7 +1703,7 @@
           "severityClassId": null,
           "frequency": null,
           "riskReductionFactor": {
-            "value": "0.5"
+            "value": "2"
           }
         },
         {
@@ -1729,7 +1729,7 @@
           "severityClassId": null,
           "frequency": null,
           "riskReductionFactor": {
-            "value": "0.2"
+            "value": "5"
           }
         }
       ],
@@ -1744,7 +1744,7 @@
           "severityClassId": null,
           "frequency": null,
           "riskReductionFactor": {
-            "value": "0.3"
+            "value": "3"
           }
         },
         {
@@ -1757,7 +1757,7 @@
           "severityClassId": null,
           "frequency": null,
           "riskReductionFactor": {
-            "value": "0.4"
+            "value": "2.5"
           }
         },
         {
@@ -1770,7 +1770,7 @@
           "severityClassId": null,
           "frequency": null,
           "riskReductionFactor": {
-            "value": "0.25"
+            "value": "4"
           }
         },
         {
@@ -1783,7 +1783,7 @@
           "severityClassId": null,
           "frequency": null,
           "riskReductionFactor": {
-            "value": "0.6"
+            "value": "20"
           }
         }
       ]

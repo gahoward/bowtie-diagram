@@ -36,4 +36,4 @@ def test_wrong_schema_version_is_rejected_with_a_message(page):
       return { mismatch, current: Bowtie.BowtieModel.SCHEMA_VERSION };
     }""")
     assert shown["mismatch"] is True
-    assert shown["current"] == 8
+    assert shown["current"] == 9

@@ -24,7 +24,7 @@ def test_tle_likelihood_is_max_of_known_threat_frequencies_with_no_barriers(page
       const c2 = m.addCause({});
       m.getNode(c2.nodeId).frequency = { value: '0.01' };
       const computed = m.computeTleLikelihood(m.pages[0].id, { includeBarriers: false });
-      return { value: computed.value.toDecimalString(), excluded: computed.excludedThreatCount };
+      return { value: computed.value.toExactDecimal().toDecimalString(), excluded: computed.excludedThreatCount };
     """)
     assert result["value"] == "0.01"
     assert result["excluded"] == 0
@@ -35,9 +35,9 @@ def test_tle_likelihood_multiplies_through_known_barriers(page):
       const c1 = m.addCause({});
       m.getNode(c1.nodeId).frequency = { value: '0.001' };
       const pb = m.addPreventativeControl(c1.id);
-      m.getNode(pb.nodeId).riskReductionFactor = { value: '0.1' };
+      m.getNode(pb.nodeId).riskReductionFactor = { value: '10' };
       const computed = m.computeTleLikelihood(m.pages[0].id);
-      return computed.value.toDecimalString();
+      return computed.value.toExactDecimal().toDecimalString();
     """)
     assert result == "0.0001"
 
@@ -49,7 +49,7 @@ def test_tle_likelihood_skips_unknown_barrier_from_the_product_conservatively(pa
       const pb = m.addPreventativeControl(c1.id);
       m.getNode(pb.nodeId).riskReductionFactor = { unknown: true };
       const computed = m.computeTleLikelihood(m.pages[0].id);
-      return { value: computed.value.toDecimalString(), excluded: computed.excludedThreatCount };
+      return { value: computed.value.toExactDecimal().toDecimalString(), excluded: computed.excludedThreatCount };
     """)
     # An Unknown barrier is skipped entirely (as if not credited) -- the
     # threat's own raw frequency passes through unchanged, and this is NOT
@@ -65,7 +65,7 @@ def test_tle_likelihood_excludes_unknown_threat_from_max_and_flags_the_count(pag
       const c2 = m.addCause({});
       m.getNode(c2.nodeId).frequency = { unknown: true };
       const computed = m.computeTleLikelihood(m.pages[0].id, { includeBarriers: false });
-      return { value: computed.value.toDecimalString(), excluded: computed.excludedThreatCount };
+      return { value: computed.value.toExactDecimal().toDecimalString(), excluded: computed.excludedThreatCount };
     """)
     assert result["value"] == "0.001"
     assert result["excluded"] == 1
@@ -96,9 +96,9 @@ def test_consequence_likelihood_multiplies_tle_by_its_own_mitigative_barriers(pa
       m.getNode(c1.nodeId).frequency = { value: '0.01' };
       const o1 = m.addOutcome({});
       const mb = m.addMitigativeControl(o1.id);
-      m.getNode(mb.nodeId).riskReductionFactor = { value: '0.5' };
+      m.getNode(mb.nodeId).riskReductionFactor = { value: '2' };
       const computed = m.computeConsequenceLikelihood(o1.id);
-      return computed.value.toDecimalString();
+      return computed.value.toExactDecimal().toDecimalString();
     """)
     assert result == "0.005"
 
@@ -111,7 +111,7 @@ def test_consequence_likelihood_inherits_excluded_threat_count_from_tle(page):
       m.getNode(c2.nodeId).frequency = { unknown: true };
       const o1 = m.addOutcome({});
       const computed = m.computeConsequenceLikelihood(o1.id, { includeBarriers: false });
-      return { value: computed.value.toDecimalString(), excluded: computed.excludedThreatCount };
+      return { value: computed.value.toExactDecimal().toDecimalString(), excluded: computed.excludedThreatCount };
     """)
     assert result["value"] == "0.01"
     assert result["excluded"] == 1
@@ -122,10 +122,10 @@ def test_inherent_vs_residual_differ_only_by_barrier_inclusion(page):
       const c1 = m.addCause({});
       m.getNode(c1.nodeId).frequency = { value: '0.001' };
       const pb = m.addPreventativeControl(c1.id);
-      m.getNode(pb.nodeId).riskReductionFactor = { value: '0.1' };
+      m.getNode(pb.nodeId).riskReductionFactor = { value: '10' };
       const residual = m.computeTleLikelihood(m.pages[0].id, { includeBarriers: true });
       const inherent = m.computeTleLikelihood(m.pages[0].id, { includeBarriers: false });
-      return { residual: residual.value.toDecimalString(), inherent: inherent.value.toDecimalString() };
+      return { residual: residual.value.toExactDecimal().toDecimalString(), inherent: inherent.value.toExactDecimal().toDecimalString() };
     """)
     assert result["inherent"] == "0.001"
     assert result["residual"] == "0.0001"
