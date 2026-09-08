@@ -26,9 +26,7 @@ const OUT = path.join(__dirname, '..', 'js', 'data', 'RiskMatrixPresets.js');
 // Project Settings' "Import Risk Matrix..." runs at runtime, rather than a
 // second, driftable reimplementation.
 global.window = { Bowtie: {} };
-// eslint-disable-next-line import/no-dynamic-require, global-require
 require(path.join(__dirname, '..', 'js', 'model', 'Decimal.js'));
-// eslint-disable-next-line import/no-dynamic-require, global-require
 require(path.join(__dirname, '..', 'js', 'model', 'RiskMatrixValidator.js'));
 const { validateRiskMatrix } = global.window.Bowtie;
 

@@ -97,7 +97,7 @@
       let parsed;
       try {
         parsed = Bowtie.Decimal.parse(cls.minValue);
-      } catch (err) {
+      } catch {
         return cls; // already reported above if this were reachable; kept defensive
       }
       const canonical = raw.authoringUnit === 'year' ? Bowtie.convertHourYear(parsed, 'yearToHour') : parsed;

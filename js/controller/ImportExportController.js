@@ -68,7 +68,7 @@
       let data;
       try {
         data = JSON.parse(text);
-      } catch (err) {
+      } catch {
         this._showMessage('Invalid File', 'That file is not valid JSON.');
         return;
       }

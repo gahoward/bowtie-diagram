@@ -1,6 +1,6 @@
 (function (Bowtie) {
   const SVG_NS = 'http://www.w3.org/2000/svg';
-  const { LINE_HEIGHT, ID_FONT_SIZE, FONT_SIZE } = Bowtie.Layout;
+  const { LINE_HEIGHT, FONT_SIZE } = Bowtie.Layout;
 
   function el(tag, attrs) {
     const node = document.createElementNS(SVG_NS, tag);

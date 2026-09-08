@@ -27,6 +27,15 @@ pytest tests/
 
 See `tests/README.md` for how the test suite is structured.
 
+There's also a linter, run separately from the tests (and as its own CI job, so testing the app still needs no Node toolchain):
+
+```
+npm install
+npm run lint
+```
+
+It's deliberately correctness-only — no formatting rules — so it won't reformat anything you write. The rule that earns its keep here is `no-undef`: `index.html` loads its scripts in a hand-maintained order onto one shared `Bowtie` global, so a typo'd global or a load-order mistake would otherwise only surface if a test happened to exercise that exact path.
+
 ### Updating the demo diagram
 
 The "Load Demo" scenario is generated from `js/data/demo-bowtie.json` (a plain schema-matching export). After editing that file, regenerate the loaded script with:

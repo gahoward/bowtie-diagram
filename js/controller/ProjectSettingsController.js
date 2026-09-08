@@ -283,7 +283,7 @@
       let raw;
       try {
         raw = JSON.parse(text);
-      } catch (err) {
+      } catch {
         this._showImportError('That file is not valid JSON.');
         return;
       }
