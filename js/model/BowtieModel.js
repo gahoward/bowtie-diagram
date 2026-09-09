@@ -118,6 +118,10 @@
       // addCause/addOutcome without a pageId. Auto-creating one page here
       // keeps all of that working unchanged until that wiring lands.
       this.addPage();
+      // Read-only collaborator (design review finding 06, phase 1) -- see
+      // Quantitative.js. BowtieModel's own compute*/get*RiskClass methods
+      // below are unchanged in name and signature; they just delegate here.
+      this._quantitative = new Bowtie.Quantitative(this);
     }
 
     onChange(fn) {
@@ -1175,106 +1179,23 @@
     }
 
     // --- Quantitative-mode calculation pipeline --------------------------
-    // (quantitative_mode_proposal.md "Data model" / "Numeric precision
-    // strategy") -- computed fresh on every call rather than cached, which
-    // the design doc allows for ("cached for display, recomputed on model
-    // change") but isn't required for correctness; every value here is a
-    // Bowtie.Decimal, never a native Number, so no rounding happens
-    // anywhere in the chain.
+    // Delegates to the read-only Quantitative collaborator (design review
+    // finding 06, phase 1; see Quantitative.js) -- these three methods stay
+    // here, unchanged in name and signature, because UndoController's Proxy
+    // resolves undo behaviour by intercepting method names on THIS object,
+    // PageScopedModel mirrors THIS surface, and ~300 tests call THESE names
+    // directly. Never call `this._quantitative` from outside this class.
 
-    // Max, over every Cause on `pageId` with a KNOWN frequency, of
-    // `frequency / product(known preventive barriers on that Cause's own
-    // Line)` -- barriers marked Unknown are skipped from the product
-    // entirely (conservative: an unknown barrier is credited with no risk
-    // reduction). Causes marked Unknown are excluded from the max
-    // (non-conservative) and counted in `excludedThreatCount`, which
-    // callers must surface visibly rather than silently drop (see "Modes"
-    // in the design doc). `includeBarriers: false` computes the INHERENT
-    // likelihood (every barrier ignored) for the standard ALARP
-    // before/after picture; the default (true) is the RESIDUAL likelihood.
-    //
-    // A barrier's riskReductionFactor is an RRF in the IEC 61511 sense --
-    // >= 1, equal to 1/PFD, so SIL 1 is 10-100 -- and therefore DIVIDES the
-    // frequency. `value` is a Bowtie.Rational rather than a Decimal so that
-    // division never actually happens here: the frequency stays the
-    // numerator, RRFs multiply into the denominator, and both the max below
-    // and the risk-matrix banding compare by exact cross-multiplication.
-    // See Rational.js for why that matters.
-    computeTleLikelihood(pageId, { includeBarriers = true } = {}) {
-      let excludedThreatCount = 0;
-      const contributions = [];
-      this.causesForPage(pageId).forEach((cause) => {
-        const node = this.getNode(cause.nodeId);
-        const freq = Bowtie.RiskMatrix.quantityToDecimal(node.frequency);
-        if (freq === null) {
-          excludedThreatCount += 1;
-          return;
-        }
-        let contribution = Bowtie.Rational.fromDecimal(freq);
-        if (includeBarriers) {
-          const line = this._lineFor(cause.id);
-          line.stops.forEach((stopId) => {
-            const barrier = this.preventativeBarriers.find((p) => p.id === stopId);
-            if (!barrier) return;
-            const rrf = Bowtie.RiskMatrix.quantityToDecimal(this.getNode(barrier.nodeId).riskReductionFactor);
-            if (rrf === null) return; // Unknown barrier: skip entirely (conservative)
-            contribution = contribution.divideBy(rrf);
-          });
-        }
-        contributions.push(contribution);
-      });
-      return { value: Bowtie.Rational.max(contributions), excludedThreatCount };
+    computeTleLikelihood(pageId, opts = {}) {
+      return this._quantitative.computeTleLikelihood(pageId, opts);
     }
 
-    // One consequence's (Outcome's) likelihood = the TLE likelihood (on
-    // that Outcome's own page) / product(known mitigative barriers on its
-    // own Line) -- same Unknown-barrier skip rule, and the same RRF
-    // convention, as the TLE side above. `excludedThreatCount` is inherited
-    // from the TLE calculation, since a consequence's likelihood derives
-    // from the exact same threat set.
-    computeConsequenceLikelihood(outcomeId, { includeBarriers = true } = {}) {
-      const outcome = this.outcomes.find((o) => o.id === outcomeId);
-      if (!outcome) return { value: null, excludedThreatCount: 0 };
-      const tle = this.computeTleLikelihood(outcome.pageId, { includeBarriers });
-      if (tle.value === null) return { value: null, excludedThreatCount: tle.excludedThreatCount };
-      let contribution = tle.value;
-      if (includeBarriers) {
-        const line = this._lineFor(outcomeId);
-        line.stops.forEach((stopId) => {
-          const barrier = this.mitigativeBarriers.find((m) => m.id === stopId);
-          if (!barrier) return;
-          const rrf = Bowtie.RiskMatrix.quantityToDecimal(this.getNode(barrier.nodeId).riskReductionFactor);
-          if (rrf === null) return;
-          contribution = contribution.divideBy(rrf);
-        });
-      }
-      return { value: contribution, excludedThreatCount: tle.excludedThreatCount };
+    computeConsequenceLikelihood(outcomeId, opts = {}) {
+      return this._quantitative.computeConsequenceLikelihood(outcomeId, opts);
     }
 
-    // Risk class for one consequence, mode-aware per quantitative_mode_
-    // proposal.md: Qualitative mode uses the manually-picked
-    // likelihoodClassId directly (no arithmetic at all); Quantitative mode
-    // bands the COMPUTED likelihood against the active matrix instead.
-    // Returns null whenever there's no active matrix, no severity picked,
-    // or (Quantitative mode) every contributing threat was Unknown.
     getConsequenceRiskClass(outcomeId, opts = {}) {
-      if (!this.riskMatrix) return null;
-      const outcome = this.outcomes.find((o) => o.id === outcomeId);
-      if (!outcome) return null;
-      const node = this.getNode(outcome.nodeId);
-      if (!node.severityClassId) return null;
-
-      let likelihoodClassId = null;
-      if (this.mode === 'qualitative') {
-        likelihoodClassId = node.likelihoodClassId || null;
-      } else if (this.mode === 'quantitative') {
-        const computed = this.computeConsequenceLikelihood(outcomeId, opts);
-        if (computed.value !== null) {
-          likelihoodClassId = Bowtie.RiskMatrix.bandForValue(this.riskMatrix, computed.value).id;
-        }
-      }
-      if (!likelihoodClassId) return null;
-      return Bowtie.RiskMatrix.cellRiskClassId(this.riskMatrix, likelihoodClassId, node.severityClassId);
+      return this._quantitative.getConsequenceRiskClass(outcomeId, opts);
     }
 
     // Replaces this instance's contents with data parsed from an imported
