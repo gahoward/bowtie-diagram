@@ -334,8 +334,8 @@
       const h = 60;
       const x = opts.x ?? 150;
       const y = opts.y ?? this._findClearY(pageId, x, w, h, TOP_MARGIN);
-      const cause = new Bowtie.Cause({
-        id, nodeId: node.id, x, y, w, h, pageId,
+      const cause = new Bowtie.Placement({
+        id, type: 'cause', nodeId: node.id, x, y, w, h, pageId,
       });
       this.causes.push(cause);
       this.idCounters.line += 1;
@@ -356,8 +356,8 @@
       const h = 60;
       const x = opts.x ?? (CANVAS_W - 150);
       const y = opts.y ?? this._findClearY(pageId, x, w, h, TOP_MARGIN);
-      const outcome = new Bowtie.Outcome({
-        id, nodeId: node.id, x, y, w, h, pageId,
+      const outcome = new Bowtie.Placement({
+        id, type: 'outcome', nodeId: node.id, x, y, w, h, pageId,
       });
       this.outcomes.push(outcome);
       this.idCounters.line += 1;

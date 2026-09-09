@@ -83,13 +83,17 @@
       if (idx === -1) throw new Error(`Unknown page id: ${pageId}`);
       model.pages[idx] = this.pageHeaderFromJSON(data);
       model.causes = model.causes.filter((c) => c.pageId !== pageId)
-        .concat((data.causes || []).map((c) => new Bowtie.Cause(c)));
+        .concat((data.causes || []).map((c) => new Bowtie.Placement({ ...c, type: 'cause' })));
       model.outcomes = model.outcomes.filter((o) => o.pageId !== pageId)
-        .concat((data.outcomes || []).map((o) => new Bowtie.Outcome(o)));
+        .concat((data.outcomes || []).map((o) => new Bowtie.Placement({ ...o, type: 'outcome' })));
       model.preventativeBarriers = model.preventativeBarriers.filter((p) => p.pageId !== pageId)
-        .concat((data.preventativeBarriers || []).map((p) => new Bowtie.PreventativeBarrier(p)));
+        .concat((data.preventativeBarriers || []).map(
+          (p) => new Bowtie.Placement({ ...p, type: 'preventativeBarrier' }),
+        ));
       model.mitigativeBarriers = model.mitigativeBarriers.filter((m) => m.pageId !== pageId)
-        .concat((data.mitigativeBarriers || []).map((m) => new Bowtie.MitigativeBarrier(m)));
+        .concat((data.mitigativeBarriers || []).map(
+          (m) => new Bowtie.Placement({ ...m, type: 'mitigativeBarrier' }),
+        ));
       model.lines = model.lines.filter((l) => l.pageId !== pageId)
         .concat((data.lines || []).map((l) => new Bowtie.Line(l)));
     },
@@ -173,10 +177,14 @@
           topLevelEvent: data.topLevelEvent, hazard: data.hazard,
         })];
       }
-      model.causes = (data.causes || []).map((c) => new Bowtie.Cause(c));
-      model.outcomes = (data.outcomes || []).map((o) => new Bowtie.Outcome(o));
-      model.preventativeBarriers = (data.preventativeBarriers || []).map((p) => new Bowtie.PreventativeBarrier(p));
-      model.mitigativeBarriers = (data.mitigativeBarriers || []).map((m) => new Bowtie.MitigativeBarrier(m));
+      model.causes = (data.causes || []).map((c) => new Bowtie.Placement({ ...c, type: 'cause' }));
+      model.outcomes = (data.outcomes || []).map((o) => new Bowtie.Placement({ ...o, type: 'outcome' }));
+      model.preventativeBarriers = (data.preventativeBarriers || []).map(
+        (p) => new Bowtie.Placement({ ...p, type: 'preventativeBarrier' }),
+      );
+      model.mitigativeBarriers = (data.mitigativeBarriers || []).map(
+        (m) => new Bowtie.Placement({ ...m, type: 'mitigativeBarrier' }),
+      );
       model.lines = (data.lines || []).map((l) => new Bowtie.Line(l));
       model.library = {
         cause: ((data.library && data.library.cause) || []).map((n) => new Bowtie.Node(n)),

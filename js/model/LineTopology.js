@@ -171,9 +171,8 @@
       const h = 110;
       const x = opts.x ?? (anchor.x + side.xSign * (anchor.w + 60));
       const y = model._findClearY(origin.pageId, x, w, h, opts.y ?? anchor.y);
-      const Ctor = kind === 'preventativeBarrier' ? Bowtie.PreventativeBarrier : Bowtie.MitigativeBarrier;
-      const barrier = new Ctor({
-        id, nodeId: node.id, x, y, w, h, pageId: origin.pageId,
+      const barrier = new Bowtie.Placement({
+        id, type: kind, nodeId: node.id, x, y, w, h, pageId: origin.pageId,
       });
       model[side.barrierCollection].push(barrier);
       line.stops.push(id);
@@ -239,9 +238,8 @@
       const h = 110;
       const x = opts.x ?? (anchor.x + dir * 60);
       const y = model._findClearY(anchor.pageId, x, w, h, opts.y ?? anchor.y);
-      const Ctor = kind === 'preventativeBarrier' ? Bowtie.PreventativeBarrier : Bowtie.MitigativeBarrier;
-      const barrier = new Ctor({
-        id, nodeId: node.id, x, y, w, h, pageId: anchor.pageId,
+      const barrier = new Bowtie.Placement({
+        id, type: kind, nodeId: node.id, x, y, w, h, pageId: anchor.pageId,
       });
       this._barrierCollection(kind).push(barrier);
       return barrier;
