@@ -1,4 +1,46 @@
 (function (Bowtie) {
+  // Design review finding 07: the two largest mirrored pairs in this file
+  // -- _gapInsertItemsForCauseLine/-OutcomeLine (originally 77/84 lines,
+  // 48 byte-identical) and _addPreventativeControlFrom/
+  // _addMitigativeControlFrom -- differed only by barrier kind, which
+  // model collection/method to use, argument order on the origin-vs-
+  // barrier-first attach calls, and (gap-insert only) which physical
+  // x-direction is "toward the TLE" from the origin, since a Cause sits
+  // left of the TLE and an Outcome sits right of it. This table writes
+  // that down once, mirroring LineTopology.js's own SIDE table for the
+  // same asymmetry at the model layer -- each pair now collapses to one
+  // shared method reading the difference out of here.
+  const SIDE = {
+    preventativeBarrier: {
+      barrierCollection: 'preventativeBarriers',
+      addLabel: 'Add Preventative Barrier',
+      attachLabel: 'Attach to Existing Preventative Barrier…',
+      // A Cause sits to the LEFT of the TLE, so its barrier chain grows
+      // toward increasing x -- physical left-to-right (x-increasing)
+      // order already matches origin-to-TLE order, no reversal needed
+      // to scan a line's stops in physical order.
+      originLeftOfTle: true,
+      addFn: (model, originId, opts) => model.addPreventativeControl(originId, opts),
+      attachFn: (model, originId, barrierId, inherit) => (
+        model.attachInputToPreventativeControl(originId, barrierId, inherit)
+      ),
+    },
+    mitigativeBarrier: {
+      barrierCollection: 'mitigativeBarriers',
+      addLabel: 'Add Mitigative Barrier',
+      attachLabel: 'Attach to Existing Mitigative Barrier…',
+      // An Outcome sits to the RIGHT of the TLE, so its barrier chain
+      // grows toward DEcreasing x -- physical left-to-right order runs
+      // origin-to-TLE BACKWARDS, so stops (nearest-origin-first, same as
+      // PB) must be reversed to scan them in physical x order.
+      originLeftOfTle: false,
+      addFn: (model, originId, opts) => model.addMitigativeControl(originId, opts),
+      attachFn: (model, originId, barrierId, inherit) => (
+        model.attachOutputToMitigativeControl(barrierId, originId, inherit)
+      ),
+    },
+  };
+
   class ContextMenuController {
     // `triggerAutoArrange` re-lays-out the canvas after an action that
     // changes a barrier's position in the topology without moving anything
@@ -150,7 +192,7 @@
         // has no way to ask "which one" — it silently dragged every Line
         // through it along for the ride. Reattachment is line-scoped by
         // construction when done from the specific line segment instead
-        // (see _gapInsertItemsForCauseLine/_gapInsertItemsForOutcomeLine).
+        // (see _gapInsertItems).
         items.push(...this._buildShuntItems(el.id));
       }
       if (el.type === 'mitigativeBarrier') {
@@ -262,10 +304,10 @@
       if (!lineId) return [];
       const point = this._toSvgPoint(e);
       if (role === 'cause-line' || role === 'cause-direct') {
-        return this._gapInsertItemsForCauseLine(lineId, point);
+        return this._gapInsertItems('preventativeBarrier', lineId, point);
       }
       if (role === 'outcome-line' || role === 'outcome-direct') {
-        return this._gapInsertItemsForOutcomeLine(lineId, point);
+        return this._gapInsertItems('mitigativeBarrier', lineId, point);
       }
       return [];
     }
@@ -287,162 +329,103 @@
       return { x: svgPt.x, y: svgPt.y };
     }
 
-    // A cause-origin Line's stops are already in increasing-x order (index 0
-    // nearest the Cause, last nearest the TLE) — find the first stop whose x
-    // is past the click; inserting "before" it lands in exactly the gap that
-    // was clicked (before the first stop, between two stops, or — if none
-    // qualify — after the last stop). The new barrier is placed right at the
-    // clicked point (bugs.md: barriers were landing on the wrong side of
-    // existing ones when placed by a fixed offset instead of the cursor).
-    _gapInsertItemsForCauseLine(lineId, point) {
-      const line = this.model.lines.find((l) => l.id === lineId);
+    // A line's stops are always nearest-origin-first (see LineTopology.js)
+    // -- find the first stop, scanning in PHYSICAL left-to-right order,
+    // whose x is past the click; inserting "before" it lands in exactly
+    // the gap that was clicked (before the first stop, between two stops,
+    // or -- if none qualify -- after the last stop). The new barrier is
+    // placed right at the clicked point (bugs.md: barriers were landing
+    // on the wrong side of existing ones when placed by a fixed offset
+    // instead of the cursor). One shared implementation behind
+    // _buildLineItems' two call sites -- see the SIDE table above (design
+    // review finding 07); `SIDE.originLeftOfTle` says whether the origin-
+    // first stops array already runs left-to-right (Cause) or needs
+    // reversing first to scan it in physical order (Outcome, whose chain
+    // grows toward decreasing x).
+    _gapInsertItems(kind, lineId, point) {
+      const { model } = this;
+      const side = SIDE[kind];
+      const line = model.lines.find((l) => l.id === lineId);
       if (!line) return [];
       const clickOpts = { x: point.x, y: point.y };
-      if (line.stops.length === 0) {
-        const items = [{
-          label: 'Add Preventative Barrier',
-          action: () => Bowtie.openCreateOrChooseNodeModal({
-            model: this.model,
-            type: 'preventativeBarrier',
-            onCreate: (fields) => this.model.addPreventativeControl(line.originId, { ...clickOpts, ...fields }),
-            onChooseExisting: (node) => this.model.addPreventativeControl(
-              line.originId, { ...clickOpts, nodeId: node.id },
-            ),
-          }),
-        }];
-        if (this.model.preventativeBarriers.length > 0) {
-          items.push(this._attachSegmentItem(
-            'Attach to Existing Preventative Barrier…',
-            this.model.preventativeBarriers,
-            (target) => this._attachWithInheritPrompt(
-              target.id,
-              line.id,
-              (inherit) => this.model.attachInputToPreventativeControl(line.originId, target.id, inherit),
-            ),
-          ));
-        }
-        return items;
-      }
-      const ordered = line.stops.map((id) => ({ id, x: this.model.findById(id).x }));
-      const before = ordered.find((s) => clickOpts.x < s.x);
-      const anchorId = before ? before.id : ordered[ordered.length - 1].id;
-      const direction = before ? 'before' : 'after';
-      const items = [{
-        label: 'Add Preventative Barrier',
-        action: () => Bowtie.openCreateOrChooseNodeModal({
-          model: this.model,
-          type: 'preventativeBarrier',
-          onCreate: (fields) => this.model.insertBarrier(
-            'preventativeBarrier', direction, anchorId, { ...clickOpts, ...fields }, [lineId],
-          ),
-          onChooseExisting: (node) => this.model.insertBarrier(
-            'preventativeBarrier', direction, anchorId, { ...clickOpts, nodeId: node.id }, [lineId],
-          ),
-        }),
-      }];
-      const otherPbs = this.model.preventativeBarriers.filter((p) => !line.stops.includes(p.id));
-      if (otherPbs.length > 0) {
-        items.push(this._attachSegmentItem(
-          'Attach to Existing Preventative Barrier…',
-          otherPbs,
-          (target) => this._safeAttach(() => this.model.attachExistingBarrier(
-            'preventativeBarrier', direction, anchorId, target.id, [lineId],
-          )),
-        ));
-      }
-      // "Connect directly to the TLE" only does something past this gap's
-      // TLE-adjacent barrier (before.id) — everything from there toward the
-      // TLE gets dropped from THIS line. Meaningless in the `!before` case:
-      // that gap is already the TLE-adjacent one, nothing to remove.
-      if (before) {
-        const beforeIdx = ordered.indexOf(before);
-        const keepThroughId = beforeIdx > 0 ? ordered[beforeIdx - 1].id : null;
-        items.push({
-          label: 'Connect Directly to TLE',
-          action: () => {
-            this.model.connectLineDirectlyToTle(lineId, keepThroughId);
-            this.triggerAutoArrange();
-          },
-        });
-      }
-      return items;
-    }
 
-    // Mirrors _gapInsertItemsForCauseLine: an outcome-origin Line's stops
-    // are stored nearest-Outcome-first, i.e. decreasing x, so reverse them
-    // to get the same increasing-x scan.
-    _gapInsertItemsForOutcomeLine(lineId, point) {
-      const line = this.model.lines.find((l) => l.id === lineId);
-      if (!line) return [];
-      const clickOpts = { x: point.x, y: point.y };
       if (line.stops.length === 0) {
         const items = [{
-          label: 'Add Mitigative Barrier',
+          label: side.addLabel,
           action: () => Bowtie.openCreateOrChooseNodeModal({
-            model: this.model,
-            type: 'mitigativeBarrier',
-            onCreate: (fields) => this.model.addMitigativeControl(line.originId, { ...clickOpts, ...fields }),
-            onChooseExisting: (node) => this.model.addMitigativeControl(
-              line.originId, { ...clickOpts, nodeId: node.id },
-            ),
+            model,
+            type: kind,
+            onCreate: (fields) => side.addFn(model, line.originId, { ...clickOpts, ...fields }),
+            onChooseExisting: (node) => side.addFn(model, line.originId, { ...clickOpts, nodeId: node.id }),
           }),
         }];
-        if (this.model.mitigativeBarriers.length > 0) {
+        const collection = model[side.barrierCollection];
+        if (collection.length > 0) {
           items.push(this._attachSegmentItem(
-            'Attach to Existing Mitigative Barrier…',
-            this.model.mitigativeBarriers,
+            side.attachLabel,
+            collection,
             (target) => this._attachWithInheritPrompt(
               target.id,
               line.id,
-              (inherit) => this.model.attachOutputToMitigativeControl(target.id, line.originId, inherit),
+              (inherit) => side.attachFn(model, line.originId, target.id, inherit),
             ),
           ));
         }
         return items;
       }
-      const ordered = line.stops.slice().reverse().map((id) => ({ id, x: this.model.findById(id).x }));
-      const before = ordered.find((s) => clickOpts.x < s.x);
-      const anchorId = before ? before.id : ordered[ordered.length - 1].id;
+
+      const stopsFromOrigin = line.stops.map((id) => ({ id, x: model.findById(id).x }));
+      const orderedByX = side.originLeftOfTle ? stopsFromOrigin : stopsFromOrigin.slice().reverse();
+      const before = orderedByX.find((s) => clickOpts.x < s.x);
+      const anchorId = before ? before.id : orderedByX[orderedByX.length - 1].id;
       const direction = before ? 'before' : 'after';
+
       const items = [{
-        label: 'Add Mitigative Barrier',
+        label: side.addLabel,
         action: () => Bowtie.openCreateOrChooseNodeModal({
-          model: this.model,
-          type: 'mitigativeBarrier',
-          onCreate: (fields) => this.model.insertBarrier(
-            'mitigativeBarrier', direction, anchorId, { ...clickOpts, ...fields }, [lineId],
-          ),
-          onChooseExisting: (node) => this.model.insertBarrier(
-            'mitigativeBarrier', direction, anchorId, { ...clickOpts, nodeId: node.id }, [lineId],
+          model,
+          type: kind,
+          onCreate: (fields) => model.insertBarrier(kind, direction, anchorId, { ...clickOpts, ...fields }, [lineId]),
+          onChooseExisting: (node) => model.insertBarrier(
+            kind, direction, anchorId, { ...clickOpts, nodeId: node.id }, [lineId],
           ),
         }),
       }];
-      const otherMbs = this.model.mitigativeBarriers.filter((m) => !line.stops.includes(m.id));
-      if (otherMbs.length > 0) {
+      const others = model[side.barrierCollection].filter((b) => !line.stops.includes(b.id));
+      if (others.length > 0) {
         items.push(this._attachSegmentItem(
-          'Attach to Existing Mitigative Barrier…',
-          otherMbs,
-          (target) => this._safeAttach(() => this.model.attachExistingBarrier(
-            'mitigativeBarrier', direction, anchorId, target.id, [lineId],
+          side.attachLabel,
+          others,
+          (target) => this._safeAttach(() => model.attachExistingBarrier(
+            kind, direction, anchorId, target.id, [lineId],
           )),
         ));
       }
-      // Mirrors the cause side, but reflected: meaningless only at the
-      // TLE-adjacent-most gap (before === ordered[0], nothing between the
-      // TLE and it to drop). Everywhere else — including the outcome-
-      // adjacent-most gap (`!before`, which drops every barrier, mirroring
-      // the cause side's cause-adjacent-most gap) — keeping through
-      // `before.id` (or nothing, past the last one) and dropping whatever
-      // used to continue further toward the TLE is exactly "connect
-      // directly to the TLE" here. Stops are stored nearest-Outcome-first,
-      // so the kept prefix naturally ends at before.id.
-      const isTleAdjacentMostGap = before && before.id === ordered[0].id;
-      if (!isTleAdjacentMostGap) {
-        const keepThroughId = before ? before.id : null;
+
+      // "Connect directly to the TLE" only does something past this gap's
+      // TLE-adjacent barrier -- everything from there toward the TLE gets
+      // dropped from THIS line. Meaningless when the click already sits
+      // in the gap right next to the TLE itself, nothing left to drop.
+      // Which shape that check (and the "keep through" stop) takes
+      // depends on SIDE.originLeftOfTle: for a Cause, physical order
+      // already IS origin-to-TLE order, so "nothing toward the TLE" is
+      // simply "before not found" (past the last, TLE-most, stop), and
+      // the stop to keep is `before`'s predecessor. For an Outcome,
+      // `orderedByX` was reversed to get physical order, so it now runs
+      // TLE-to-origin -- "nothing toward the TLE" is instead "before
+      // found, and it's the very first (TLE-most) entry," and `before`
+      // itself (the next entry away from the TLE) is already the stop to
+      // keep.
+      const beforeIdx = before ? orderedByX.indexOf(before) : -1;
+      const nothingTowardTle = side.originLeftOfTle ? !before : (!!before && beforeIdx === 0);
+      if (!nothingTowardTle) {
+        const keepThroughId = side.originLeftOfTle
+          ? (beforeIdx > 0 ? orderedByX[beforeIdx - 1].id : null)
+          : (before ? before.id : null);
         items.push({
           label: 'Connect Directly to TLE',
           action: () => {
-            this.model.connectLineDirectlyToTle(lineId, keepThroughId);
+            model.connectLineDirectlyToTle(lineId, keepThroughId);
             this.triggerAutoArrange();
           },
         });
@@ -459,17 +442,22 @@
       return { label, action: () => this._openAttachModal(label, candidates, onPick) };
     }
 
-    // Inserts a new PB after `pb`, toward the TLE. If pb currently carries
-    // more than one distinct line, asks which of them the new barrier
-    // should apply to (multi-select, by origin id — nothing is bundled).
-    _addPreventativeControlFrom(pb, preselectedLineId) {
-      const lines = this.model.linesThrough(pb.id);
+    // Inserts a new barrier of `kind` after `barrier`, toward the TLE. If
+    // `barrier` currently carries more than one distinct line, asks which
+    // of them the new barrier should apply to (multi-select, by origin id
+    // — nothing is bundled). The one shared implementation behind
+    // _addPreventativeControlFrom/_addMitigativeControlFrom below — see
+    // the SIDE table above (design review finding 07); unlike
+    // _gapInsertItems, nothing here is x-order-sensitive, so `kind` alone
+    // is enough to parameterize.
+    _addBarrierFrom(kind, barrier, preselectedLineId) {
+      const lines = this.model.linesThrough(barrier.id);
       const proceed = (selected) => Bowtie.openCreateOrChooseNodeModal({
         model: this.model,
-        type: 'preventativeBarrier',
-        onCreate: (fields) => this.model.insertBarrier('preventativeBarrier', 'after', pb.id, fields, selected),
+        type: kind,
+        onCreate: (fields) => this.model.insertBarrier(kind, 'after', barrier.id, fields, selected),
         onChooseExisting: (node) => this.model.insertBarrier(
-          'preventativeBarrier', 'after', pb.id, { nodeId: node.id }, selected,
+          kind, 'after', barrier.id, { nodeId: node.id }, selected,
         ),
       });
       if (lines.length <= 1) {
@@ -477,35 +465,19 @@
         return;
       }
       this._openLineSelectModal(
-        'Add Preventative Barrier',
+        SIDE[kind].addLabel,
         lines.map((l) => ({ key: l.id, label: this._labelForOrigin(l.originId) })),
         preselectedLineId,
         (selected) => proceed(selected),
       );
     }
 
-    // Mirrors _addPreventativeControlFrom for MB's own "add" action, which
-    // splices toward the Outcome.
+    _addPreventativeControlFrom(pb, preselectedLineId) {
+      return this._addBarrierFrom('preventativeBarrier', pb, preselectedLineId);
+    }
+
     _addMitigativeControlFrom(mb, preselectedLineId) {
-      const lines = this.model.linesThrough(mb.id);
-      const proceed = (selected) => Bowtie.openCreateOrChooseNodeModal({
-        model: this.model,
-        type: 'mitigativeBarrier',
-        onCreate: (fields) => this.model.insertBarrier('mitigativeBarrier', 'after', mb.id, fields, selected),
-        onChooseExisting: (node) => this.model.insertBarrier(
-          'mitigativeBarrier', 'after', mb.id, { nodeId: node.id }, selected,
-        ),
-      });
-      if (lines.length <= 1) {
-        proceed(null);
-        return;
-      }
-      this._openLineSelectModal(
-        'Add Mitigative Barrier',
-        lines.map((l) => ({ key: l.id, label: this._labelForOrigin(l.originId) })),
-        preselectedLineId,
-        (selected) => proceed(selected),
-      );
+      return this._addBarrierFrom('mitigativeBarrier', mb, preselectedLineId);
     }
 
     _openLineSelectModal(title, options, preselectedKey, onConfirm, description) {

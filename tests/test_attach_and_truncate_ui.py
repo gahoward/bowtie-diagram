@@ -202,3 +202,53 @@ def test_connect_directly_to_tle_outcome_adjacent_gap_drops_everything(page):
 
     stops = page.evaluate("() => window.__lastModel._lineFor(window.__lastModel.outcomes[0].id).stops")
     assert stops == []
+
+
+def test_connect_directly_to_tle_at_a_middle_gap_outcome_side(page):
+    """Mirrors test_connect_directly_to_tle_at_a_middle_gap on the outcome
+    side -- the asymmetric half of _gapInsertItems (design review
+    finding 07): an outcome line's stops run nearest-outcome-first, the
+    opposite physical direction from a cause line's, so this exercises the
+    other branch of SIDE.originLeftOfTle's keepThroughId computation."""
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.addOutcome({x: 1200, y: 200});
+      const o = m.outcomes[0];
+      m.addMitigativeControl(o.id); // MB_1, nearest outcome
+      m.addMitigativeControl(o.id); // MB_2, nearest TLE
+    }""")
+    page.wait_for_timeout(150)
+
+    info = page.evaluate("""() => {
+      const m = window.__lastModel;
+      const outcome = m.outcomes[0];
+      const line = m._lineFor(outcome.id);
+      const mb1 = m.mitigativeBarriers.find((p) => p.id === line.stops[0]);
+      const mb2 = m.mitigativeBarriers.find((p) => p.id === line.stops[1]);
+      return { x: (mb1.x - mb1.w / 2 + mb2.x + mb2.w / 2) / 2, y: outcome.y };
+    }""")
+    click_svg_point(page, info["x"], info["y"])
+    assert any("Connect Directly to TLE" in i for i in menu_items(page))
+    click_menu_item(page, "Connect Directly to TLE")
+
+    stops = page.evaluate("() => window.__lastModel._lineFor(window.__lastModel.outcomes[0].id).stops")
+    assert stops == [placement_id_for_node(page, "MB_1")], "keeps the outcome-side barrier, drops the TLE-side one"
+
+
+def test_connect_directly_to_tle_not_offered_at_the_tle_adjacent_gap_outcome_side(page):
+    """Mirrors test_connect_directly_to_tle_not_offered_at_the_tle_adjacent_gap
+    on the outcome side. The riskiest branch to get wrong in _gapInsertItems'
+    unified implementation: the outcome side's "nothing to drop" condition
+    is shaped differently from the cause side's (`before` FOUND and equal to
+    the first x-ordered entry, vs the cause side's `before` NOT found) --
+    see the comment on SIDE.originLeftOfTle in ContextMenuController.js."""
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.addOutcome({x: 1200, y: 200});
+      m.addMitigativeControl(m.outcomes[0].id);
+    }""")
+    page.wait_for_timeout(150)
+
+    line_id = page.evaluate("() => window.__lastModel._lineFor(window.__lastModel.outcomes[0].id).id")
+    click_bend_segment(page, line_id, "outcome-line")
+    assert not any("Connect Directly to TLE" in i for i in menu_items(page))
