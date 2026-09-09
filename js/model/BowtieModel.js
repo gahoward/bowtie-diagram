@@ -118,10 +118,11 @@
       // addCause/addOutcome without a pageId. Auto-creating one page here
       // keeps all of that working unchanged until that wiring lands.
       this.addPage();
-      // Read-only collaborator (design review finding 06, phase 1) -- see
-      // Quantitative.js. BowtieModel's own compute*/get*RiskClass methods
+      // Read-only collaborators (design review finding 06) -- see
+      // Quantitative.js / Warnings.js. BowtieModel's own public methods
       // below are unchanged in name and signature; they just delegate here.
       this._quantitative = new Bowtie.Quantitative(this);
+      this._warnings = new Bowtie.Warnings(this);
     }
 
     onChange(fn) {
@@ -747,40 +748,12 @@
     }
 
     // --- Warnings / orphan detection -----------------------------------
+    // Delegates to the read-only Warnings collaborator (design review
+    // finding 06, phase 2; see Warnings.js) — kept here, unchanged in name
+    // and signature, for the same reason as computeTleLikelihood above.
 
-    // A barrier not appearing in any Line's stops is an orphan — nothing
-    // actually flows through it. Export is blocked while any warning exists.
-    // A library node with zero placements anywhere is deliberately NOT
-    // flagged here (node_library_proposal.md Open question 2, resolved
-    // toward silent) — ask 2 explicitly wants nodes to survive with no
-    // placements as a normal "staging" state, not a mistake.
     getWarnings() {
-      const warnings = [];
-      const usedPb = new Set(this.lines.filter((l) => l.originType === 'cause').flatMap((l) => l.stops));
-      this.preventativeBarriers.forEach((pb) => {
-        if (!usedPb.has(pb.id)) {
-          // Always safe: a live barrier's page can't have been deleted,
-          // since deletePage cascades to remove it too.
-          const page = this.getPage(pb.pageId);
-          const node = this.getNode(pb.nodeId);
-          warnings.push({
-            id: pb.id, type: 'orphaned-preventative-control',
-            message: `${node.id} (${node.name}) on page "${page.name}" is not connected to any Cause.`,
-          });
-        }
-      });
-      const usedMb = new Set(this.lines.filter((l) => l.originType === 'outcome').flatMap((l) => l.stops));
-      this.mitigativeBarriers.forEach((mb) => {
-        if (!usedMb.has(mb.id)) {
-          const page = this.getPage(mb.pageId);
-          const node = this.getNode(mb.nodeId);
-          warnings.push({
-            id: mb.id, type: 'orphaned-mitigative-control',
-            message: `${node.id} (${node.name}) on page "${page.name}" is not connected to any Outcome.`,
-          });
-        }
-      });
-      return warnings;
+      return this._warnings.getWarnings();
     }
 
     // --- Lookup ---------------------------------------------------------
