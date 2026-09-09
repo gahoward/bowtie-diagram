@@ -13,17 +13,6 @@
   // barrier's effect, so the version bump is what turns a silent misread
   // into the outright rejection ImportExportController already does.
   const SCHEMA_VERSION = 9;
-  // Both barrier types splice the same way underneath (toward the TLE or
-  // toward the origin), but "after"/"before" — the UI's own vocabulary,
-  // relative to whichever barrier was right-clicked — maps to OPPOSITE
-  // splice directions for each type: a PreventativeBarrier's "after" is a
-  // MitigativeBarrier's "before", and vice versa. This table is the one
-  // place that mirror needs to be written down; everything else (see
-  // insertBarrier/attachExistingBarrier) just reads it.
-  const SPLICE_DIRECTION = {
-    preventativeBarrier: { after: 'towardTle', before: 'towardOrigin' },
-    mitigativeBarrier: { after: 'towardOrigin', before: 'towardTle' },
-  };
 
   class BowtieModel {
     constructor() {
@@ -89,6 +78,11 @@
       // outright; the get/set accessors just below re-expose them under
       // their original names so every existing reader/writer keeps working.
       this._nodeLibrary = new Bowtie.NodeLibrary(this);
+      // Line/splice/attach/chain machinery (design review finding 06,
+      // phase 5; see LineTopology.js) -- like Quantitative/Warnings, reads
+      // and mutates `this.lines`/the placement arrays through the model
+      // reference rather than owning them.
+      this._lineTopology = new Bowtie.LineTopology(this);
     }
 
     // See the constructor note above and NodeLibrary.js: these three fields
@@ -374,268 +368,49 @@
       return outcome;
     }
 
-    // --- Line lookup / edge grouping ------------------------------------
-    //
-    // Every Line passes through its stops continuously by construction —
-    // there is no per-line "mode". Two Lines only ever appear as one visual
-    // edge because they currently happen to share the same adjacent stop;
-    // that's a grouping computed here, not a stored flag. These two
-    // functions are the single source of truth for: box line-counts
-    // (Layout.controlBounds), the actual line-drawing (ConnectionRenderer),
-    // and the "which line(s) should the new barrier apply to" disambiguation
-    // (ContextMenuController's insert-after flow).
+    // --- Line lookup / edge grouping / splicing / attachment -------------
+    // Delegates to the LineTopology collaborator (design review finding 06,
+    // phase 5; see LineTopology.js) — every method here stays, unchanged
+    // in name and signature, for the same reason as computeTleLikelihood
+    // above. addPreventativeControl/addMitigativeControl and
+    // attachInputToPreventativeControl/attachOutputToMitigativeControl are
+    // each two thin wrappers over one shared LineTopology method — see the
+    // SIDE table there (design review finding 07).
 
-    // Resolves `id` to the real PLACEMENT id every internal structure
-    // (Line.stops/originId) actually keys on: unchanged if `id` already IS
-    // one, or -- since a NODE's id is what's actually visible to a user
-    // (node_library_proposal.md "Two id spaces") and what every caller of
-    // this model's public API naturally reaches for, including every
-    // model-level test written before the node library existed -- the id
-    // of whichever placement (any page) currently references `id` as its
-    // `nodeId`. Idempotent, so every method below can call this
-    // unconditionally on each element-id argument it accepts without
-    // worrying about double-resolving an id that was already a placement
-    // id. Mirrors findById's own fallback, just returning the bare id
-    // instead of the resolved element.
     _resolvePlacementId(id) {
-      const isPlacementId = (
-        this.causes.some((c) => c.id === id) ||
-        this.outcomes.some((o) => o.id === id) ||
-        this.preventativeBarriers.some((p) => p.id === id) ||
-        this.mitigativeBarriers.some((m) => m.id === id)
-      );
-      if (isPlacementId) return id;
-      const placement = (
-        this.causes.find((c) => c.nodeId === id) ||
-        this.outcomes.find((o) => o.nodeId === id) ||
-        this.preventativeBarriers.find((p) => p.nodeId === id) ||
-        this.mitigativeBarriers.find((m) => m.nodeId === id)
-      );
-      return placement ? placement.id : id;
+      return this._lineTopology._resolvePlacementId(id);
     }
 
     _lineFor(originId) {
-      return this.lines.find((l) => l.originId === this._resolvePlacementId(originId));
+      return this._lineTopology._lineFor(originId);
     }
 
-    // Every Line currently passing through `barrierId`, individually — there
-    // is no bundling/grouping concept any more. Lines are always drawn as
-    // their own distinct, continuously-straight run at their own origin's y;
-    // two lines sharing a barrier still exit it at different points (their
-    // own y), never funneled together. Used both for the "which line(s)
-    // should the new barrier apply to" disambiguation UI and for computing
-    // how tall a barrier's box needs to be.
     linesThrough(barrierId) {
-      const resolved = this._resolvePlacementId(barrierId);
-      return this.lines.filter((l) => l.stops.includes(resolved));
+      return this._lineTopology.linesThrough(barrierId);
     }
 
-    // The y-coordinate each Line passing through `barrierId` travels at
-    // (its origin Cause/Outcome's own y, constant for the Line's whole run)
-    // — Layout.controlBounds uses this to grow the box tall enough to cover
-    // every lane passing through, each still exiting at its own height.
     laneYsThrough(barrierId) {
-      return this.linesThrough(barrierId).map((l) => this.findById(l.originId).y);
+      return this._lineTopology.laneYsThrough(barrierId);
     }
 
-    // --- Creation of barriers, chained from a Cause/Outcome --------------
-
-    // Creates a new PreventativeBarrier placement. If causeId already has a
-    // chain, the new barrier is appended at the chain's TLE-facing end (the
-    // tail of its Line) — always unambiguous, since it only ever touches
-    // this one Line. Accepts either creation shape — see _resolveOrCreateNode.
     addPreventativeControl(causeId, opts = {}) {
-      causeId = this._resolvePlacementId(causeId);
-      const cause = this.causes.find((c) => c.id === causeId);
-      if (!cause) throw new Error(`Unknown cause id: ${causeId}`);
-      const line = this._lineFor(causeId);
-
-      const tailId = line.stops.length > 0 ? line.stops[line.stops.length - 1] : causeId;
-      const anchor = line.stops.length > 0
-        ? this.preventativeBarriers.find((p) => p.id === tailId)
-        : cause;
-
-      const node = this._resolveOrCreateNode('preventativeBarrier', opts, cause.pageId);
-      this.idCounters.placement += 1;
-      const id = `PLACEMENT_${this.idCounters.placement}`;
-      const w = 36;
-      const h = 110;
-      const x = opts.x ?? (anchor.x + anchor.w + 60);
-      const y = this._findClearY(cause.pageId, x, w, h, opts.y ?? anchor.y);
-      const pb = new Bowtie.PreventativeBarrier({
-        id, nodeId: node.id, x, y, w, h, pageId: cause.pageId,
-      });
-      this.preventativeBarriers.push(pb);
-      line.stops.push(id);
-      this._emitChange();
-      return pb;
+      return this._lineTopology._addBarrierChainedFrom('preventativeBarrier', causeId, opts);
     }
 
-    // Mirrors addPreventativeControl: appends at the chain's TLE-facing end.
     addMitigativeControl(outcomeId, opts = {}) {
-      outcomeId = this._resolvePlacementId(outcomeId);
-      const outcome = this.outcomes.find((o) => o.id === outcomeId);
-      if (!outcome) throw new Error(`Unknown outcome id: ${outcomeId}`);
-      const line = this._lineFor(outcomeId);
-
-      const tailId = line.stops.length > 0 ? line.stops[line.stops.length - 1] : outcomeId;
-      const anchor = line.stops.length > 0
-        ? this.mitigativeBarriers.find((m) => m.id === tailId)
-        : outcome;
-
-      const node = this._resolveOrCreateNode('mitigativeBarrier', opts, outcome.pageId);
-      this.idCounters.placement += 1;
-      const id = `PLACEMENT_${this.idCounters.placement}`;
-      const w = 36;
-      const h = 110;
-      const x = opts.x ?? (anchor.x - anchor.w - 60);
-      const y = this._findClearY(outcome.pageId, x, w, h, opts.y ?? anchor.y);
-      const mb = new Bowtie.MitigativeBarrier({
-        id, nodeId: node.id, x, y, w, h, pageId: outcome.pageId,
-      });
-      this.mitigativeBarriers.push(mb);
-      line.stops.push(id);
-      this._emitChange();
-      return mb;
+      return this._lineTopology._addBarrierChainedFrom('mitigativeBarrier', outcomeId, opts);
     }
 
-    // --- Splicing a new barrier into an existing chain -------------------
-
-    // Inserts `factory()`'s new barrier immediately after `anchorId`, toward
-    // the TLE (larger stop index) — PreventativeBarrier's "after" direction,
-    // MitigativeBarrier's "before" direction. Only the given `selectedLineIds`
-    // (or every line through anchorId, if none given) are spliced; the rest
-    // continue exactly as before, still passing through anchorId unaffected.
-    _insertBarrierTowardTle(anchorId, selectedLineIds, factory) {
-      const affected = this.linesThrough(anchorId);
-      const targets = (selectedLineIds && selectedLineIds.length > 0)
-        ? new Set(selectedLineIds) : new Set(affected.map((l) => l.id));
-
-      const newBarrier = factory();
-      affected.forEach((line) => {
-        if (!targets.has(line.id)) return;
-        const idx = line.stops.indexOf(anchorId);
-        line.stops.splice(idx + 1, 0, newBarrier.id);
-      });
-      this._emitChange();
-      return newBarrier;
-    }
-
-    // Mirrors _insertBarrierTowardTle: splices immediately before `anchorId`,
-    // toward the origin (smaller stop index) — PreventativeBarrier's
-    // "before" direction, MitigativeBarrier's "after" direction.
-    _insertBarrierTowardOrigin(anchorId, selectedLineIds, factory) {
-      const affected = this.linesThrough(anchorId);
-      const targets = (selectedLineIds && selectedLineIds.length > 0)
-        ? new Set(selectedLineIds) : new Set(affected.map((l) => l.id));
-
-      const newBarrier = factory();
-      affected.forEach((line) => {
-        if (!targets.has(line.id)) return;
-        const idx = line.stops.indexOf(anchorId);
-        line.stops.splice(idx, 0, newBarrier.id);
-      });
-      this._emitChange();
-      return newBarrier;
-    }
-
-    // `dir` is +1 when the new barrier belongs on the larger-x side of
-    // `anchor` and -1 when it belongs on the smaller-x side — callers pass
-    // the direction that matches whichever way this particular splice is
-    // headed (toward the TLE or toward the origin), so a barrier inserted
-    // "before" an anchor never lands past it on the wrong side. `opts.y`
-    // (when given, e.g. from a line-click's cursor position) only seeds the
-    // clear-space search rather than overriding it, so collision avoidance
-    // still runs. Accepts either creation shape — see _resolveOrCreateNode.
-    _makeBarrierNear(kind, anchor, opts, dir) {
-      const node = this._resolveOrCreateNode(kind, opts, anchor.pageId);
-      this.idCounters.placement += 1;
-      const id = `PLACEMENT_${this.idCounters.placement}`;
-      const w = 36;
-      const h = 110;
-      const x = opts.x ?? (anchor.x + dir * 60);
-      const y = this._findClearY(anchor.pageId, x, w, h, opts.y ?? anchor.y);
-      const Ctor = kind === 'preventativeBarrier' ? Bowtie.PreventativeBarrier : Bowtie.MitigativeBarrier;
-      const barrier = new Ctor({
-        id, nodeId: node.id, x, y, w, h, pageId: anchor.pageId,
-      });
-      this._barrierCollection(kind).push(barrier);
-      return barrier;
-    }
-
-    _barrierCollection(kind) {
-      return kind === 'preventativeBarrier' ? this.preventativeBarriers : this.mitigativeBarriers;
-    }
-
-    _splice(direction, anchorId, selectedLineIds, factory) {
-      return direction === 'towardTle'
-        ? this._insertBarrierTowardTle(anchorId, selectedLineIds, factory)
-        : this._insertBarrierTowardOrigin(anchorId, selectedLineIds, factory);
-    }
-
-    // Inserts a brand-new barrier of `kind` adjacent to `anchorId` — used by
-    // both "Add ... Barrier" (from a node's own menu, direction 'after')
-    // and the line-segment gap-insert menu (either direction, depending on
-    // which gap was clicked). `selectedLineIds`: which specific line(s)
-    // through anchorId the new barrier applies to (null/empty = all of them).
-    // Accepts either creation shape in `opts` — see _resolveOrCreateNode.
     insertBarrier(kind, direction, anchorId, opts = {}, selectedLineIds = null) {
-      anchorId = this._resolvePlacementId(anchorId);
-      const anchor = this._barrierCollection(kind).find((b) => b.id === anchorId);
-      if (!anchor) throw new Error(`Unknown ${kind} id: ${anchorId}`);
-      const spliceDir = SPLICE_DIRECTION[kind][direction];
-      const dir = direction === 'after' ? 1 : -1;
-      return this._splice(spliceDir, anchorId, selectedLineIds, () => this._makeBarrierNear(kind, anchor, opts, dir));
+      return this._lineTopology.insertBarrier(kind, direction, anchorId, opts, selectedLineIds);
     }
 
-    // `targetId` must not already sit anywhere in a targeted line's stops,
-    // or the line would pass through the same barrier twice.
-    _checkNoCycleThroughAnchor(anchorId, targetId, selectedLineIds) {
-      const affected = this.linesThrough(anchorId);
-      const targets = (selectedLineIds && selectedLineIds.length > 0)
-        ? new Set(selectedLineIds) : new Set(affected.map((l) => l.id));
-      affected.filter((l) => targets.has(l.id)).forEach((l) => {
-        if (l.stops.includes(targetId)) throw new Error('That attachment would create a cycle');
-      });
-    }
-
-    // Mirrors insertBarrier, but splices in an EXISTING barrier PLACEMENT
-    // (`targetId`) instead of creating one — any point along a Line should
-    // be attachable to a different existing barrier, not just its two open
-    // ends. Unrelated to the node library: this never creates a node or a
-    // placement, it only re-wires which Line(s) pass through an
-    // already-placed barrier (node_library_proposal.md "This is unrelated
-    // to Attach to Existing Barrier").
     attachExistingBarrier(kind, direction, anchorId, targetId, selectedLineIds = null) {
-      anchorId = this._resolvePlacementId(anchorId);
-      targetId = this._resolvePlacementId(targetId);
-      const target = this._barrierCollection(kind).find((b) => b.id === targetId);
-      if (!target) throw new Error(`Unknown ${kind} id: ${targetId}`);
-      this._checkNoCycleThroughAnchor(anchorId, targetId, selectedLineIds);
-      const spliceDir = SPLICE_DIRECTION[kind][direction];
-      return this._splice(spliceDir, anchorId, selectedLineIds, () => target);
+      return this._lineTopology.attachExistingBarrier(kind, direction, anchorId, targetId, selectedLineIds);
     }
 
-    // "Connect directly to the TLE": truncates `lineId`'s stops so
-    // `keepThroughId` becomes its new tail (nearest the TLE), dropping
-    // everything that used to continue further toward the TLE from there —
-    // those barriers aren't deleted, just no longer part of THIS line. Pass
-    // null for `keepThroughId` to drop every stop (the line becomes direct
-    // Cause/Outcome-to-TLE). Always acts on exactly one Line — there is no
-    // barrier-level variant of this, matching how reattachment generally
-    // must be scoped to a specific Line, not every Line a barrier carries.
     connectLineDirectlyToTle(lineId, keepThroughId) {
-      const line = this.lines.find((l) => l.id === lineId);
-      if (!line) throw new Error(`Unknown line id: ${lineId}`);
-      if (keepThroughId === null) {
-        line.stops = [];
-      } else {
-        const resolvedKeepThroughId = this._resolvePlacementId(keepThroughId);
-        const idx = line.stops.indexOf(resolvedKeepThroughId);
-        if (idx === -1) throw new Error(`${keepThroughId} is not on line ${lineId}`);
-        line.stops = line.stops.slice(0, idx + 1);
-      }
-      this._emitChange();
+      return this._lineTopology.connectLineDirectlyToTle(lineId, keepThroughId);
     }
 
     // --- Lines: the model's first-order representation of each path ------
@@ -748,95 +523,12 @@
     }
 
     // Manual escape hatch for the rare case auto-arrange still doesn't put
-    // a barrier where the user wants it: swaps `barrierId` with whichever
-    // stop currently sits immediately toward (or away from) the TLE of it
-    // in ONE line's own stops array -- an actual topology change, not a
-    // cosmetic position nudge, so it's permanent: the next Auto-arrange
-    // derives its columns from this new order, same as it does for
-    // whatever order the barriers were chained in to begin with (an
-    // earlier version of this method only moved the barrier's on-screen x,
-    // which the very next Auto-arrange click would immediately undo, since
-    // it recomputes every position from topology alone and had no idea
-    // anything had changed).
-    //
-    // `Line.stops` is nearest-origin-first for BOTH Cause and Outcome
-    // lines -- increasing index always means "closer to the TLE", for
-    // either barrier kind (see addPreventativeControl/addMitigativeControl:
-    // each newly-appended barrier lands one index further toward the TLE
-    // than the one before it, for both). So "toward the TLE" always means
-    // swapping with the NEXT index and "away from the TLE" always means
-    // swapping with the PREVIOUS one -- no kind-specific mirroring needed
-    // here, unlike the x-pixel arithmetic the old version of this method
-    // needed.
-    //
-    // Each swap is meaningful only per-line -- a barrier shared by several
-    // lines can have a different neighbour (or none at all) in each one,
-    // so "swap with your neighbour" only has one unambiguous meaning per
-    // line -- exactly the same reasoning `attachExistingBarrier` already
-    // documents for why reattachment is always line-scoped. Swapping two
-    // stops within one line's own array can never affect any OTHER line,
-    // even one that also passes through both of the swapped barriers,
-    // since every Line owns its stops independently.
-    //
-    // `lineIds` takes every line to reorder `barrierId` within, applied as
-    // ONE call (one undo step) -- this matters beyond convenience: an
-    // earlier version took a single lineId and was called once per
-    // selected line from a multi-line picker, and *also* tried to swap the
-    // barrier's on-screen `x` with its neighbour's on EVERY call. For a
-    // barrier reordered against two DIFFERENT neighbours across two lines
-    // in the same action, the second call's "neighbour" swap used the
-    // barrier's already-mutated x from the first call, not its original
-    // position -- corrupting it onto the wrong spot entirely (observed:
-    // the barrier landed exactly on top of a completely unrelated third
-    // barrier). Seeing the whole batch at once here means the x-adjustment
-    // below can tell, structurally, whether "swap with your neighbour" is
-    // even well-defined for this action, rather than guessing per-call and
-    // getting it wrong.
-    //
-    // A given line is silently skipped (no-op) if `barrierId` is already
-    // at that end of it -- e.g. asking to shift further toward the TLE
-    // when it's already that line's TLE-adjacent stop. Callers should
-    // check for this ahead of time (ContextMenuController only offers a
-    // line when the shift would do something) rather than rely on the
-    // no-op, since an empty result still counts as a call for
-    // undo-snapshotting purposes.
-    //
-    // Also swaps the two barriers' own `x` (never `y`, which reflects each
-    // barrier's own lane midpoint, unrelated to how many hops it is from
-    // the TLE) as an immediate best-effort visual approximation -- but
-    // ONLY when every line in this call agrees on the same single
-    // neighbour, which is the only case "swap with your neighbour" has one
-    // unambiguous new x for. When lines disagree (a shared barrier
-    // reordered against two different neighbours at once), no position is
-    // guessed at all; a full Auto-arrange remains the authority that
-    // reconciles everything from the (now-updated) topology.
+    // a barrier where the user wants it -- swaps `barrierId` with its
+    // neighbour toward (or away from) the TLE, in every line named by
+    // `lineIds` at once. See LineTopology.js for the full reasoning
+    // (single-batch semantics, the x-swap's one-neighbour caveat).
     swapBarrierWithNeighbor(lineIds, barrierId, towardTle) {
-      barrierId = this._resolvePlacementId(barrierId);
-      const ids = Array.isArray(lineIds) ? lineIds : [lineIds];
-      const neighborIds = new Set();
-      ids.forEach((lineId) => {
-        const line = this.lines.find((l) => l.id === lineId);
-        if (!line) throw new Error(`Unknown line id: ${lineId}`);
-        const idx = line.stops.indexOf(barrierId);
-        if (idx === -1) throw new Error(`${barrierId} is not on line ${lineId}`);
-        const neighborIdx = towardTle ? idx + 1 : idx - 1;
-        if (neighborIdx < 0 || neighborIdx >= line.stops.length) return; // already at that end of this line
-
-        const neighborId = line.stops[neighborIdx];
-        line.stops[idx] = neighborId;
-        line.stops[neighborIdx] = barrierId;
-        neighborIds.add(neighborId);
-      });
-
-      if (neighborIds.size === 1) {
-        const barrier = this.findById(barrierId);
-        const neighbor = this.findById([...neighborIds][0]);
-        const barrierX = barrier.x;
-        barrier.x = neighbor.x;
-        neighbor.x = barrierX;
-      }
-
-      this._emitChange();
+      return this._lineTopology.swapBarrierWithNeighbor(lineIds, barrierId, towardTle);
     }
 
     // Bulk position update (e.g. auto-arrange) that only triggers one
@@ -901,79 +593,21 @@
     }
 
     // --- Attachment of existing nodes (fan-in / chaining) ------------------
+    // Delegates to LineTopology, same as the section above. These two keep
+    // their existing argument order (origin first for the PB side, barrier
+    // first for the MB side) even though they now share one implementation
+    // internally — see the SIDE table in LineTopology.js (finding 07).
 
-    // The stops (if any) that continue on past `barrierId`, toward the TLE
-    // (for a PB) or the Outcome (for an MB), on some OTHER line already
-    // passing through it (not `excludeLineId`, so a line about to be
-    // replaced never answers its own question) — the first such line
-    // found, an accepted scope boundary for the rare case where
-    // `barrierId`'s existing lines have already diverged onto different
-    // continuations. Shared by attachInputToPreventativeControl/
-    // attachOutputToMitigativeControl's "inherit downstream" branch below,
-    // and by ContextMenuController to decide up front whether asking the
-    // user to choose would even matter (an empty result means there's
-    // nothing to inherit either way).
     _donorContinuation(barrierId, excludeLineId) {
-      const resolved = this._resolvePlacementId(barrierId);
-      const donor = this.lines.find((l) => l.id !== excludeLineId && l.stops.includes(resolved));
-      if (!donor) return [];
-      const idx = donor.stops.indexOf(resolved);
-      return donor.stops.slice(idx + 1);
+      return this._lineTopology._donorContinuation(barrierId, excludeLineId);
     }
 
-    // Attaches an existing Cause to the input side of `pcId`. The cause's
-    // own Line is replaced wholesale — it now enters directly at pcId —
-    // but what happens AFTER pcId depends on `inheritDownstream`:
-    //   - true (default): follow whatever continuation toward the TLE
-    //     already exists on `pcId` for some other line (_donorContinuation
-    //     above) — the original, only-ever behavior before this option
-    //     existed, e.g. attaching a bare Cause to a barrier that already
-    //     continues on to a further shared barrier before the TLE.
-    //   - false: stop caring what pcId's OTHER lines do, and instead keep
-    //     whatever THIS cause's own line already had beyond pcId (if it
-    //     had any barriers of its own before this call) — or, if it had
-    //     none (the common bare-Cause case), the line simply ends at pcId
-    //     and connects directly to the TLE from there, exactly as if pcId
-    //     were freshly added rather than an existing, possibly-further-
-    //     chained barrier.
-    // ContextMenuController only surfaces this as a user choice when
-    // _donorContinuation is non-empty (only then does the choice actually
-    // change anything); it's silently irrelevant otherwise, and model-level
-    // callers (tests included) that don't pass it at all keep today's
-    // always-inherit behavior. Always single-line by construction (a Cause
-    // has exactly one Line), unlike reattaching an existing barrier's own
-    // output — which must be done from the specific Line segment instead
-    // (see attachExistingBarrier), since a barrier can carry more than one
-    // Line and there is no "which one" to ask here.
     attachInputToPreventativeControl(causeId, pcId, inheritDownstream = true) {
-      causeId = this._resolvePlacementId(causeId);
-      pcId = this._resolvePlacementId(pcId);
-      const target = this.preventativeBarriers.find((p) => p.id === pcId);
-      const cause = this.causes.find((c) => c.id === causeId);
-      if (!target || !cause) throw new Error('Unknown element id');
-
-      const causeLine = this._lineFor(causeId);
-      const continuation = inheritDownstream
-        ? this._donorContinuation(pcId, causeLine.id)
-        : causeLine.stops.filter((id) => id !== pcId);
-      causeLine.stops = [pcId, ...continuation];
-      this._emitChange();
+      return this._lineTopology._attachOriginToBarrier('preventativeBarrier', causeId, pcId, inheritDownstream);
     }
 
-    // Mirrors attachInputToPreventativeControl for the outcome/output side.
     attachOutputToMitigativeControl(mcId, outcomeId, inheritDownstream = true) {
-      mcId = this._resolvePlacementId(mcId);
-      outcomeId = this._resolvePlacementId(outcomeId);
-      const source = this.mitigativeBarriers.find((m) => m.id === mcId);
-      const outcome = this.outcomes.find((o) => o.id === outcomeId);
-      if (!source || !outcome) throw new Error('Unknown element id');
-
-      const outcomeLine = this._lineFor(outcomeId);
-      const continuation = inheritDownstream
-        ? this._donorContinuation(mcId, outcomeLine.id)
-        : outcomeLine.stops.filter((id) => id !== mcId);
-      outcomeLine.stops = [mcId, ...continuation];
-      this._emitChange();
+      return this._lineTopology._attachOriginToBarrier('mitigativeBarrier', outcomeId, mcId, inheritDownstream);
     }
 
     // --- Posterity of identifiers -------------------------------------
