@@ -73,12 +73,26 @@
     // (node_library_proposal.md "Two id spaces") and what every caller of
     // this model's public API naturally reaches for, including every
     // model-level test written before the node library existed -- the id
-    // of whichever placement (any page) currently references `id` as its
-    // `nodeId`. Idempotent, so every method below can call this
-    // unconditionally on each element-id argument it accepts without
-    // worrying about double-resolving an id that was already a placement
-    // id. Mirrors findById's own fallback, just returning the bare id
-    // instead of the resolved element.
+    // of whichever placement currently references `id` as its `nodeId`.
+    // Idempotent, so every method below can call this unconditionally on
+    // each element-id argument it accepts without worrying about
+    // double-resolving an id that was already a placement id. Mirrors
+    // findById's own fallback, just returning the bare id instead of the
+    // resolved element.
+    //
+    // Design review finding 09: a node CAN be placed on more than one page
+    // ("at most one placement per node per page" is the invariant, not
+    // "at most one, ever") -- so a bare node id here is only unambiguous
+    // when it has at most one live placement document-wide. Throws rather
+    // than silently picking whichever placement happens to be found first,
+    // which would mean operating on an arbitrary page with no indication
+    // anything was ambiguous. The real UI never hits this: PageScopedModel
+    // resolves against the active page's own placements first (see its
+    // findById), and every controller that calls through to a LineTopology
+    // method (_lineFor/linesThrough/insertBarrier/...) does so with a
+    // placement id already in hand, not a bare node id -- this only bites
+    // a direct-model caller (a test, or a future integration) that reaches
+    // for a shared node's id without saying which page it means.
     _resolvePlacementId(id) {
       const model = this.model;
       const isPlacementId = (
@@ -88,13 +102,19 @@
         model.mitigativeBarriers.some((m) => m.id === id)
       );
       if (isPlacementId) return id;
-      const placement = (
-        model.causes.find((c) => c.nodeId === id) ||
-        model.outcomes.find((o) => o.nodeId === id) ||
-        model.preventativeBarriers.find((p) => p.nodeId === id) ||
-        model.mitigativeBarriers.find((m) => m.nodeId === id)
-      );
-      return placement ? placement.id : id;
+      const matches = [
+        ...model.causes.filter((c) => c.nodeId === id),
+        ...model.outcomes.filter((o) => o.nodeId === id),
+        ...model.preventativeBarriers.filter((p) => p.nodeId === id),
+        ...model.mitigativeBarriers.filter((m) => m.nodeId === id),
+      ];
+      if (matches.length > 1) {
+        throw new Error(
+          `Node ${id} is placed on more than one page; resolve it against a specific page's `
+            + 'placements first (e.g. via PageScopedModel) rather than by its node id alone.',
+        );
+      }
+      return matches.length === 1 ? matches[0].id : id;
     }
 
     _lineFor(originId) {

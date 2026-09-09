@@ -64,6 +64,44 @@ def test_placing_the_same_node_on_a_different_page_is_allowed(page):
     assert result["p1PageId"] != result["p2PageId"]
 
 
+def test_resolving_a_node_id_placed_on_two_pages_throws_rather_than_guessing(page):
+    """Design review finding 09: 'at most one placement per node per page'
+    is the invariant, not 'at most one, ever' -- a node placed on two pages
+    is a normal, supported state (see the test above). A bare node id is
+    only unambiguous when it has at most one live placement document-wide,
+    so any document-wide operation that resolves one from the other
+    (_lineFor/linesThrough/addPreventativeControl/...) must refuse to guess
+    which page's placement was meant, rather than silently operating on
+    whichever one happens to be found first."""
+    result = page.evaluate("""() => {
+      const m = window.__lastModel;
+      const page2 = m.addPage({name: 'Page Two'});
+      const node = m.addNode('cause', {name: 'Shared'});
+      m.addCause({nodeId: node.id, pageId: m.pages[0].id});
+      m.addCause({nodeId: node.id, pageId: page2.id});
+      try {
+        m.addPreventativeControl(node.id);
+        return { threw: false };
+      } catch (e) {
+        return { threw: true, message: e.message };
+      }
+    }""")
+    assert result["threw"] is True
+    assert "more than one page" in result["message"]
+
+
+def test_resolving_a_node_id_placed_on_only_one_page_still_works(page):
+    # The common case -- a node placed exactly once -- must be unaffected
+    # by finding 09's guard.
+    result = page.evaluate("""() => {
+      const m = window.__lastModel;
+      const cause = m.addCause({name: 'Solo'});
+      const pb = m.addPreventativeControl(cause.nodeId);
+      return { barrierNodeId: pb.nodeId, onLine: m._lineFor(cause.nodeId).stops.includes(pb.id) };
+    }""")
+    assert result["onLine"] is True
+
+
 def test_a_node_with_zero_placements_persists_in_the_library(page):
     result = page.evaluate("""() => {
       const m = window.__lastModel;
