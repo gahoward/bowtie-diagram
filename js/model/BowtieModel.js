@@ -1171,193 +1171,57 @@
       return this._quantitative.getConsequenceRiskClass(outcomeId, opts);
     }
 
-    // Replaces this instance's contents with data parsed from an imported
-    // JSON export. Mutates in place (rather than swapping the model
-    // reference) so controllers holding a reference to this model keep working.
-    loadFromJSON(data) {
-      const fresh = BowtieModel.fromJSON(data);
-      this.name = fresh.name;
-      this.pages = fresh.pages;
-      this.causes = fresh.causes;
-      this.outcomes = fresh.outcomes;
-      this.preventativeBarriers = fresh.preventativeBarriers;
-      this.mitigativeBarriers = fresh.mitigativeBarriers;
-      this.lines = fresh.lines;
-      this.library = fresh.library;
-      this.identifierDisplayMode = fresh.identifierDisplayMode;
-      this.mode = fresh.mode;
-      this.riskMatrix = fresh.riskMatrix;
-      this.idCounters = fresh.idCounters;
-      this.retiredIds = fresh.retiredIds;
-      this._emitChange();
-    }
-
-    // --- Per-page serialization -------------------------------------------
-    //
-    // Used by UndoController's per-page undo/redo tier: a snapshot/restore
-    // scoped to exactly one page's own header (name/description/TLE/Hazard)
-    // plus its content subset, leaving every other page, idCounters,
-    // retiredIds, the node library, and the document name untouched.
-    // Deliberately NOT the shape a whole-document toJSON()/fromJSON()
-    // produces (that nests only the header per page, with content flat
-    // across the whole document) — this is a page-scoped slice of the same
-    // data, for a different caller. The node library is intentionally OUT
-    // of scope here: node identity is document-wide (node_library_
-    // proposal.md), so a node edit is always a document-level undo step
-    // (see UndoController.js's DOCUMENT_METHODS), never a per-page one.
+    // --- Serialization ----------------------------------------------------
+    // Delegates to DocumentSerializer (design review finding 06, phase 3;
+    // see DocumentSerializer.js) — every method here stays, unchanged in
+    // name and signature, for the same reason as computeTleLikelihood
+    // above. DocumentSerializer also owns the referential-integrity check
+    // (design review finding 03): loadFromJSON below throws, changing
+    // nothing on this model, if `data` doesn't validate — see
+    // ImportExportController.loadDocument for where that's caught and
+    // turned into a message.
 
     _pageHeaderJSON(page) {
-      return {
-        id: page.id,
-        name: page.name,
-        description: page.description,
-        topLevelEvent: {
-          id: page.topLevelEvent.id,
-          name: page.topLevelEvent.name,
-          description: page.topLevelEvent.description,
-          x: page.topLevelEvent.x,
-          y: page.topLevelEvent.y,
-          r: page.topLevelEvent.r,
-        },
-        hazard: { id: page.hazard.id, name: page.hazard.name, description: page.hazard.description },
-      };
+      return Bowtie.DocumentSerializer.pageHeaderToJSON(page);
     }
 
     _pageHeaderFromJSON(data) {
-      return {
-        id: data.id,
-        name: data.name,
-        description: data.description || '',
-        topLevelEvent: new Bowtie.TopLevelEvent(data.topLevelEvent),
-        hazard: new Bowtie.Hazard(data.hazard),
-      };
+      return Bowtie.DocumentSerializer.pageHeaderFromJSON(data);
     }
 
     getPageJSON(pageId) {
-      const page = this.getPage(pageId);
-      if (!page) throw new Error(`Unknown page id: ${pageId}`);
-      return {
-        ...this._pageHeaderJSON(page),
-        causes: this.causesForPage(pageId).map((c) => ({
-          id: c.id, nodeId: c.nodeId, x: c.x, y: c.y, w: c.w, h: c.h, pageId: c.pageId,
-        })),
-        outcomes: this.outcomesForPage(pageId).map((o) => ({
-          id: o.id, nodeId: o.nodeId, x: o.x, y: o.y, w: o.w, h: o.h, pageId: o.pageId,
-        })),
-        preventativeBarriers: this.preventativeBarriersForPage(pageId).map((p) => ({
-          id: p.id, nodeId: p.nodeId, x: p.x, y: p.y, w: p.w, h: p.h, pageId: p.pageId,
-        })),
-        mitigativeBarriers: this.mitigativeBarriersForPage(pageId).map((m) => ({
-          id: m.id, nodeId: m.nodeId, x: m.x, y: m.y, w: m.w, h: m.h, pageId: m.pageId,
-        })),
-        lines: this.linesForPage(pageId).map((l) => ({
-          id: l.id, originType: l.originType, originId: l.originId, stops: l.stops.slice(), pageId: l.pageId,
-        })),
-      };
+      return Bowtie.DocumentSerializer.getPageJSON(this, pageId);
     }
 
     // Replaces exactly one page's header and content subset in place.
     loadPageFromJSON(pageId, data) {
-      const idx = this.pages.findIndex((p) => p.id === pageId);
-      if (idx === -1) throw new Error(`Unknown page id: ${pageId}`);
-      this.pages[idx] = this._pageHeaderFromJSON(data);
-      this.causes = this.causes.filter((c) => c.pageId !== pageId)
-        .concat((data.causes || []).map((c) => new Bowtie.Cause(c)));
-      this.outcomes = this.outcomes.filter((o) => o.pageId !== pageId)
-        .concat((data.outcomes || []).map((o) => new Bowtie.Outcome(o)));
-      this.preventativeBarriers = this.preventativeBarriers.filter((p) => p.pageId !== pageId)
-        .concat((data.preventativeBarriers || []).map((p) => new Bowtie.PreventativeBarrier(p)));
-      this.mitigativeBarriers = this.mitigativeBarriers.filter((m) => m.pageId !== pageId)
-        .concat((data.mitigativeBarriers || []).map((m) => new Bowtie.MitigativeBarrier(m)));
-      this.lines = this.lines.filter((l) => l.pageId !== pageId)
-        .concat((data.lines || []).map((l) => new Bowtie.Line(l)));
+      Bowtie.DocumentSerializer.loadPageFromJSON(this, pageId, data);
       this._emitChange();
     }
 
-    // --- Serialization ----------------------------------------------------
-
     toJSON() {
-      return {
-        version: SCHEMA_VERSION,
-        name: this.name,
-        mode: this.mode,
-        riskMatrix: this.riskMatrix,
-        identifierDisplayMode: this.identifierDisplayMode,
-        idCounters: { ...this.idCounters },
-        retiredIds: {
-          cause: this.retiredIds.cause.map((e) => ({ ...e })),
-          outcome: this.retiredIds.outcome.map((e) => ({ ...e })),
-          preventativeBarrier: this.retiredIds.preventativeBarrier.map((e) => ({ ...e })),
-          mitigativeBarrier: this.retiredIds.mitigativeBarrier.map((e) => ({ ...e })),
-        },
-        library: {
-          cause: this.library.cause.map((n) => ({ ...n })),
-          outcome: this.library.outcome.map((n) => ({ ...n })),
-          preventativeBarrier: this.library.preventativeBarrier.map((n) => ({ ...n })),
-          mitigativeBarrier: this.library.mitigativeBarrier.map((n) => ({ ...n })),
-        },
-        pages: this.pages.map((p) => this._pageHeaderJSON(p)),
-        causes: this.causes.map((c) => ({
-          id: c.id, nodeId: c.nodeId, x: c.x, y: c.y, w: c.w, h: c.h, pageId: c.pageId,
-        })),
-        outcomes: this.outcomes.map((o) => ({
-          id: o.id, nodeId: o.nodeId, x: o.x, y: o.y, w: o.w, h: o.h, pageId: o.pageId,
-        })),
-        preventativeBarriers: this.preventativeBarriers.map((p) => ({
-          id: p.id, nodeId: p.nodeId, x: p.x, y: p.y, w: p.w, h: p.h, pageId: p.pageId,
-        })),
-        mitigativeBarriers: this.mitigativeBarriers.map((m) => ({
-          id: m.id, nodeId: m.nodeId, x: m.x, y: m.y, w: m.w, h: m.h, pageId: m.pageId,
-        })),
-        lines: this.lines.map((l) => ({
-          id: l.id, originType: l.originType, originId: l.originId, stops: l.stops.slice(), pageId: l.pageId,
-        })),
-      };
+      return Bowtie.DocumentSerializer.toJSON(this);
     }
 
-    // Loads a schema-v8 export. There is no migration path for older
+    // Loads a schema-v9 export. There is no migration path for older
     // schema versions — ImportExportController rejects a version mismatch
     // before this is ever called, so this only ever needs to read the
-    // current shape.
+    // current shape. Passes the closure-local `BowtieModel` (this class),
+    // not `Bowtie.BowtieModel`, as the constructor DocumentSerializer
+    // builds its throwaway parse target from — see the comment on
+    // DocumentSerializer.fromJSON for why that distinction matters.
     static fromJSON(data) {
-      const model = new BowtieModel();
-      model.idCounters = { ...model.idCounters, ...(data.idCounters || {}) };
-      model.name = data.name || 'Untitled Bowtie';
-      model.mode = data.mode || 'simple';
-      model.riskMatrix = data.riskMatrix || null;
-      model.identifierDisplayMode = data.identifierDisplayMode || 'internal';
-      if (data.pages && data.pages.length > 0) {
-        model.pages = data.pages.map((p) => model._pageHeaderFromJSON(p));
-      } else if (data.topLevelEvent && data.hazard) {
-        // Back-compat for a pre-multi-page (schema-v6-shaped) document
-        // handed straight to fromJSON: hazard/topLevelEvent used to be
-        // top-level keys instead of nested under `pages`. A real v6 export
-        // never reaches here — ImportExportController's version check
-        // rejects it first — this only matters for hand-built
-        // fixtures/tests still using the old top-level shape.
-        model.pages = [model._pageHeaderFromJSON({
-          id: 'PAGE_1', name: 'Untitled Page', description: '',
-          topLevelEvent: data.topLevelEvent, hazard: data.hazard,
-        })];
-      }
-      model.causes = (data.causes || []).map((c) => new Bowtie.Cause(c));
-      model.outcomes = (data.outcomes || []).map((o) => new Bowtie.Outcome(o));
-      model.preventativeBarriers = (data.preventativeBarriers || []).map((p) => new Bowtie.PreventativeBarrier(p));
-      model.mitigativeBarriers = (data.mitigativeBarriers || []).map((m) => new Bowtie.MitigativeBarrier(m));
-      model.lines = (data.lines || []).map((l) => new Bowtie.Line(l));
-      model.library = {
-        cause: ((data.library && data.library.cause) || []).map((n) => new Bowtie.Node(n)),
-        outcome: ((data.library && data.library.outcome) || []).map((n) => new Bowtie.Node(n)),
-        preventativeBarrier: ((data.library && data.library.preventativeBarrier) || []).map((n) => new Bowtie.Node(n)),
-        mitigativeBarrier: ((data.library && data.library.mitigativeBarrier) || []).map((n) => new Bowtie.Node(n)),
-      };
-      model.retiredIds = {
-        cause: (data.retiredIds && data.retiredIds.cause) || [],
-        outcome: (data.retiredIds && data.retiredIds.outcome) || [],
-        preventativeBarrier: (data.retiredIds && data.retiredIds.preventativeBarrier) || [],
-        mitigativeBarrier: (data.retiredIds && data.retiredIds.mitigativeBarrier) || [],
-      };
-      return model;
+      return Bowtie.DocumentSerializer.fromJSON(data, BowtieModel);
+    }
+
+    // Replaces this instance's contents with data parsed from an imported
+    // JSON export. Mutates in place (rather than swapping the model
+    // reference) so controllers holding a reference to this model keep
+    // working. Throws without changing anything on this model if `data`
+    // fails DocumentSerializer's referential-integrity check.
+    loadFromJSON(data) {
+      Bowtie.DocumentSerializer.loadFromJSON(this, data, BowtieModel);
+      this._emitChange();
     }
   }
 

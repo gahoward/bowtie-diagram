@@ -108,7 +108,18 @@
         );
         return false;
       }
-      this.model.loadFromJSON(data);
+      // loadFromJSON throws, changing nothing on the model, when `data`
+      // parses but doesn't hold together referentially (e.g. a placement
+      // pointing at a library node that no longer exists) -- design review
+      // finding 03. Routed through the same "Invalid File" dialog as the
+      // shape/version checks above, rather than left to surface as an
+      // uncaught page error over a half-loaded document.
+      try {
+        this.model.loadFromJSON(data);
+      } catch (err) {
+        this._showMessage('Invalid File', err.message);
+        return false;
+      }
       if (this.onImported) this.onImported();
       return true;
     }
