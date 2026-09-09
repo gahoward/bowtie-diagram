@@ -117,6 +117,15 @@ step for the app itself, so tests run directly against `index.html` as-is.
   movement) leaving undo/redo history completely untouched — a real,
   previously-uncaught bug an architecture review found (see
   `DESIGN_NOTES.md`'s `DRAG_THRESHOLD_PX` entry).
+- **`test_model_node_library.py`** — model-level coverage for
+  node_library_proposal.md: the node/placement split, node CRUD, cross-page
+  reuse (including design review finding 09: resolving a shared node's id
+  document-wide throws once it's placed on more than one page, rather than
+  silently picking whichever placement is found first), retiring at the
+  node level, and the identifier-uniqueness/display-mode machinery
+  (including finding 02: switching to custom identifiers must never
+  backfill two nodes into the same visible label). Drives
+  `window.__lastModel` directly, matching `test_model_splicing.py`'s style.
 - **`test_model_pages.py`** — BowtieModel's multi-page primitives: page CRUD,
   the `*ForPage` filters, per-page `_findClearY` scoping, `findById` across
   pages, global id uniqueness, `toJSON`/`fromJSON` round-tripping across
@@ -129,9 +138,42 @@ step for the app itself, so tests run directly against `index.html` as-is.
   undo/redo (per-page vs document-level), JSON export/reimport and Load Demo
   across pages, SVG export reflecting only the active page, and identifier
   manager page-context labels.
-- **`test_import_export.py`** — schema v7 round-trip and the
-  version-mismatch guard (there is no migration path for older schema
-  versions; an incompatible file is rejected outright).
+- **`test_import_export.py`** — schema round-trip and the version-mismatch
+  guard (there is no migration path for older schema versions; an
+  incompatible file is rejected outright). The round-trip test (design
+  review finding 08) reads every persisted field off the ORIGINAL live
+  model, not off its own `toJSON()` output, before comparing against the
+  same read taken off a round-tripped copy — a field `toJSON()` forgot to
+  serialize would be equally absent from both sides of a
+  serialized-to-serialized comparison, and pass vacuously.
+- **`test_document_validation.py`** — referential-integrity checking on
+  document import (design review finding 03): a version-correct export can
+  still be internally broken (a placement whose `nodeId` no longer exists
+  in the library, a line stop that doesn't resolve) — `loadFromJSON` now
+  throws, changing nothing on the live model, and the real import path
+  (driven through the mocked native file picker, same as
+  `test_file_handlers.py`) shows "Invalid File" instead of crashing over a
+  half-loaded document.
+- **`test_model_quantitative.py`** — model-level coverage for
+  quantitative_mode_proposal.md's calculation pipeline (TLE max,
+  consequence multiply, Unknown-threat/-barrier exclusion) and the
+  qualitative/quantitative risk-class lookup, driven directly against
+  `window.__lastModel`, mirroring `test_model_splicing.py`.
+- **`test_canvas_risk_summary.py`** — the canvas "at a glance" risk
+  summaries (quantitative_mode_proposal.md "Canvas badges"): the read-only
+  text block under each Outcome (severity/likelihood) and under the TLE
+  (computed likelihood), and Cause frequency / barrier RRF text — distinct
+  from the small colour-coded risk-class badge.
+- **`test_properties_modal.py`** — the shared Properties modal
+  (double-click or the context menu's "Properties" item on any of the 5
+  node types), driven through the real modal rather than by calling model
+  methods directly — the regression this guards against (`PageScopedModel`
+  had no `renameNode` passthrough, so every save from the real UI threw)
+  was invisible to every model-level test that called `renameNode`
+  directly instead.
+- **`test_project_settings.py`** — the single "Project Settings" modal:
+  analysis name, identifier display mode, the risk analysis mode/matrix
+  picker, and the events/hour ↔ events/year display-unit preference.
 - **`test_file_handlers.py`** — import/export preferring the native File
   System Access API (`showSaveFilePicker`/`showOpenFilePicker`) with a
   fallback to the legacy download-link/hidden-`<input>` path wherever that
@@ -204,6 +246,28 @@ step for the app itself, so tests run directly against `index.html` as-is.
   still clears the Hazard (a real bug caught live — see `DESIGN_NOTES.md`'s
   Auto-arrange horizontal-spacing section), and the per-side-depth fix
   (a shallower side no longer padded out to match a deeper one).
+
+- **`test_decimal.py`** — unit tests for `js/model/Decimal.js`, the exact
+  mantissa+exponent decimal type quantitative mode uses instead of native
+  `Number` for every frequency/reduction-factor value, down to 1E-15
+  precision. Driven via `page.evaluate` against `window.Bowtie.Decimal`,
+  the same way every other JS unit in this app is tested.
+- **`test_rational.py`** — unit tests for `js/model/Rational.js`, the
+  exact numerator/denominator pair the quantitative pipeline carries a
+  computed likelihood in so that dividing by a barrier's Risk Reduction
+  Factor never rounds mid-calculation; the one division happens at
+  display. Covers exact vs. non-terminating quotients, cross-multiplied
+  comparison past the point a rounded value would call two numbers equal,
+  and risk-matrix banding on an exact boundary.
+- **`test_risk_matrix.py`** — golden-master test for the shipped Leaflet 5
+  risk matrix preset, plus unit tests for `js/model/RiskMatrix.js`'s pure
+  lookup/banding helpers.
+- **`test_risk_matrix_validator.py`** — unit tests for
+  `js/model/RiskMatrixValidator.js`, the runtime validator Project
+  Settings' "Import Risk Matrix..." runs a user-supplied JSON file through
+  (the same checks `scripts/build-risk-matrix-presets.js` applies to a
+  bundled preset at build time, ported so the two can't drift), plus its
+  export-side mirror image, `denormalizeRiskMatrixForExport`.
 
 ## Adding a test
 

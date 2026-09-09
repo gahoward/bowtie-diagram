@@ -38,7 +38,7 @@ It's deliberately correctness-only — no formatting rules — so it won't refor
 
 ### Updating the demo diagram
 
-The "Load Demo" scenario is generated from `js/data/demo-bowtie.json` (a plain schema-matching export). After editing that file, regenerate the loaded script with:
+"Load Demo" offers three variants — one per document mode (Simple/Qualitative/Quantitative) — generated from `js/data/demo-simple.json`, `demo-qualitative.json`, and `demo-quantitative.json` (plain schema-matching exports; edit these directly). After editing any of them, regenerate the loaded script with:
 
 ```
 node scripts/build-demo-data.js
