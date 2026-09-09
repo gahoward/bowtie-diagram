@@ -13,16 +13,6 @@
   // barrier's effect, so the version bump is what turns a silent misread
   // into the outright rejection ImportExportController already does.
   const SCHEMA_VERSION = 9;
-  const CONTROL_TYPES = ['cause', 'outcome', 'preventativeBarrier', 'mitigativeBarrier'];
-  const NODE_ID_PREFIX = {
-    cause: 'C', outcome: 'O', preventativeBarrier: 'PB', mitigativeBarrier: 'MB',
-  };
-  const NODE_DEFAULT_NAME = {
-    cause: (n) => `Cause ${n}`,
-    outcome: (n) => `Outcome ${n}`,
-    preventativeBarrier: (n) => `Preventative Barrier ${n}`,
-    mitigativeBarrier: (n) => `Mitigative Barrier ${n}`,
-  };
   // Both barrier types splice the same way underneath (toward the TLE or
   // toward the origin), but "after"/"before" — the UI's own vocabulary,
   // relative to whichever barrier was right-clicked — maps to OPPOSITE
@@ -61,21 +51,6 @@
       // alongside their origin, mutated directly by every chaining operation
       // below. See js/model/Line.js.
       this.lines = [];
-      // The shared node library (node_library_proposal.md): one record per
-      // real-world Cause/Outcome/Barrier identity, independent of any page
-      // or placement. A node can have zero, one, or several placements —
-      // zero is a normal "staging" state, not an orphan (see
-      // placementsForNode). Also the home for quantitative_mode_proposal.md's
-      // per-element risk fields (frequency/riskReductionFactor/
-      // likelihoodClassId/severityClassId), since those are globally
-      // linked per node, not per placement — see Node.js.
-      this.library = {
-        cause: [], outcome: [], preventativeBarrier: [], mitigativeBarrier: [],
-      };
-      // 'internal' (default, today's behaviour: a node's own id renders) |
-      // 'custom' (a node's freeform `identifier` renders instead, when set)
-      // — see setIdentifierDisplayMode below.
-      this.identifierDisplayMode = 'internal';
       // 'simple' (default, today's behaviour, no risk fields anywhere) |
       // 'qualitative' | 'quantitative' — quantitative_mode_proposal.md
       // "Modes". The active RiskMatrixDefinition (embedded, self-contained
@@ -96,20 +71,6 @@
         // one is for placements' own internal, never-rendered ids.
         placement: 0,
       };
-      // Posterity of identifiers: every NODE id, once used, is remembered
-      // here forever after its node is deleted (deleteNode) — retiring
-      // moved from the placement level to the node level by this proposal,
-      // since node ids are now the visible ones (see node_library_proposal.md
-      // "Interplay with existing features"). `{ id, reEnabled }` — no page
-      // history is captured (a deleted node may have had several
-      // placements across several pages; recording where isn't worth
-      // showing, per feedback on the design mockup). reEnabled ids are
-      // eligible for manual (never automatic) reassignment via reassignId.
-      // Lines are not part of this system — they are not user-facing
-      // identifiers and die with their Cause/Outcome placement.
-      this.retiredIds = {
-        cause: [], outcome: [], preventativeBarrier: [], mitigativeBarrier: [],
-      };
       // Bridging default: no controller is page-aware yet (that lands in a
       // later phase, via a PageScopedModel facade and WelcomeController's
       // "New" flow calling addPage() itself) — every existing call site
@@ -123,7 +84,26 @@
       // below are unchanged in name and signature; they just delegate here.
       this._quantitative = new Bowtie.Quantitative(this);
       this._warnings = new Bowtie.Warnings(this);
+      // Stateful collaborator (design review finding 06, phase 4; see
+      // NodeLibrary.js) -- owns `library`/`retiredIds`/`identifierDisplayMode`
+      // outright; the get/set accessors just below re-expose them under
+      // their original names so every existing reader/writer keeps working.
+      this._nodeLibrary = new Bowtie.NodeLibrary(this);
     }
+
+    // See the constructor note above and NodeLibrary.js: these three fields
+    // live on `_nodeLibrary` now, not on this instance directly.
+    get library() { return this._nodeLibrary.library; }
+
+    set library(value) { this._nodeLibrary.library = value; }
+
+    get retiredIds() { return this._nodeLibrary.retiredIds; }
+
+    set retiredIds(value) { this._nodeLibrary.retiredIds = value; }
+
+    get identifierDisplayMode() { return this._nodeLibrary.identifierDisplayMode; }
+
+    set identifierDisplayMode(value) { this._nodeLibrary.identifierDisplayMode = value; }
 
     onChange(fn) {
       this._listeners.push(fn);
@@ -252,42 +232,17 @@
     }
 
     // --- Node library (node_library_proposal.md) -------------------------
+    // Delegates to the stateful NodeLibrary collaborator (design review
+    // finding 06, phase 4; see NodeLibrary.js) — every method here stays,
+    // unchanged in name and signature, for the same reason as
+    // computeTleLikelihood above.
 
-    // Creates a library node record with `id` drawn from `idCounters[type]`
-    // — the SAME per-type counter addCause/addOutcome/addPreventativeControl/
-    // addMitigativeControl always used for their placement ids before this
-    // proposal (now repurposed to count nodes instead). Does not create a
-    // placement or emit a change — used internally by addNode (below) and
-    // by every creation call site's "brand-new node" shape, which folds
-    // this into its own single _emitChange() at the end.
     _createNode(type, opts = {}) {
-      if (opts.identifier) {
-        const existing = this.getNodeByIdentifier(opts.identifier);
-        if (existing) throw new Error('That identifier is already in use');
-      }
-      this.idCounters[type] += 1;
-      const n = this.idCounters[type];
-      const id = `${NODE_ID_PREFIX[type]}_${n}`;
-      const node = new Bowtie.Node({
-        id,
-        type,
-        name: opts.name || NODE_DEFAULT_NAME[type](n),
-        description: opts.description || '',
-        identifier: opts.identifier || '',
-      });
-      this.library[type].push(node);
-      return node;
+      return this._nodeLibrary._createNode(type, opts);
     }
 
-    // Public standalone creation (ask 2/3): a library node with zero
-    // placements, reachable from the Node Library manager directly, not
-    // just as a side effect of "Add Cause"/etc. Name-required validation
-    // happens at the UI layer, same "defensive floor, not the primary
-    // mechanism" pattern addPage already uses for page name.
     addNode(type, opts = {}) {
-      const node = this._createNode(type, opts);
-      this._emitChange();
-      return node;
+      return this._nodeLibrary.addNode(type, opts);
     }
 
     // Resolves `opts.nodeId` against an EXISTING library node of `kind`
@@ -296,6 +251,10 @@
     // duplicated"), or creates a brand-new node from `opts` — the one
     // shared implementation of the two-shape `{ name, ... }` vs
     // `{ nodeId, ... }` opts bag every creation call site below accepts.
+    // Stays here rather than moving into NodeLibrary: it reasons about
+    // BOTH the library (does this node exist?) and this page's placements
+    // (is it already placed here?), neither of which NodeLibrary owns
+    // alone.
     _resolveOrCreateNode(kind, opts, pageId) {
       if (opts.nodeId) {
         const node = this.getNodeOfType(kind, opts.nodeId);
@@ -308,86 +267,28 @@
       return this._createNode(kind, opts);
     }
 
-    // Searches all four library arrays — used whenever the caller doesn't
-    // already know a node's type (e.g. resolving a placement's own node).
     getNode(nodeId) {
-      return (
-        this.library.cause.find((n) => n.id === nodeId)
-        || this.library.outcome.find((n) => n.id === nodeId)
-        || this.library.preventativeBarrier.find((n) => n.id === nodeId)
-        || this.library.mitigativeBarrier.find((n) => n.id === nodeId)
-        || null
-      );
+      return this._nodeLibrary.getNode(nodeId);
     }
 
-    // Narrower variant when the type is already known — mirrors getPage's
-    // single-collection lookup.
     getNodeOfType(type, nodeId) {
-      return (this.library[type] || []).find((n) => n.id === nodeId) || null;
+      return this._nodeLibrary.getNodeOfType(type, nodeId);
     }
 
-    // The uniqueness check's own lookup (addNode/renameNode), reusable by
-    // both. Checked across all four types together — the display setting
-    // can show any node's identifier in the same visual context as any
-    // other's — with a blank identifier exempt (any number of nodes may
-    // have no custom identifier set).
     getNodeByIdentifier(identifier) {
-      if (!identifier) return null;
-      return (
-        this.library.cause.find((n) => n.identifier === identifier)
-        || this.library.outcome.find((n) => n.identifier === identifier)
-        || this.library.preventativeBarrier.find((n) => n.identifier === identifier)
-        || this.library.mitigativeBarrier.find((n) => n.identifier === identifier)
-        || null
-      );
+      return this._nodeLibrary.getNodeByIdentifier(identifier);
     }
 
-    // The node analogue of renamePage/renameElement — also doubles as the
-    // mutator for the quantitative/qualitative risk fields (frequency,
-    // riskReductionFactor, likelihoodClassId, severityClassId), since those
-    // live on the same Node record (see Node.js). Same identifier-
-    // uniqueness check as addNode/_createNode, excluding the node being
-    // renamed itself from the collision check (renaming a node to the
-    // identifier it already has must not throw).
     renameNode(nodeId, opts = {}) {
-      const node = this.getNode(nodeId);
-      if (!node) throw new Error(`Unknown node id: ${nodeId}`);
-      if (opts.identifier !== undefined && opts.identifier !== '') {
-        const existing = this.getNodeByIdentifier(opts.identifier);
-        if (existing && existing.id !== nodeId) throw new Error('That identifier is already in use');
-      }
-      if (opts.name !== undefined) node.name = opts.name;
-      if (opts.description !== undefined) node.description = opts.description;
-      if (opts.identifier !== undefined) node.identifier = opts.identifier;
-      if (opts.likelihoodClassId !== undefined) node.likelihoodClassId = opts.likelihoodClassId;
-      if (opts.severityClassId !== undefined) node.severityClassId = opts.severityClassId;
-      if (opts.frequency !== undefined) node.frequency = opts.frequency;
-      if (opts.riskReductionFactor !== undefined) node.riskReductionFactor = opts.riskReductionFactor;
-      this._emitChange();
+      return this._nodeLibrary.renameNode(nodeId, opts);
     }
 
-    // Every LIVE placement (any type, any page) referencing `nodeId` — used
-    // by the manager UI to show which page(s) a node is currently placed
-    // on, and by deleteNode's cascade below.
     placementsForNode(nodeId) {
-      return [
-        ...this.causes, ...this.outcomes, ...this.preventativeBarriers, ...this.mitigativeBarriers,
-      ].filter((p) => p.nodeId === nodeId);
+      return this._nodeLibrary.placementsForNode(nodeId);
     }
 
-    // Removes the library record AND cascades: every placement referencing
-    // it, on every page, is removed the same way deleteElement removes one
-    // placement (below) — "delete across all pages" is ask 2's explicit
-    // request, the one path with a genuinely document-wide blast radius by
-    // design. Retires the node's id (see retiredIds above); deleteElement
-    // (placement-only removal) no longer retires anything at all.
     deleteNode(nodeId) {
-      const node = this.getNode(nodeId);
-      if (!node) return;
-      this.placementsForNode(nodeId).forEach((p) => this._removePlacementOnly(p.id));
-      this.library[node.type] = this.library[node.type].filter((n) => n.id !== nodeId);
-      this.retiredIds[node.type].push({ id: nodeId, reEnabled: false });
-      this._emitChange();
+      return this._nodeLibrary.deleteNode(nodeId);
     }
 
     // --- Placement ----------------------------------------------------
@@ -798,39 +699,12 @@
       this._emitChange();
     }
 
-    // 'internal' | 'custom' — see "Display identifiers" in
-    // node_library_proposal.md. Switching internal -> custom backfills
-    // every library node (all four types) whose identifier is blank with
-    // its own current id, so the toggle causes no visible change to what's
-    // rendered at the moment it's flipped — from that point on `identifier`
-    // is a real, independently-editable value, not a fallback. Nodes that
-    // already had a custom identifier keep it untouched. Switching the
-    // other direction changes only what's displayed; no data is cleared.
     setIdentifierDisplayMode(mode) {
-      if (mode !== 'internal' && mode !== 'custom') throw new Error(`Unknown identifier display mode: ${mode}`);
-      if (mode === 'custom' && this.identifierDisplayMode !== 'custom') {
-        CONTROL_TYPES.forEach((type) => {
-          this.library[type].forEach((node) => {
-            if (!node.identifier) node.identifier = node.id;
-          });
-        });
-      }
-      this.identifierDisplayMode = mode;
-      this._emitChange();
+      return this._nodeLibrary.setIdentifierDisplayMode(mode);
     }
 
-    // The id or identifier actually rendered for a node, per the current
-    // identifierDisplayMode — 'custom' shows `identifier` only when it's
-    // non-blank (a newly-created node in custom mode starts blank again
-    // until the user sets one), falling back to `id` otherwise. This is
-    // the SINGLE source of truth every rendering call site (ShapeRenderer,
-    // the manager, the create-or-choose modal, getWarnings — though
-    // warnings intentionally still name the id explicitly, see above)
-    // should resolve a node's visible label through.
     displayIdentifierFor(node) {
-      if (!node) return '';
-      if (this.identifierDisplayMode === 'custom' && node.identifier) return node.identifier;
-      return node.id;
+      return this._nodeLibrary.displayIdentifierFor(node);
     }
 
     // 'simple' | 'qualitative' | 'quantitative' — quantitative_mode_proposal.md
@@ -1103,52 +977,18 @@
     }
 
     // --- Posterity of identifiers -------------------------------------
-    //
-    // Operates on NODE ids now (node_library_proposal.md "Interplay with
-    // existing features") -- node ids are the visible ones, so this
-    // existing, deliberately-built posterity feature has to move with
-    // them, or it stops meaning anything to a user.
+    // Delegates to NodeLibrary, same as the rest of this section.
 
     reEnableId(type, id) {
-      const entry = (this.retiredIds[type] || []).find((e) => e.id === id);
-      if (!entry) return;
-      entry.reEnabled = true;
-      this._emitChange();
+      return this._nodeLibrary.reEnableId(type, id);
     }
 
     disableRetiredId(type, id) {
-      const entry = (this.retiredIds[type] || []).find((e) => e.id === id);
-      if (!entry) return;
-      entry.reEnabled = false;
-      this._emitChange();
+      return this._nodeLibrary.disableRetiredId(type, id);
     }
 
-    // Manually assigns `newId` (which must be a re-enabled, previously-used
-    // NODE id of the same type) to the node currently identified by
-    // `nodeId`, cascading the change through every placement's `nodeId`
-    // field that referenced it (not a Line -- Lines only ever reference
-    // placement ids, which are untouched by this).
     reassignId(nodeId, newId) {
-      const node = this.getNode(nodeId);
-      if (!node || !CONTROL_TYPES.includes(node.type)) {
-        throw new Error('That element cannot be assigned a new identifier');
-      }
-      if (newId === nodeId) return;
-
-      const pool = this.retiredIds[node.type] || [];
-      const entry = pool.find((e) => e.id === newId && e.reEnabled);
-      if (!entry) throw new Error('That identifier is not available for manual assignment');
-      if (this.getNode(newId)) throw new Error('That identifier is already in use');
-
-      const oldId = node.id;
-      node.id = newId;
-
-      this.placementsForNode(oldId).forEach((p) => { p.nodeId = newId; });
-
-      this.retiredIds[node.type] = pool.filter((e) => e.id !== newId);
-      this.retiredIds[node.type].push({ id: oldId, reEnabled: false });
-
-      this._emitChange();
+      return this._nodeLibrary.reassignId(nodeId, newId);
     }
 
     // --- Quantitative-mode calculation pipeline --------------------------

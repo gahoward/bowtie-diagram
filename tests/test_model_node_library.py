@@ -249,6 +249,48 @@ def test_switching_to_custom_mode_backfills_blank_identifiers_with_current_id(pa
     assert result["withoutCustomIdentifier"].startswith("O_"), "a blank identifier backfills with the node's own id"
 
 
+def test_backfill_skips_a_node_whose_id_collides_with_another_nodes_identifier(page):
+    """Design review finding 02: one node is hand-given a second node's OWN
+    id as its custom identifier while still in internal mode -- e.g. node
+    C_2 given the identifier "C_3". Switching to custom mode then must NOT
+    blindly backfill C_3's own blank identifier with its id "C_3" -- that
+    string is already C_2's chosen identifier, and doing so would leave two
+    nodes both displaying as "C_3". The colliding node is left blank
+    instead, not minted a suffixed identifier it was never given."""
+    result = page.evaluate("""() => {
+      const m = window.__lastModel;
+      const first = m.addNode('cause', {name: 'One'});
+      const second = m.addNode('cause', {name: 'Two'});
+      m.renameNode(first.id, { identifier: second.id }); // e.g. "C_1" now displays as "C_2"
+      m.setIdentifierDisplayMode('custom');
+      return {
+        secondNodeId: second.id,
+        firstIdentifier: m.getNode(first.id).identifier,
+        secondIdentifier: m.getNode(second.id).identifier,
+      };
+    }""")
+    assert result["firstIdentifier"] == result["secondNodeId"], "the hand-set identifier must be untouched"
+    assert result["secondIdentifier"] == "", "left blank, not backfilled into a second node showing the same label"
+
+
+def test_no_two_live_nodes_ever_share_a_visible_identifier_after_mode_switches(page):
+    """The property finding 02's fix protects, exercised across a longer
+    sequence of switches and a hand-assigned collision on the other type
+    too, rather than just the one reproduction above."""
+    result = page.evaluate("""() => {
+      const m = window.__lastModel;
+      const c1 = m.addNode('cause', {name: 'One'});
+      const c2 = m.addNode('cause', {name: 'Two'});
+      m.renameNode(c1.id, { identifier: c2.id });
+      m.setIdentifierDisplayMode('custom');
+      m.setIdentifierDisplayMode('internal');
+      m.setIdentifierDisplayMode('custom');
+      const identifiers = m.library.cause.map((n) => n.identifier).filter((x) => x);
+      return { identifiers, unique: new Set(identifiers).size === identifiers.length };
+    }""")
+    assert result["unique"] is True, f"duplicate visible identifiers: {result['identifiers']}"
+
+
 def test_switching_back_to_internal_then_custom_restores_the_backfilled_value(page):
     result = page.evaluate("""() => {
       const m = window.__lastModel;
