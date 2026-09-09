@@ -116,7 +116,10 @@ def test_properties_modal_saves_barrier_name_and_description(page):
     page.wait_for_timeout(80)
 
     _open_properties_modal(page, ".node.preventative-barrier")
-    page.locator(".modal-section:has-text('Identity') input[type=text]").fill("Isolation Valve")
+    # Scoped to the Name field specifically -- a barrier's Identity section
+    # also has an Owner text input (design review finding 10, phase 1), so
+    # a bare "input[type=text]" is no longer unambiguous here.
+    page.locator(".modal-field:has-text('Name') input[type=text]").fill("Isolation Valve")
     page.locator(".modal-section:has-text('Identity') textarea").fill("Auto-closes on high pressure.")
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_timeout(80)
@@ -127,6 +130,88 @@ def test_properties_modal_saves_barrier_name_and_description(page):
     }""")
     assert node["name"] == "Isolation Valve"
     assert node["description"] == "Auto-closes on high pressure."
+
+
+def test_properties_modal_saves_preventative_barrier_metadata(page):
+    """Design review finding 10, phase 1: barrier type/owner/effectiveness,
+    Identity section, independent of mode (Simple mode here, deliberately --
+    this metadata is descriptive, not arithmetic)."""
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      const cause = m.addCause({x: 150, y: 200});
+      m.addPreventativeControl(cause.id);
+    }""")
+    page.wait_for_timeout(80)
+
+    _open_properties_modal(page, ".node.preventative-barrier")
+    page.locator(".modal-field:has-text('Barrier type') select").select_option("hardware")
+    page.locator(".modal-field:has-text('Owner') input[type=text]").fill("Ops Team")
+    page.locator(".modal-field:has-text('Effectiveness') select").select_option("high")
+    page.get_by_role("button", name="Save", exact=True).click()
+    page.wait_for_timeout(80)
+
+    node = page.evaluate("""() => {
+      const pb = window.__lastModel.preventativeBarriers[0];
+      return window.__lastModel.getNode(pb.nodeId);
+    }""")
+    assert node["barrierType"] == "hardware"
+    assert node["owner"] == "Ops Team"
+    assert node["effectiveness"] == "high"
+
+
+def test_properties_modal_saves_mitigative_barrier_metadata(page):
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      const outcome = m.addOutcome({x: 1200, y: 200});
+      m.addMitigativeControl(outcome.id);
+    }""")
+    page.wait_for_timeout(80)
+
+    _open_properties_modal(page, ".node.mitigative-barrier")
+    page.locator(".modal-field:has-text('Barrier type') select").select_option("human")
+    page.locator(".modal-field:has-text('Owner') input[type=text]").fill("Shift Supervisor")
+    page.locator(".modal-field:has-text('Effectiveness') select").select_option("medium")
+    page.get_by_role("button", name="Save", exact=True).click()
+    page.wait_for_timeout(80)
+
+    node = page.evaluate("""() => {
+      const mb = window.__lastModel.mitigativeBarriers[0];
+      return window.__lastModel.getNode(mb.nodeId);
+    }""")
+    assert node["barrierType"] == "human"
+    assert node["owner"] == "Shift Supervisor"
+    assert node["effectiveness"] == "medium"
+
+
+def test_properties_modal_barrier_metadata_left_unset_stays_null(page):
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      const cause = m.addCause({x: 150, y: 200});
+      m.addPreventativeControl(cause.id);
+    }""")
+    page.wait_for_timeout(80)
+
+    _open_properties_modal(page, ".node.preventative-barrier")
+    page.get_by_role("button", name="Save", exact=True).click()
+    page.wait_for_timeout(80)
+
+    node = page.evaluate("""() => {
+      const pb = window.__lastModel.preventativeBarriers[0];
+      return window.__lastModel.getNode(pb.nodeId);
+    }""")
+    assert node["barrierType"] is None
+    assert node["owner"] == ""
+    assert node["effectiveness"] is None
+
+
+def test_properties_modal_shows_no_barrier_metadata_fields_for_a_cause(page):
+    page.evaluate("() => { window.__lastModel.addCause({x: 150, y: 200}); }")
+    page.wait_for_timeout(80)
+
+    _open_properties_modal(page, ".node.cause")
+    assert page.locator(".modal-field:has-text('Barrier type')").count() == 0
+    assert page.locator(".modal-field:has-text('Owner')").count() == 0
+    assert page.locator(".modal-field:has-text('Effectiveness')").count() == 0
 
 
 def test_properties_modal_cancel_discards_changes(page):

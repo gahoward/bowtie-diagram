@@ -436,7 +436,10 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "riskReductionFactor": null
+        "riskReductionFactor": null,
+        "barrierType": "hardware",
+        "owner": "Process Engineering",
+        "effectiveness": "high"
       },
       {
         "id": "PB_2",
@@ -447,7 +450,10 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "riskReductionFactor": null
+        "riskReductionFactor": null,
+        "barrierType": "human",
+        "owner": "Maintenance",
+        "effectiveness": "medium"
       },
       {
         "id": "PB_3",
@@ -458,7 +464,10 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "riskReductionFactor": null
+        "riskReductionFactor": null,
+        "barrierType": "hardware",
+        "owner": "Process Engineering",
+        "effectiveness": "medium"
       },
       {
         "id": "PB_4",
@@ -469,7 +478,10 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "riskReductionFactor": null
+        "riskReductionFactor": null,
+        "barrierType": "human",
+        "owner": "HSE",
+        "effectiveness": "medium"
       }
     ],
     "mitigativeBarrier": [
@@ -482,7 +494,10 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "riskReductionFactor": null
+        "riskReductionFactor": null,
+        "barrierType": "hardware",
+        "owner": "Fire Safety",
+        "effectiveness": "high"
       },
       {
         "id": "MB_2",
@@ -493,7 +508,10 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "riskReductionFactor": null
+        "riskReductionFactor": null,
+        "barrierType": "hardware",
+        "owner": "Instrumentation",
+        "effectiveness": "high"
       },
       {
         "id": "MB_3",
@@ -504,7 +522,10 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "riskReductionFactor": null
+        "riskReductionFactor": null,
+        "barrierType": "passive",
+        "owner": "Civil/Structural",
+        "effectiveness": "high"
       },
       {
         "id": "MB_4",
@@ -515,7 +536,10 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "riskReductionFactor": null
+        "riskReductionFactor": null,
+        "barrierType": "human",
+        "owner": "Emergency Response",
+        "effectiveness": "medium"
       }
     ]
   },

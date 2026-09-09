@@ -170,7 +170,9 @@ step for the app itself, so tests run directly against `index.html` as-is.
   methods directly — the regression this guards against (`PageScopedModel`
   had no `renameNode` passthrough, so every save from the real UI threw)
   was invisible to every model-level test that called `renameNode`
-  directly instead.
+  directly instead. Also covers barrier metadata (design review
+  finding 10, phase 1): type/owner/effectiveness, barriers only, rendered
+  and saved independent of the document's risk mode.
 - **`test_project_settings.py`** — the single "Project Settings" modal:
   analysis name, identifier display mode, the risk analysis mode/matrix
   picker, and the events/hour ↔ events/year display-unit preference.

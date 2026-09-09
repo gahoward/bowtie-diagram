@@ -8,6 +8,21 @@
     hazard: 'Hazard',
   };
 
+  // Barrier metadata (design review finding 10, phase 1) -- descriptive,
+  // not arithmetic, so these render for a barrier regardless of `mode`
+  // (unlike RiskFieldsForm's fields, which are gated behind Simple mode).
+  const BARRIER_TYPES = [
+    { id: 'hardware', label: 'Hardware' },
+    { id: 'human', label: 'Human' },
+    { id: 'active', label: 'Active' },
+    { id: 'passive', label: 'Passive' },
+  ];
+  const EFFECTIVENESS_LEVELS = [
+    { id: 'high', label: 'High' },
+    { id: 'medium', label: 'Medium' },
+    { id: 'low', label: 'Low' },
+  ];
+
   function makeSection(title) {
     const section = document.createElement('div');
     section.className = 'modal-section';
@@ -29,6 +44,31 @@
     wrap.appendChild(span);
     wrap.appendChild(input);
     return { wrap, input };
+  }
+
+  // Mirrors RiskFieldsForm's own makeSelect (same '(not set)' blank-option
+  // convention and `.modal-field` wrapper) -- not shared with it directly
+  // since that one is scoped to the qualitative/quantitative risk fields.
+  function makeSelectField(labelText, options, currentValue) {
+    const wrap = document.createElement('label');
+    wrap.className = 'modal-field';
+    const span = document.createElement('span');
+    span.textContent = labelText;
+    const select = document.createElement('select');
+    const blankOpt = document.createElement('option');
+    blankOpt.value = '';
+    blankOpt.textContent = '(not set)';
+    select.appendChild(blankOpt);
+    options.forEach((opt) => {
+      const o = document.createElement('option');
+      o.value = opt.id;
+      o.textContent = opt.label;
+      select.appendChild(o);
+    });
+    select.value = currentValue || '';
+    wrap.appendChild(span);
+    wrap.appendChild(select);
+    return { wrap, select };
   }
 
   function makeComputedRow(label, valueText) {
@@ -149,11 +189,14 @@
   // modal every node type (Cause/Outcome/Barrier/TLE/Hazard) opens on
   // double-click or the context menu's "Properties" item. Replaces the old
   // ad hoc rename-only modal: Identity (name/description, + identifier for
-  // library nodes in custom-identifier mode), Risk Analysis (existing
-  // RiskFieldsForm, library nodes only, non-Simple mode), and a read-only
-  // Computed section wherever BowtieModel has something derived to show.
+  // library nodes in custom-identifier mode, + barrier type/owner/
+  // effectiveness for barriers only -- design review finding 10, phase 1),
+  // Risk Analysis (existing RiskFieldsForm, library nodes only, non-Simple
+  // mode), and a read-only Computed section wherever BowtieModel has
+  // something derived to show.
   function openPropertiesModal({ model, el, displayUnit = 'hour' }) {
     const isNode = ['cause', 'outcome', 'preventativeBarrier', 'mitigativeBarrier'].includes(el.type);
+    const isBarrier = el.type === 'preventativeBarrier' || el.type === 'mitigativeBarrier';
     const node = isNode ? model.getNode(el.nodeId) : null;
     const currentName = isNode ? node.name : el.name;
     const displayId = isNode ? model.displayIdentifierFor(node) : el.id;
@@ -174,6 +217,17 @@
       hint.className = 'modal-field-hint';
       hint.textContent = `Internal id: ${node.id}`;
       identitySection.appendChild(hint);
+    }
+    let barrierTypeField = null;
+    let ownerField = null;
+    let effectivenessField = null;
+    if (isBarrier) {
+      barrierTypeField = makeSelectField('Barrier type', BARRIER_TYPES, node.barrierType);
+      identitySection.appendChild(barrierTypeField.wrap);
+      ownerField = makeTextField('Owner', node.owner);
+      identitySection.appendChild(ownerField.wrap);
+      effectivenessField = makeSelectField('Effectiveness', EFFECTIVENESS_LEVELS, node.effectiveness);
+      identitySection.appendChild(effectivenessField.wrap);
     }
     body.appendChild(identitySection);
 
@@ -230,6 +284,11 @@
                   name: next,
                   description: descriptionField.input.value.trim(),
                   ...(identifierField ? { identifier: identifierField.input.value.trim() } : {}),
+                  ...(isBarrier ? {
+                    barrierType: barrierTypeField.select.value || null,
+                    owner: ownerField.input.value.trim(),
+                    effectiveness: effectivenessField.select.value || null,
+                  } : {}),
                   ...riskValues,
                 });
               } else {

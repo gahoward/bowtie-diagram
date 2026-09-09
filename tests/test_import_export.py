@@ -37,6 +37,9 @@ _SNAPSHOT_JS = """
         severityClassId: n.severityClassId,
         frequency: n.frequency,
         riskReductionFactor: n.riskReductionFactor,
+        barrierType: n.barrierType,
+        owner: n.owner,
+        effectiveness: n.effectiveness,
       })),
     ]),
   ),
@@ -84,7 +87,10 @@ def test_export_then_import_round_trips_every_persisted_field(page):
       const cause = m.addCause({ name: 'Distinctive Cause', description: 'Cause description', x: 321, y: 87 });
       m.renameNode(cause.nodeId, { identifier: 'CUSTOM-CAUSE', frequency: { value: '1E-3' } });
       const pb = m.addPreventativeControl(cause.id);
-      m.renameNode(pb.nodeId, { riskReductionFactor: { value: '10' } });
+      m.renameNode(pb.nodeId, {
+        riskReductionFactor: { value: '10' },
+        barrierType: 'hardware', owner: 'Ops Team', effectiveness: 'high',
+      });
 
       const outcome = m.addOutcome({ name: 'Distinctive Outcome', pageId: page2.id, x: 999, y: 111 });
       m.renameNode(outcome.nodeId, {

@@ -130,11 +130,12 @@
 
     // The node analogue of renamePage/renameElement — also doubles as the
     // mutator for the quantitative/qualitative risk fields (frequency,
-    // riskReductionFactor, likelihoodClassId, severityClassId), since those
-    // live on the same Node record (see Node.js). Same identifier-
-    // uniqueness check as addNode/_createNode, excluding the node being
-    // renamed itself from the collision check (renaming a node to the
-    // identifier it already has must not throw).
+    // riskReductionFactor, likelihoodClassId, severityClassId) and barrier
+    // metadata (barrierType, owner, effectiveness — design review
+    // finding 10), since those all live on the same Node record (see
+    // Node.js). Same identifier-uniqueness check as addNode/_createNode,
+    // excluding the node being renamed itself from the collision check
+    // (renaming a node to the identifier it already has must not throw).
     renameNode(nodeId, opts = {}) {
       const node = this.getNode(nodeId);
       if (!node) throw new Error(`Unknown node id: ${nodeId}`);
@@ -149,6 +150,9 @@
       if (opts.severityClassId !== undefined) node.severityClassId = opts.severityClassId;
       if (opts.frequency !== undefined) node.frequency = opts.frequency;
       if (opts.riskReductionFactor !== undefined) node.riskReductionFactor = opts.riskReductionFactor;
+      if (opts.barrierType !== undefined) node.barrierType = opts.barrierType;
+      if (opts.owner !== undefined) node.owner = opts.owner;
+      if (opts.effectiveness !== undefined) node.effectiveness = opts.effectiveness;
       this.model._emitChange();
     }
 

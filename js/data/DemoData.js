@@ -447,7 +447,10 @@
           "likelihoodClassId": null,
           "severityClassId": null,
           "frequency": null,
-          "riskReductionFactor": null
+          "riskReductionFactor": null,
+          "barrierType": "hardware",
+          "owner": "Process Engineering",
+          "effectiveness": "high"
         },
         {
           "id": "PB_2",
@@ -458,7 +461,10 @@
           "likelihoodClassId": null,
           "severityClassId": null,
           "frequency": null,
-          "riskReductionFactor": null
+          "riskReductionFactor": null,
+          "barrierType": "human",
+          "owner": "Maintenance",
+          "effectiveness": "medium"
         },
         {
           "id": "PB_3",
@@ -469,7 +475,10 @@
           "likelihoodClassId": null,
           "severityClassId": null,
           "frequency": null,
-          "riskReductionFactor": null
+          "riskReductionFactor": null,
+          "barrierType": "hardware",
+          "owner": "Process Engineering",
+          "effectiveness": "medium"
         },
         {
           "id": "PB_4",
@@ -480,7 +489,10 @@
           "likelihoodClassId": null,
           "severityClassId": null,
           "frequency": null,
-          "riskReductionFactor": null
+          "riskReductionFactor": null,
+          "barrierType": "human",
+          "owner": "HSE",
+          "effectiveness": "medium"
         }
       ],
       "mitigativeBarrier": [
@@ -493,7 +505,10 @@
           "likelihoodClassId": null,
           "severityClassId": null,
           "frequency": null,
-          "riskReductionFactor": null
+          "riskReductionFactor": null,
+          "barrierType": "hardware",
+          "owner": "Fire Safety",
+          "effectiveness": "high"
         },
         {
           "id": "MB_2",
@@ -504,7 +519,10 @@
           "likelihoodClassId": null,
           "severityClassId": null,
           "frequency": null,
-          "riskReductionFactor": null
+          "riskReductionFactor": null,
+          "barrierType": "hardware",
+          "owner": "Instrumentation",
+          "effectiveness": "high"
         },
         {
           "id": "MB_3",
@@ -515,7 +533,10 @@
           "likelihoodClassId": null,
           "severityClassId": null,
           "frequency": null,
-          "riskReductionFactor": null
+          "riskReductionFactor": null,
+          "barrierType": "passive",
+          "owner": "Civil/Structural",
+          "effectiveness": "high"
         },
         {
           "id": "MB_4",
@@ -526,7 +547,10 @@
           "likelihoodClassId": null,
           "severityClassId": null,
           "frequency": null,
-          "riskReductionFactor": null
+          "riskReductionFactor": null,
+          "barrierType": "human",
+          "owner": "Emergency Response",
+          "effectiveness": "medium"
         }
       ]
     },
@@ -972,7 +996,10 @@
           "likelihoodClassId": null,
           "severityClassId": null,
           "frequency": null,
-          "riskReductionFactor": null
+          "riskReductionFactor": null,
+          "barrierType": "hardware",
+          "owner": "Process Engineering",
+          "effectiveness": "high"
         },
         {
           "id": "PB_2",
@@ -983,7 +1010,10 @@
           "likelihoodClassId": null,
           "severityClassId": null,
           "frequency": null,
-          "riskReductionFactor": null
+          "riskReductionFactor": null,
+          "barrierType": "human",
+          "owner": "Maintenance",
+          "effectiveness": "medium"
         },
         {
           "id": "PB_3",
@@ -994,7 +1024,10 @@
           "likelihoodClassId": null,
           "severityClassId": null,
           "frequency": null,
-          "riskReductionFactor": null
+          "riskReductionFactor": null,
+          "barrierType": "hardware",
+          "owner": "Process Engineering",
+          "effectiveness": "medium"
         },
         {
           "id": "PB_4",
@@ -1005,7 +1038,10 @@
           "likelihoodClassId": null,
           "severityClassId": null,
           "frequency": null,
-          "riskReductionFactor": null
+          "riskReductionFactor": null,
+          "barrierType": "human",
+          "owner": "HSE",
+          "effectiveness": "medium"
         }
       ],
       "mitigativeBarrier": [
@@ -1018,7 +1054,10 @@
           "likelihoodClassId": null,
           "severityClassId": null,
           "frequency": null,
-          "riskReductionFactor": null
+          "riskReductionFactor": null,
+          "barrierType": "hardware",
+          "owner": "Fire Safety",
+          "effectiveness": "high"
         },
         {
           "id": "MB_2",
@@ -1029,7 +1068,10 @@
           "likelihoodClassId": null,
           "severityClassId": null,
           "frequency": null,
-          "riskReductionFactor": null
+          "riskReductionFactor": null,
+          "barrierType": "hardware",
+          "owner": "Instrumentation",
+          "effectiveness": "high"
         },
         {
           "id": "MB_3",
@@ -1040,7 +1082,10 @@
           "likelihoodClassId": null,
           "severityClassId": null,
           "frequency": null,
-          "riskReductionFactor": null
+          "riskReductionFactor": null,
+          "barrierType": "passive",
+          "owner": "Civil/Structural",
+          "effectiveness": "high"
         },
         {
           "id": "MB_4",
@@ -1051,7 +1096,10 @@
           "likelihoodClassId": null,
           "severityClassId": null,
           "frequency": null,
-          "riskReductionFactor": null
+          "riskReductionFactor": null,
+          "barrierType": "human",
+          "owner": "Emergency Response",
+          "effectiveness": "medium"
         }
       ]
     },
@@ -1691,7 +1739,10 @@
           "frequency": null,
           "riskReductionFactor": {
             "value": "10"
-          }
+          },
+          "barrierType": "hardware",
+          "owner": "Process Engineering",
+          "effectiveness": "high"
         },
         {
           "id": "PB_2",
@@ -1704,7 +1755,10 @@
           "frequency": null,
           "riskReductionFactor": {
             "value": "2"
-          }
+          },
+          "barrierType": "human",
+          "owner": "Maintenance",
+          "effectiveness": "medium"
         },
         {
           "id": "PB_3",
@@ -1717,7 +1771,10 @@
           "frequency": null,
           "riskReductionFactor": {
             "unknown": true
-          }
+          },
+          "barrierType": "hardware",
+          "owner": "Process Engineering",
+          "effectiveness": "medium"
         },
         {
           "id": "PB_4",
@@ -1730,7 +1787,10 @@
           "frequency": null,
           "riskReductionFactor": {
             "value": "5"
-          }
+          },
+          "barrierType": "human",
+          "owner": "HSE",
+          "effectiveness": "medium"
         }
       ],
       "mitigativeBarrier": [
@@ -1745,7 +1805,10 @@
           "frequency": null,
           "riskReductionFactor": {
             "value": "3"
-          }
+          },
+          "barrierType": "hardware",
+          "owner": "Fire Safety",
+          "effectiveness": "high"
         },
         {
           "id": "MB_2",
@@ -1758,7 +1821,10 @@
           "frequency": null,
           "riskReductionFactor": {
             "value": "2.5"
-          }
+          },
+          "barrierType": "hardware",
+          "owner": "Instrumentation",
+          "effectiveness": "high"
         },
         {
           "id": "MB_3",
@@ -1771,7 +1837,10 @@
           "frequency": null,
           "riskReductionFactor": {
             "value": "4"
-          }
+          },
+          "barrierType": "passive",
+          "owner": "Civil/Structural",
+          "effectiveness": "high"
         },
         {
           "id": "MB_4",
@@ -1784,7 +1853,10 @@
           "frequency": null,
           "riskReductionFactor": {
             "value": "20"
-          }
+          },
+          "barrierType": "human",
+          "owner": "Emergency Response",
+          "effectiveness": "medium"
         }
       ]
     },
