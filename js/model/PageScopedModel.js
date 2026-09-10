@@ -11,6 +11,36 @@
   // -- `PageTabsController` calls them directly, the same way
   // `WelcomeController`/`ImportExportController` already operate on the
   // real model rather than a facade.
+
+  // Every BowtieModel method that mutates document state (directly, or by
+  // delegating one level into a NodeLibrary/LineTopology collaborator --
+  // see BowtieModel.js) but is deliberately absent from this facade,
+  // because the controller that calls it already holds the real model
+  // directly rather than being constructed with THIS facade (design review
+  // finding 04). Named here explicitly, rather than left as an implicit
+  // gap, so `tests/test_page_scoped_model_completeness.py` can assert
+  // nothing new slips through unnoticed the way two real bugs did before
+  // this list existed: `renameNode` missing from the facade entirely (every
+  // risk-field save from the real UI threw), and `renameElement` silently
+  // dropping its third argument (descriptions never saved on the TLE or
+  // Hazard).
+  const DOCUMENT_SCOPED = [
+    // Page CRUD -- PageTabsController/WelcomeController hold the real
+    // model directly; see the class header above.
+    'addPage', 'deletePage', 'renamePage',
+    // Node-library CRUD and identifier posterity -- NodeLibraryController
+    // holds the real model directly, the same as page CRUD above.
+    'addNode', 'deleteNode', 'reEnableId', 'disableRetiredId', 'reassignId',
+    // Document-wide settings -- ProjectSettingsController/WelcomeController
+    // hold the real model directly.
+    'setMode', 'setRiskMatrix', 'setIdentifierDisplayMode', 'setTleAggregation',
+    // Whole-document (re)load -- only ever called by ImportExportController
+    // (a real import) or by UndoController itself (restoring a
+    // document-level snapshot); never something a page-scoped canvas
+    // controller does.
+    'loadFromJSON', 'loadPageFromJSON',
+  ];
+
   class PageScopedModel {
     constructor(realModel, getActivePageId) {
       this.realModel = realModel;
@@ -53,6 +83,12 @@
     get riskMatrix() { return this.realModel.riskMatrix; }
 
     get identifierDisplayMode() { return this.realModel.identifierDisplayMode; }
+
+    // Design review finding 11 -- CanvasView reads this (constructed with
+    // this facade) to label which aggregation produced a computed
+    // likelihood figure. Read-only here, like `mode`/`riskMatrix` above;
+    // `setTleAggregation` itself is document-scoped (see DOCUMENT_SCOPED).
+    get tleAggregation() { return this.realModel.tleAggregation; }
 
     getNode(nodeId) { return this.realModel.getNode(nodeId); }
 
@@ -186,5 +222,6 @@
     onChange(fn) { return this.realModel.onChange(fn); }
   }
 
+  PageScopedModel.DOCUMENT_SCOPED = DOCUMENT_SCOPED;
   Bowtie.PageScopedModel = PageScopedModel;
 })(window.Bowtie = window.Bowtie || {});
