@@ -138,6 +138,28 @@ step for the app itself, so tests run directly against `index.html` as-is.
   undo/redo (per-page vs document-level), JSON export/reimport and Load Demo
   across pages, SVG export reflecting only the active page, and identifier
   manager page-context labels.
+- **`test_page_scoped_model_completeness.py`** — design review finding 04:
+  every `BowtieModel` method that mutates document state (directly, or by
+  delegating one level into a `NodeLibrary`/`LineTopology` collaborator)
+  must appear either on `PageScopedModel`'s own prototype or in its
+  `DOCUMENT_SCOPED` allowlist. Detected at runtime via `Function.toString()`
+  source inspection, not a second hand-maintained list — the exact gap that
+  let `renameNode` go missing from the facade entirely, and let
+  `renameElement` silently drop its third argument, before this existed.
+- **`test_node_library_controller.py`** — design review finding 05:
+  `NodeLibraryController` had no controller-level coverage before this file
+  (an entire control was once removed from the modal in a session and the
+  model-level-only suite stayed green) — edit-in-place saving through
+  `renameNode`, delete cascading across pages and retiring the node's id,
+  adding straight to the library creating a node with zero placements, and
+  the "placed on which page(s)" text reflecting placements as they're added.
+- **`test_warnings_controller.py`** — design review finding 05:
+  `WarningsController` had no controller-level coverage before this file,
+  including the rule `getWarnings().length` enforces — export disabled
+  entirely while any warning is active. Orphans a barrier (`Connect
+  Directly to TLE` truncating a Line past it, per `DESIGN_NOTES.md`),
+  confirms the badge/count/export-disable and the warning text itself, then
+  resolves it and confirms all three re-enable.
 - **`test_import_export.py`** — schema round-trip and the version-mismatch
   guard (there is no migration path for older schema versions; an
   incompatible file is rejected outright). The round-trip test (design
@@ -145,7 +167,8 @@ step for the app itself, so tests run directly against `index.html` as-is.
   model, not off its own `toJSON()` output, before comparing against the
   same read taken off a round-tripped copy — a field `toJSON()` forgot to
   serialize would be equally absent from both sides of a
-  serialized-to-serialized comparison, and pass vacuously.
+  serialized-to-serialized comparison, and pass vacuously. Includes
+  `tleAggregation` (design review finding 11).
 - **`test_document_validation.py`** — referential-integrity checking on
   document import (design review finding 03): a version-correct export can
   still be internally broken (a placement whose `nodeId` no longer exists
@@ -158,7 +181,12 @@ step for the app itself, so tests run directly against `index.html` as-is.
   quantitative_mode_proposal.md's calculation pipeline (TLE max,
   consequence multiply, Unknown-threat/-barrier exclusion) and the
   qualitative/quantitative risk-class lookup, driven directly against
-  `window.__lastModel`, mirroring `test_model_splicing.py`.
+  `window.__lastModel`, mirroring `test_model_splicing.py`. Also covers
+  `tleAggregation` (design review finding 11): defaults to `'max'`, `'sum'`
+  produces a visibly different answer against the exact same topology the
+  `'max'` test uses, still excludes Unknown threats, round-trips through
+  `toJSON`/`fromJSON`, and defaults to `'max'` for a document exported
+  before the field existed (purely additive, no schema-version bump).
 - **`test_canvas_risk_summary.py`** — the canvas "at a glance" risk
   summaries (quantitative_mode_proposal.md "Canvas badges"): the read-only
   text block under each Outcome (severity/likelihood) and under the TLE
@@ -175,7 +203,10 @@ step for the app itself, so tests run directly against `index.html` as-is.
   and saved independent of the document's risk mode.
 - **`test_project_settings.py`** — the single "Project Settings" modal:
   analysis name, identifier display mode, the risk analysis mode/matrix
-  picker, and the events/hour ↔ events/year display-unit preference.
+  picker, and the events/hour ↔ events/year display-unit preference. Also
+  covers the TLE aggregation toggle (design review finding 11, Quantitative
+  mode only): changing it calls `setTleAggregation` and the canvas TLE
+  badge names whichever policy produced its figure.
 - **`test_file_handlers.py`** — import/export preferring the native File
   System Access API (`showSaveFilePicker`/`showOpenFilePicker`) with a
   fallback to the legacy download-link/hidden-`<input>` path wherever that
@@ -253,14 +284,20 @@ step for the app itself, so tests run directly against `index.html` as-is.
   mantissa+exponent decimal type quantitative mode uses instead of native
   `Number` for every frequency/reduction-factor value, down to 1E-15
   precision. Driven via `page.evaluate` against `window.Bowtie.Decimal`,
-  the same way every other JS unit in this app is tested.
+  the same way every other JS unit in this app is tested. Also covers
+  `add` (design review finding 11), exact across differing exponents,
+  matching, and same-exponent/negative-value inputs, the same alignment
+  `compare` already exercises.
 - **`test_rational.py`** — unit tests for `js/model/Rational.js`, the
   exact numerator/denominator pair the quantitative pipeline carries a
   computed likelihood in so that dividing by a barrier's Risk Reduction
   Factor never rounds mid-calculation; the one division happens at
   display. Covers exact vs. non-terminating quotients, cross-multiplied
   comparison past the point a rounded value would call two numbers equal,
-  and risk-matrix banding on an exact boundary.
+  and risk-matrix banding on an exact boundary. Also covers `add`/`sum`
+  (design review finding 11): exact across different denominators, a sum
+  of several contributions matching repeated `add`, and the empty/
+  single-value edge cases.
 - **`test_risk_matrix.py`** — golden-master test for the shipped Leaflet 5
   risk matrix preset, plus unit tests for `js/model/RiskMatrix.js`'s pure
   lookup/banding helpers.

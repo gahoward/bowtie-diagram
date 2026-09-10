@@ -18,6 +18,7 @@ _SNAPSHOT_JS = """
   name: m.name,
   mode: m.mode,
   riskMatrixId: m.riskMatrix ? m.riskMatrix.id : null,
+  tleAggregation: m.tleAggregation,
   identifierDisplayMode: m.identifierDisplayMode,
   idCounters: { ...m.idCounters },
   retiredIds: Object.fromEntries(
@@ -76,6 +77,7 @@ def test_export_then_import_round_trips_every_persisted_field(page):
       const m = window.__lastModel;
       m.setMode('quantitative');
       m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
+      m.setTleAggregation('sum');
       m.setIdentifierDisplayMode('custom');
       m.setName('Distinctive Document Name');
 

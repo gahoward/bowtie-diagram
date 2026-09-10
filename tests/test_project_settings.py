@@ -71,21 +71,61 @@ def test_project_settings_matrix_picker_and_display_unit_appear_only_in_matching
     _open_project_settings(page)
     assert page.locator(".modal-field:has-text('Risk matrix')").count() == 0
     assert page.locator(".modal-field:has-text('Display frequencies as')").count() == 0
+    assert page.locator(".modal-field:has-text('Combine multiple causes')").count() == 0
 
     page.locator("input[name=analysis-mode][value=qualitative]").check()
     page.wait_for_timeout(80)
     assert page.locator(".modal-field:has-text('Risk matrix')").count() == 1
     assert page.locator(".modal-field:has-text('Display frequencies as')").count() == 0
+    assert page.locator(".modal-field:has-text('Combine multiple causes')").count() == 0
 
     page.locator("input[name=analysis-mode][value=quantitative]").check()
     page.wait_for_timeout(80)
     assert page.locator(".modal-field:has-text('Risk matrix')").count() == 1
     assert page.locator(".modal-field:has-text('Display frequencies as')").count() == 1
+    assert page.locator(".modal-field:has-text('Combine multiple causes')").count() == 1
 
     page.locator("input[name=analysis-mode][value=simple]").check()
     page.wait_for_timeout(80)
     assert page.locator(".modal-field:has-text('Risk matrix')").count() == 0
     assert page.locator(".modal-field:has-text('Display frequencies as')").count() == 0
+    assert page.locator(".modal-field:has-text('Combine multiple causes')").count() == 0
+
+
+def test_project_settings_tle_aggregation_toggle_updates_model_and_canvas(page):
+    """Design review finding 11: the aggregation toggle drives
+    BowtieModel.setTleAggregation, and the canvas TLE badge names whichever
+    policy is active (CanvasView.js)."""
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.setMode('quantitative');
+      const c1 = m.addCause({x: 150, y: 200});
+      m.renameNode(c1.nodeId, { name: 'C1', frequency: { value: '0.001' } });
+      const c2 = m.addCause({x: 150, y: 400});
+      m.renameNode(c2.nodeId, { name: 'C2', frequency: { value: '0.01' } });
+    }""")
+    page.wait_for_timeout(100)
+
+    def tle_info_text():
+        return page.evaluate("""
+          () => Array.from(document.getElementById('nodes-layer').querySelectorAll('.node-info-text text'))
+            .map((t) => t.textContent).join(' | ')
+        """)
+
+    assert "(max)" in tle_info_text()
+    assert page.evaluate("() => window.__lastModel.tleAggregation") == "max"
+
+    _open_project_settings(page)
+    page.locator("input[name=analysis-mode][value=quantitative]").check()
+    page.wait_for_timeout(80)
+    assert page.locator("input[name=tle-aggregation]").count() == 2
+    page.locator("input[name=tle-aggregation][value=sum]").check()
+    page.wait_for_timeout(80)
+    page.get_by_role("button", name="Close", exact=True).click()
+    page.wait_for_timeout(80)
+
+    assert page.evaluate("() => window.__lastModel.tleAggregation") == "sum"
+    assert "(sum)" in tle_info_text()
 
 
 def test_project_settings_selecting_a_matrix_preset_embeds_a_full_copy(page):

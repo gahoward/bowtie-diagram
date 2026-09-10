@@ -125,7 +125,13 @@
         const residual = model.computeTleLikelihoodForActivePage();
         const text = this._formatLikelihood(residual.value, displayUnit);
         if (text) {
-          const lines = [`Likelihood: ${text}`];
+          // Design review finding 11: name the active aggregation right on
+          // the figure it produced, since 'max' and 'sum' are both valid,
+          // very differently-valued answers to "what's the TLE's
+          // likelihood" for the exact same diagram. Appended in parens
+          // (rather than before the value) so this stays a superstring of
+          // the original "Likelihood: <value>" text.
+          const lines = [`Likelihood: ${text} (${model.tleAggregation})`];
           if (residual.excludedThreatCount) lines.push(`(${residual.excludedThreatCount} excluded)`);
           const infoY = model.topLevelEvent.y + tleResult.bounds.r + 14;
           nodeGroups.push(this._renderInfoText(model.topLevelEvent.x, infoY, lines));
@@ -241,7 +247,11 @@
           } else if (model.mode === 'quantitative') {
             const residual = model.computeConsequenceLikelihood(outcome.id);
             const text = this._formatLikelihood(residual.value, displayUnit);
-            if (text) infoLines.push(`Likelihood: ${text}`);
+            // Same finding-11 labeling as the TLE badge above -- this
+            // figure is derived from the TLE's own aggregated likelihood
+            // (see computeConsequenceLikelihood), so it carries the same
+            // 'max'-vs-'sum' dependency.
+            if (text) infoLines.push(`Likelihood: ${text} (${model.tleAggregation})`);
           }
           if (infoLines.length > 0) {
             const infoY = outcome.y + result.bounds.h / 2 + 14;

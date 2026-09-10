@@ -5,6 +5,13 @@
     quantitative: 'Quantitative (raw frequencies, computed likelihoods)',
   };
 
+  // Design review finding 11 -- see BowtieModel's tleAggregation
+  // constructor comment and Quantitative.js's computeTleLikelihood.
+  const AGGREGATION_LABELS = {
+    max: 'Highest single cause (original, conservative default)',
+    sum: 'Sum of all causes (independent-initiator LOPA convention)',
+  };
+
   // One home for every document-wide setting that isn't "the diagram
   // itself": the analysis name, the identifier display mode
   // (node_library_proposal.md "Display identifiers", moved out of
@@ -171,9 +178,42 @@
         section.appendChild(this._buildMatrixPicker());
       }
       if (this.model.mode === 'quantitative') {
+        section.appendChild(this._buildTleAggregationToggle());
         section.appendChild(this._buildDisplayUnitToggle());
       }
       return section;
+    }
+
+    // Design review finding 11 -- how the TLE combines multiple causes'
+    // own contributions into one top-event figure. Document-wide and
+    // persisted (DocumentSerializer.js), unlike the session-only display-
+    // unit toggle just below, because it changes what the document's own
+    // saved numbers MEAN, not just how they're shown.
+    _buildTleAggregationToggle() {
+      const field = document.createElement('div');
+      field.className = 'modal-field';
+      const label = document.createElement('span');
+      label.textContent = 'Combine multiple causes at the top event by';
+      field.appendChild(label);
+
+      Object.keys(AGGREGATION_LABELS).forEach((policy) => {
+        const row = document.createElement('label');
+        row.className = 'modal-checkbox-row';
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'tle-aggregation';
+        radio.value = policy;
+        radio.checked = this.model.tleAggregation === policy;
+        radio.addEventListener('change', () => {
+          if (radio.checked) this.model.setTleAggregation(policy);
+        });
+        const span = document.createElement('span');
+        span.textContent = AGGREGATION_LABELS[policy];
+        row.appendChild(radio);
+        row.appendChild(span);
+        field.appendChild(row);
+      });
+      return field;
     }
 
     _buildMatrixPicker() {

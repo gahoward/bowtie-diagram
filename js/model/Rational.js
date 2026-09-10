@@ -51,6 +51,19 @@
       return this.numerator.isZero();
     }
 
+    // a/b + c/d -> (a*d + c*b) / (b*d). Exact -- built from Decimal.multiply
+    // and the Decimal.add design review finding 11 added, the same way
+    // divideBy is built from Decimal.multiply alone -- so summing several
+    // threats' contributions (the conventional LOPA treatment of
+    // independent initiating events, an alternative to the original
+    // max-of-contributions aggregation) never rounds any more than picking
+    // the largest one does.
+    add(other) {
+      const numerator = this.numerator.multiply(other.denominator).add(other.numerator.multiply(this.denominator));
+      const denominator = this.denominator.multiply(other.denominator);
+      return new Rational(numerator, denominator);
+    }
+
     // a/b vs c/d  ->  a*d vs c*b. Exact, and valid because both
     // denominators are positive (see the invariant above).
     compare(other) {
@@ -71,6 +84,12 @@
 
     static max(values) {
       return values.reduce((best, v) => (best === null || v.greaterThan(best) ? v : best), null);
+    }
+
+    // Design review finding 11's alternative aggregation -- see `add`
+    // above and BowtieModel.tleAggregation/Quantitative.computeTleLikelihood.
+    static sum(values) {
+      return values.reduce((total, v) => (total === null ? v : total.add(v)), null);
     }
 
     // The exact decimal value when this quotient terminates in base 10,

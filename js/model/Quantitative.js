@@ -65,7 +65,19 @@
         }
         contributions.push(contribution);
       });
-      return { value: Bowtie.Rational.max(contributions), excludedThreatCount };
+      // Design review finding 11: which of two threats' contributions get
+      // combined into is a modeling choice, not a fixed fact -- `'max'`
+      // (the original, still-default behaviour) picks the single largest
+      // contributing threat; `'sum'` adds every known threat's own
+      // contribution, the conventional LOPA treatment of independent
+      // initiating events, which `'max'` can understate by up to a factor
+      // of the threat count. Persisted per-document (BowtieModel.
+      // tleAggregation / DocumentSerializer.js), not a session setting,
+      // because it changes what the document's own numbers mean.
+      const value = model.tleAggregation === 'sum'
+        ? Bowtie.Rational.sum(contributions)
+        : Bowtie.Rational.max(contributions);
+      return { value, excludedThreatCount };
     }
 
     // One consequence's (Outcome's) likelihood = the TLE likelihood (on

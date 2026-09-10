@@ -223,3 +223,75 @@ def test_set_mode_rejects_unknown_mode(page):
       catch { return true; }
     }""")
     assert threw is True
+
+
+# --- tleAggregation: design review finding 11's max/sum choice ------------
+
+def test_tle_aggregation_defaults_to_max(page):
+    assert page.evaluate("() => window.__lastModel.tleAggregation") == "max"
+
+
+def test_sum_aggregation_adds_every_known_threat_on_the_same_topology(page):
+    """Same two-cause topology test_tle_likelihood_is_max_of_known_threat_
+    frequencies_with_no_barriers uses (0.001 and 0.01) -- 'max' picks 0.01;
+    'sum' must instead answer 0.011, visibly different from either input."""
+    result = run_quant(page, """
+      const c1 = m.addCause({});
+      m.getNode(c1.nodeId).frequency = { value: '0.001' };
+      const c2 = m.addCause({});
+      m.getNode(c2.nodeId).frequency = { value: '0.01' };
+      const max = m.computeTleLikelihood(m.pages[0].id, { includeBarriers: false });
+      m.setTleAggregation('sum');
+      const sum = m.computeTleLikelihood(m.pages[0].id, { includeBarriers: false });
+      return {
+        max: max.value.toExactDecimal().toDecimalString(),
+        sum: sum.value.toExactDecimal().toDecimalString(),
+      };
+    """)
+    assert result["max"] == "0.01"
+    assert result["sum"] == "0.011"
+
+
+def test_sum_aggregation_still_excludes_unknown_threats(page):
+    result = run_quant(page, """
+      m.setTleAggregation('sum');
+      const known = m.addCause({});
+      m.getNode(known.nodeId).frequency = { value: '0.001' };
+      m.addCause({}); // frequency left null -- Unknown
+      const computed = m.computeTleLikelihood(m.pages[0].id, { includeBarriers: false });
+      return { value: computed.value.toExactDecimal().toDecimalString(), excluded: computed.excludedThreatCount };
+    """)
+    assert result["value"] == "0.001"
+    assert result["excluded"] == 1
+
+
+def test_tle_aggregation_round_trips_through_json(page):
+    result = page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.setTleAggregation('sum');
+      const json = m.toJSON();
+      m.setTleAggregation('max');
+      m.loadFromJSON(json);
+      return m.tleAggregation;
+    }""")
+    assert result == "sum"
+
+
+def test_an_older_document_missing_tle_aggregation_defaults_to_max(page):
+    # Purely additive field (see BowtieModel's constructor comment) -- a
+    # document exported before this existed simply lacks the key.
+    result = page.evaluate("""() => {
+      const data = window.__lastModel.toJSON();
+      delete data.tleAggregation;
+      const restored = Bowtie.BowtieModel.fromJSON(data);
+      return restored.tleAggregation;
+    }""")
+    assert result == "max"
+
+
+def test_set_tle_aggregation_rejects_unknown_policy(page):
+    threw = page.evaluate("""() => {
+      try { window.__lastModel.setTleAggregation('average'); return false; }
+      catch { return true; }
+    }""")
+    assert threw is True

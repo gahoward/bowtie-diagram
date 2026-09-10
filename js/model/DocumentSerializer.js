@@ -106,6 +106,7 @@
         name: model.name,
         mode: model.mode,
         riskMatrix: model.riskMatrix,
+        tleAggregation: model.tleAggregation,
         identifierDisplayMode: model.identifierDisplayMode,
         idCounters: { ...model.idCounters },
         retiredIds: {
@@ -162,6 +163,7 @@
       model.name = data.name || 'Untitled Bowtie';
       model.mode = data.mode || 'simple';
       model.riskMatrix = data.riskMatrix || null;
+      model.tleAggregation = data.tleAggregation === 'sum' ? 'sum' : 'max';
       model.identifierDisplayMode = data.identifierDisplayMode || 'internal';
       if (data.pages && data.pages.length > 0) {
         model.pages = data.pages.map((p) => this.pageHeaderFromJSON(p));
@@ -282,6 +284,7 @@
       model.identifierDisplayMode = fresh.identifierDisplayMode;
       model.mode = fresh.mode;
       model.riskMatrix = fresh.riskMatrix;
+      model.tleAggregation = fresh.tleAggregation;
       model.idCounters = fresh.idCounters;
       model.retiredIds = fresh.retiredIds;
     },

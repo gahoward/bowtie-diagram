@@ -63,6 +63,27 @@ def test_multiply_combines_mantissa_and_exponent(page):
     assert result == '0.00000012'
 
 
+def test_add_is_exact_across_different_exponents(page):
+    # Design review finding 11: Decimal had no `add` at all before this --
+    # the primitive Rational.add (and, through it, the TLE's 'sum'
+    # aggregation option) is built on. Different exponents force the
+    # alignment path (same one `compare`/`_alignedMantissas` already use).
+    result = page.evaluate("""() => {
+      return Bowtie.Decimal.parse('1E-3').add(Bowtie.Decimal.parse('4.2E-4')).toDecimalString();
+    }""")
+    assert result == '0.00142'
+
+
+def test_add_same_exponent_and_negative_values(page):
+    result = page.evaluate("""() => {
+      return [
+        Bowtie.Decimal.parse('0.1').add(Bowtie.Decimal.parse('0.2')).toDecimalString(),
+        Bowtie.Decimal.parse('5').add(Bowtie.Decimal.parse('-2')).toDecimalString(),
+      ];
+    }""")
+    assert result == ['0.3', '3']
+
+
 def test_compare_exact_at_a_boundary_value(page):
     # This is the whole reason this type exists: 0.001 must compare exactly
     # equal to a band boundary of the same nominal value, never nudged by

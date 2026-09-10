@@ -104,6 +104,42 @@ def test_max_of_an_empty_list_is_null(page):
     assert _ev(page, "return Bowtie.Rational.max([]);") is None
 
 
+# --- add/sum: design review finding 11's alternative aggregation ----------
+
+def test_add_across_different_denominators_is_exact(page):
+    # 1/1000 (1E-3 / RRF 1) + 1/10 (1E-3 / RRF 100, i.e. 1E-5) -- the
+    # denominators differ, so this exercises the cross-multiplied numerator
+    # add() has to do, not just Decimal.add's own alignment.
+    result = _ev(page, """
+      const a = Bowtie.Rational.fromDecimal(Bowtie.Decimal.parse('1E-3')).divideBy(Bowtie.Decimal.parse('1'));
+      const b = Bowtie.Rational.fromDecimal(Bowtie.Decimal.parse('1E-3')).divideBy(Bowtie.Decimal.parse('100'));
+      return a.add(b).toExactDecimal().toDecimalString();
+    """)
+    assert result == "0.00101", "1E-3 + 1E-5 = 1.01E-3, exactly"
+
+
+def test_sum_of_several_contributions_matches_repeated_add(page):
+    result = _ev(page, """
+      const mk = (n, d) => Bowtie.Rational.fromDecimal(Bowtie.Decimal.parse(n))
+        .divideBy(Bowtie.Decimal.parse(d));
+      const values = [mk('1E-3', '1'), mk('1E-3', '10'), mk('1E-3', '100')];
+      return Bowtie.Rational.sum(values).toExactDecimal().toDecimalString();
+    """)
+    assert result == "0.00111", "1E-3 + 1E-4 + 1E-5 = 1.11E-3, exactly"
+
+
+def test_sum_of_an_empty_list_is_null(page):
+    assert _ev(page, "return Bowtie.Rational.sum([]);") is None
+
+
+def test_sum_of_one_value_equals_that_value(page):
+    result = _ev(page, """
+      const r = Bowtie.Rational.fromDecimal(Bowtie.Decimal.parse('1E-3')).divideBy(Bowtie.Decimal.parse('7'));
+      return Bowtie.Rational.sum([r]).compare(r);
+    """)
+    assert result == 0
+
+
 # --- Banding: where exactness actually changes an answer ------------------
 
 def test_a_likelihood_on_a_band_boundary_lands_in_the_upper_band(page):

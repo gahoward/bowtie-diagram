@@ -57,6 +57,7 @@
     'addPage', 'deletePage', 'renamePage',
     'reEnableId', 'disableRetiredId', 'reassignId', 'setName',
     'addNode', 'renameNode', 'deleteNode', 'setMode', 'setRiskMatrix', 'setIdentifierDisplayMode',
+    'setTleAggregation',
   ];
 
   // addCause/addOutcome/addPreventativeControl/addMitigativeControl/

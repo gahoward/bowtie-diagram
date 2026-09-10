@@ -74,6 +74,19 @@
       return Decimal.fromBigIntExponent(this.mantissa * other.mantissa, this.exponent + other.exponent);
     }
 
+    // Exact: align to the smaller (more negative) exponent -- the same
+    // alignment _alignedMantissas already does for comparison -- then a
+    // plain BigInt sum. Added for design review finding 11 (top-event
+    // likelihood as a sum of independent threats' contributions, an
+    // alternative to the original max-only aggregation); see Rational.add,
+    // which is what the quantitative pipeline actually calls, for why a
+    // Decimal-level add was the missing primitive.
+    add(other) {
+      const [a, b] = this._alignedMantissas(other);
+      const exponent = this.exponent < other.exponent ? this.exponent : other.exponent;
+      return Decimal.fromBigIntExponent(a + b, exponent);
+    }
+
     // Aligns both values to the smaller (more negative) exponent by scaling
     // the other mantissa up by an exact power of ten (BigInt, exact), then
     // returns the two aligned mantissas for an exact integer comparison —

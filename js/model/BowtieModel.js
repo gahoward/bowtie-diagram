@@ -47,6 +47,13 @@
       // matrix has been chosen yet in the other two modes.
       this.mode = 'simple';
       this.riskMatrix = null;
+      // 'max' (default, original behaviour) | 'sum' -- design review
+      // finding 11: how the TLE combines multiple causes' contributions.
+      // See Quantitative.js's computeTleLikelihood. Purely additive, safe
+      // default (an older document simply lacks it and reads as 'max'),
+      // so this doesn't bump SCHEMA_VERSION -- same reasoning as the
+      // barrier-metadata fields in Node.js.
+      this.tleAggregation = 'max';
       this.idCounters = {
         page: 0,
         cause: 0,
@@ -497,6 +504,15 @@
     // clear it (e.g. switching back to Simple mode).
     setRiskMatrix(matrix) {
       this.riskMatrix = matrix;
+      this._emitChange();
+    }
+
+    // Design review finding 11 -- see the constructor's `tleAggregation`
+    // comment and Quantitative.js's computeTleLikelihood. Document-wide
+    // like setMode/setRiskMatrix just above, not page-scoped.
+    setTleAggregation(policy) {
+      if (!['max', 'sum'].includes(policy)) throw new Error(`Unknown TLE aggregation policy: ${policy}`);
+      this.tleAggregation = policy;
       this._emitChange();
     }
 
