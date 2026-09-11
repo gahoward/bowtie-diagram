@@ -41,6 +41,14 @@
     },
   };
 
+  // Structural review finding 04: this class used to also own painting the
+  // floating menu itself (ContextMenuView.js now) and six modal-
+  // orchestration flows with nothing to do with deciding what to offer
+  // (ContextMenuModalFlows.js now) -- rename/error/attach-picker/line-
+  // select/inherit-prompt, none of which care whether they were reached
+  // from a node's menu or a line's. What's left is exactly its own job:
+  // listen for the two events that open a menu, and build the list of
+  // items each one should offer.
   class ContextMenuController {
     // `triggerAutoArrange` re-lays-out the canvas after an action that
     // changes a barrier's position in the topology without moving anything
@@ -58,15 +66,12 @@
       this.model = model;
       this.svgRoot = svgRoot;
       this.triggerAutoArrange = triggerAutoArrange;
-      this.getDisplayUnit = getDisplayUnit;
       this.openNodeLibraryFor = openNodeLibraryFor;
-      this.menuEl = null;
+      this.view = new Bowtie.ContextMenuView();
+      this.flows = new Bowtie.ContextMenuModalFlows(model, triggerAutoArrange, getDisplayUnit);
 
       svgRoot.addEventListener('contextmenu', (e) => this._onContextMenu(e));
       svgRoot.addEventListener('dblclick', (e) => this._onDoubleClick(e));
-      document.addEventListener('pointerdown', (e) => {
-        if (this.menuEl && !this.menuEl.contains(e.target)) this._closeMenu();
-      });
     }
 
     _onContextMenu(e) {
@@ -74,14 +79,14 @@
       if (nodeEl) {
         e.preventDefault();
         const el = this.model.findById(nodeEl.getAttribute('data-id'));
-        if (el) this._renderMenu(e.clientX, e.clientY, this._buildNodeItems(el, this._toSvgPoint(e)));
+        if (el) this.view.render(e.clientX, e.clientY, this._buildNodeItems(el, this._toSvgPoint(e)));
         return;
       }
       const lineEl = e.target.closest('.connection');
       if (lineEl) {
         e.preventDefault();
         const items = this._buildLineItems(lineEl, e);
-        if (items.length > 0) this._renderMenu(e.clientX, e.clientY, items);
+        if (items.length > 0) this.view.render(e.clientX, e.clientY, items);
         return;
       }
       // Empty canvas — nothing under the cursor to target, so offer the two
@@ -91,7 +96,7 @@
       // line-gap and TLE menus below). `e.target` is always inside
       // `svgRoot` here, since that's what this listener is attached to.
       e.preventDefault();
-      this._renderMenu(e.clientX, e.clientY, this._buildAddCauseOutcomeItems(this._toSvgPoint(e)));
+      this.view.render(e.clientX, e.clientY, this._buildAddCauseOutcomeItems(this._toSvgPoint(e)));
     }
 
     // Shared by the empty-canvas menu and the TopLevelEvent's own node menu
@@ -144,7 +149,7 @@
       const g = e.target.closest('.node');
       if (!g) return;
       const el = this.model.findById(g.getAttribute('data-id'));
-      if (el) this._rename(el);
+      if (el) this.flows.rename(el);
     }
 
     _buildNodeItems(el, point) {
@@ -160,10 +165,10 @@
         if (this.model.preventativeBarriers.length > 0) {
           items.push({
             label: 'Attach to Existing Preventative Barrier…',
-            action: () => this._openAttachModal(
+            action: () => this.flows.openAttachModal(
               'Attach Cause to Preventative Barrier',
               this.model.preventativeBarriers,
-              (pb) => this._attachWithInheritPrompt(
+              (pb) => this.flows.attachWithInheritPrompt(
                 pb.id,
                 this.model._lineFor(el.id).id,
                 (inherit) => this.model.attachInputToPreventativeControl(el.id, pb.id, inherit),
@@ -180,10 +185,10 @@
         if (this.model.mitigativeBarriers.length > 0) {
           items.push({
             label: 'Attach to Existing Mitigative Barrier…',
-            action: () => this._openAttachModal(
+            action: () => this.flows.openAttachModal(
               'Attach Outcome to Mitigative Barrier',
               this.model.mitigativeBarriers,
-              (mb) => this._attachWithInheritPrompt(
+              (mb) => this.flows.attachWithInheritPrompt(
                 mb.id,
                 this.model._lineFor(el.id).id,
                 (inherit) => this.model.attachOutputToMitigativeControl(mb.id, el.id, inherit),
@@ -206,7 +211,7 @@
         items.push({ label: 'Add Mitigative Barrier', action: () => this._addMitigativeControlFrom(el) });
         items.push(...this._buildShuntItems(el.id));
       }
-      items.push({ label: 'Properties', action: () => this._rename(el) });
+      items.push({ label: 'Properties', action: () => this.flows.rename(el) });
       if (el.type !== 'topLevelEvent' && el.type !== 'hazard') {
         // "Remove from Page" (node_library_proposal.md, decided): this only
         // ever called deleteElement and always will — the label just stops
@@ -267,7 +272,7 @@
               this.triggerAutoArrange();
               return;
             }
-            this._openLineSelectModal(
+            this.flows.openLineSelectModal(
               label,
               eligible.map((l) => ({ key: l.id, label: this._labelForOrigin(l.originId) })),
               null,
@@ -377,7 +382,7 @@
           items.push(this._attachSegmentItem(
             side.attachLabel,
             collection,
-            (target) => this._attachWithInheritPrompt(
+            (target) => this.flows.attachWithInheritPrompt(
               target.id,
               line.id,
               (inherit) => side.attachFn(model, line.originId, target.id, inherit),
@@ -409,7 +414,7 @@
         items.push(this._attachSegmentItem(
           side.attachLabel,
           others,
-          (target) => this._safeAttach(() => model.attachExistingBarrier(
+          (target) => this.flows.safeAttach(() => model.attachExistingBarrier(
             kind, direction, anchorId, target.id, [lineId],
           )),
         ));
@@ -452,7 +457,7 @@
     // barrier-node menus which must also ask *which* line(s) since a barrier
     // can carry more than one.
     _attachSegmentItem(label, candidates, onPick) {
-      return { label, action: () => this._openAttachModal(label, candidates, onPick) };
+      return { label, action: () => this.flows.openAttachModal(label, candidates, onPick) };
     }
 
     // Inserts a new barrier of `kind` after `barrier`, toward the TLE. If
@@ -477,7 +482,7 @@
         proceed(null);
         return;
       }
-      this._openLineSelectModal(
+      this.flows.openLineSelectModal(
         SIDE[kind].addLabel,
         lines.map((l) => ({ key: l.id, label: this._labelForOrigin(l.originId) })),
         preselectedLineId,
@@ -491,236 +496,6 @@
 
     _addMitigativeControlFrom(mb, preselectedLineId) {
       return this._addBarrierFrom('mitigativeBarrier', mb, preselectedLineId);
-    }
-
-    _openLineSelectModal(title, options, preselectedKey, onConfirm, description) {
-      const body = document.createElement('div');
-      const p = document.createElement('p');
-      p.textContent = description || 'This point currently carries multiple lines. Select which one(s) should route '
-        + 'through the new barrier — anything left unselected continues exactly as before.';
-      body.appendChild(p);
-
-      const checks = options.map((opt) => {
-        const label = document.createElement('label');
-        label.className = 'modal-checkbox-row';
-        const input = document.createElement('input');
-        input.type = 'checkbox';
-        input.value = opt.key;
-        if (preselectedKey && opt.key === preselectedKey) input.checked = true;
-        const span = document.createElement('span');
-        span.textContent = opt.label;
-        label.appendChild(input);
-        label.appendChild(span);
-        body.appendChild(label);
-        return input;
-      });
-
-      Bowtie.ModalView.openModal({
-        title,
-        bodyEl: body,
-        dismissible: false,
-        actions: [
-          { label: 'Cancel' },
-          {
-            label: 'Confirm',
-            primary: true,
-            onClick: () => {
-              const selected = checks.filter((c) => c.checked).map((c) => c.value);
-              onConfirm(selected.length > 0 ? selected : null);
-            },
-          },
-        ],
-      });
-    }
-
-    // Opens the shared Properties modal (PropertiesModal.js) for any node
-    // type -- Identity (name/description/identifier), Risk Analysis
-    // (qualitative/quantitative fields, library nodes only), and read-only
-    // Computed values (Outcome risk class/likelihood, TLE computed
-    // likelihood). Reached from both double-click and the context menu's
-    // "Properties" item.
-    _rename(el) {
-      Bowtie.openPropertiesModal({ model: this.model, el, displayUnit: this.getDisplayUnit() });
-    }
-
-    _showError(message) {
-      const body = document.createElement('div');
-      const p = document.createElement('p');
-      p.textContent = message;
-      body.appendChild(p);
-      Bowtie.ModalView.openModal({ title: 'Cannot Do That', bodyEl: body, actions: [{ label: 'OK', primary: true }] });
-    }
-
-    // The sole path every "attach to existing barrier" action runs through
-    // (attachExistingBarrier's line-segment reattach, and the inherit-prompt
-    // flow's attachInputToPreventativeControl/attachOutputToMitigativeControl
-    // calls below) -- re-arranging here on success covers all of them in one
-    // place rather than after each individual call site.
-    _safeAttach(fn) {
-      try {
-        fn();
-        this.triggerAutoArrange();
-        return true;
-      } catch (err) {
-        this._showError(err.message);
-        return false;
-      }
-    }
-
-    // Wraps attachInputToPreventativeControl/attachOutputToMitigativeControl
-    // (via `attach(inheritDownstream)`): only asks the user whether to
-    // inherit `targetId`'s existing downstream continuation when there
-    // actually IS one on some other line (`excludeLineId` is the line
-    // about to be replaced, so it never answers its own question) --
-    // otherwise inheriting or not makes no difference, so it just attaches
-    // (with `inheritDownstream: true`, though `false` would produce the
-    // exact same result) without bothering the user over a non-choice.
-    _attachWithInheritPrompt(targetId, excludeLineId, attach) {
-      const continuation = this.model._donorContinuation(targetId, excludeLineId);
-      if (continuation.length === 0) {
-        this._safeAttach(() => attach(true));
-        return;
-      }
-      // What "decline" actually resolves to depends on whether this line
-      // already had its own further barriers before this attach -- the
-      // modal's wording needs to say which, not just always claim "goes
-      // straight to the TLE" (only true for the common bare-origin case).
-      const excludeLine = this.model.lines.find((l) => l.id === excludeLineId);
-      const ownContinuation = excludeLine ? excludeLine.stops.filter((id) => id !== targetId) : [];
-      this._openInheritDownstreamModal(
-        continuation,
-        ownContinuation,
-        (inherit) => this._safeAttach(() => attach(inherit)),
-      );
-    }
-
-    // `continuation` is the donor's stops past the barrier being attached
-    // to (e.g. ['PB_3'] when attaching to a barrier that already continues
-    // on to PB_3 before the TLE); `ownContinuation` is whatever this
-    // line's OWN stops already were beyond the target barrier, if any --
-    // declining keeps those instead, or goes straight to the TLE if there
-    // were none. Offers a real third way out (Cancel) alongside the two
-    // real choices, since this can come up mid-attach and the user may not
-    // have realized the target barrier already continues further.
-    _openInheritDownstreamModal(continuation, ownContinuation, onChoice) {
-      const nameOf = (id) => {
-        const el = this.model.findById(id);
-        if (!el) return id;
-        const node = this.model.getNode(el.nodeId);
-        const displayId = this.model.displayIdentifierFor(node);
-        return `${displayId} (${node.name})`;
-      };
-      const continuationNames = continuation.map(nameOf).join(', ');
-      const declineDescription = ownContinuation.length > 0
-        ? `keep going through its own existing path (${ownContinuation.map(nameOf).join(', ')}) instead`
-        : 'go straight to the TLE from this barrier instead';
-      const body = document.createElement('div');
-      const p = document.createElement('p');
-      p.textContent = `This barrier already continues on to ${continuationNames} before reaching the TLE. `
-        + `Should the new connection follow that same path, or ${declineDescription}?`;
-      body.appendChild(p);
-
-      Bowtie.ModalView.openModal({
-        title: 'Inherit Downstream Barriers?',
-        bodyEl: body,
-        dismissible: false,
-        actions: [
-          { label: 'Cancel' },
-          { label: 'Stop Here', onClick: () => onChoice(false) },
-          { label: 'Follow Existing Path', primary: true, onClick: () => onChoice(true) },
-        ],
-      });
-    }
-
-    _openAttachModal(title, candidates, onPick) {
-      const body = document.createElement('div');
-
-      const filterWrap = document.createElement('label');
-      filterWrap.className = 'modal-field';
-      const filterLabel = document.createElement('span');
-      filterLabel.textContent = 'Filter';
-      const filterInput = document.createElement('input');
-      filterInput.type = 'text';
-      filterInput.placeholder = 'Search by id or name…';
-      filterWrap.appendChild(filterLabel);
-      filterWrap.appendChild(filterInput);
-      body.appendChild(filterWrap);
-
-      const list = document.createElement('div');
-      list.className = 'attach-list';
-      body.appendChild(list);
-
-      // `candidates` are always PLACEMENTS (attachExistingBarrier/
-      // attachInputToPreventativeControl/attachOutputToMitigativeControl
-      // all operate on placement ids) -- displayed id/name resolve through
-      // each one's shared library node instead, same as everywhere else a
-      // barrier renders (node_library_proposal.md "Two id spaces").
-      const rows = candidates.map((c) => {
-        const node = this.model.getNode(c.nodeId);
-        const displayId = this.model.displayIdentifierFor(node);
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'attach-list-item';
-
-        const idSpan = document.createElement('span');
-        idSpan.className = 'attach-list-id';
-        idSpan.textContent = displayId;
-
-        const nameSpan = document.createElement('span');
-        nameSpan.className = 'attach-list-name';
-        nameSpan.textContent = node.name;
-
-        btn.appendChild(idSpan);
-        btn.appendChild(nameSpan);
-        btn.addEventListener('click', () => {
-          onPick(c);
-          modal.close();
-        });
-        list.appendChild(btn);
-        return { el: btn, haystack: `${displayId} ${node.name}`.toLowerCase() };
-      });
-
-      filterInput.addEventListener('input', () => {
-        const term = filterInput.value.trim().toLowerCase();
-        rows.forEach((row) => { row.el.hidden = term.length > 0 && !row.haystack.includes(term); });
-      });
-
-      const modal = Bowtie.ModalView.openModal({
-        title,
-        bodyEl: body,
-        actions: [{ label: 'Cancel' }],
-      });
-      filterInput.focus();
-    }
-
-    _renderMenu(x, y, items) {
-      this._closeMenu();
-      const menu = document.createElement('div');
-      menu.className = 'context-menu';
-      menu.style.left = `${x}px`;
-      menu.style.top = `${y}px`;
-
-      items.forEach((item) => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'context-menu-item';
-        btn.textContent = item.label;
-        btn.addEventListener('click', () => {
-          item.action();
-          this._closeMenu();
-        });
-        menu.appendChild(btn);
-      });
-
-      document.body.appendChild(menu);
-      this.menuEl = menu;
-    }
-
-    _closeMenu() {
-      if (this.menuEl) {
-        this.menuEl.remove();
-        this.menuEl = null;
-      }
     }
   }
 
