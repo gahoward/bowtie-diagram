@@ -24,6 +24,7 @@
       .node.preventative-barrier .shape, .node.mitigative-barrier .shape { fill: ${v('control-fill')}; stroke: ${v('control-stroke')}; }
       .connection-label { font-size: 10px; fill: ${v('connection-label')}; text-anchor: start; }
       .node text { font-family: system-ui, -apple-system, Segoe UI, Arial, sans-serif; font-size: 13px; fill: ${v('node-text')}; }
+      .node-info-text-emphasized text { fill: ${v('node-text')}; }
       .node-id-text { font-weight: 700; }
     `;
   }

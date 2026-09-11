@@ -38,6 +38,15 @@
       // toggles) -- never part of the diagram data, never round-trips
       // through JSON export/import.
       this.displayUnit = 'hour';
+      // Structural review finding 09: every model change rebuilds the whole
+      // modal body from scratch, which is fine for a radio toggle (nothing
+      // was focused inside it a moment later) but not for the Name field --
+      // its 'change' event fires on blur, after focus has already moved to
+      // whatever's next in tab order, and a same-tick body rebuild replaces
+      // that element too, dropping focus to <body> with no way back. Nothing
+      // else in this modal depends on the name changing, so the Name commit
+      // sets this flag to skip the one rebuild it triggers.
+      this._suppressNextRefresh = false;
       button.addEventListener('click', () => this._open());
       model.onChange(() => this._refresh());
       importFileInput.addEventListener('change', (e) => this._onImportFile(e));
@@ -58,6 +67,10 @@
 
     _refresh() {
       if (!this.modal) return;
+      if (this._suppressNextRefresh) {
+        this._suppressNextRefresh = false;
+        return;
+      }
       if (!document.body.contains(this.modal.overlay)) {
         this.modal = null;
         return;
@@ -94,8 +107,12 @@
       input.value = this.model.name;
       input.addEventListener('change', () => {
         const next = input.value.trim();
-        if (next) this.model.setName(next);
-        else input.value = this.model.name;
+        if (next) {
+          this._suppressNextRefresh = true;
+          this.model.setName(next);
+        } else {
+          input.value = this.model.name;
+        }
       });
       field.appendChild(label);
       field.appendChild(input);

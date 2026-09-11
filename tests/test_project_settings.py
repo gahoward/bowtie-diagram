@@ -38,6 +38,21 @@ def test_project_settings_renames_the_document(page):
     assert page.evaluate("() => window.__lastModel.name") == "My Renamed Analysis"
 
 
+def test_committing_a_rename_does_not_drop_focus_to_body(page):
+    """Structural review finding 09: the Name field's 'change' event fires
+    on blur, after focus has already moved to whatever's next in tab order
+    -- a same-tick modal body rebuild used to replace that element too,
+    dropping focus to <body> with no way back for a keyboard user."""
+    _open_project_settings(page)
+    name_input = page.locator(".modal-section:has-text('Analysis') input[type=text]")
+    name_input.fill("Tabbed Away")
+    name_input.press("Tab")
+    page.wait_for_timeout(80)
+
+    assert page.evaluate("() => window.__lastModel.name") == "Tabbed Away"
+    assert page.evaluate("() => document.activeElement.tagName") != "BODY"
+
+
 def test_project_settings_identifier_display_mode_moved_out_of_node_library(page):
     # The toggle now lives only in Project Settings.
     _open_project_settings(page)

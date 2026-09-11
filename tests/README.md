@@ -221,7 +221,18 @@ step for the app itself, so tests run directly against `index.html` as-is.
   badge names whichever policy produced its figure. And UI-review
   finding 02's risk-class legend: appears once a matrix is selected (not
   before), lists every class with its full label, and clears again if the
-  matrix is cleared.
+  matrix is cleared. Structural review finding 09: committing a rename via
+  Tab (not a click, so focus has already moved on to the next field by the
+  time the 'change' event's model update triggers a modal body rebuild)
+  must not drop focus to `<body>`.
+- **`test_modal_view.py`** — the shared `ModalView.openModal` component
+  every dialog in the app is built on (driven here through the Node Library
+  and Warnings modals, any caller would do). Structural review finding 03:
+  `#app` goes `inert` while a modal is open and not after it closes, opening
+  a modal focuses something inside the dialog, closing one restores focus
+  to whatever triggered it, and the Escape-key listener is torn down on
+  every close path (button click included, not just Escape itself) so it
+  can't leak and fire again on a later keypress.
 - **`test_file_handlers.py`** — import/export preferring the native File
   System Access API (`showSaveFilePicker`/`showOpenFilePicker`) with a
   fallback to the legacy download-link/hidden-`<input>` path wherever that
