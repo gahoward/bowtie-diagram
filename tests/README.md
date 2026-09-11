@@ -217,6 +217,15 @@ step for the app itself, so tests run directly against `index.html` as-is.
   deterministically. Also covers `exportPng`'s null-blob guard (an
   oversized canvas — plausible given auto-arrange's unbounded layout —
   makes `canvas.toBlob` hand back `null` instead of throwing).
+- **`test_import_loading_modal.py`** — the non-dismissible "Importing…"
+  loading modal `ImportExportController._processImportedText` now shows
+  for the duration of an import (native picker, legacy hidden-`<input>`,
+  and the welcome dropzone/upload button all funnel through it), closed
+  only once the load has either failed (leaving just the error dialog) or
+  the document has loaded and the first page has rendered. A real import
+  is too fast to catch by wall-clock timing, so these spy on
+  `Bowtie.ModalView.openModal` to record what was actually opened rather
+  than racing the browser's paint.
 - **`test_toolbar_menus.py`** — the File/Add/View/Settings dropdown menus
   and the empty-canvas/TLE context menu (Add Cause/Add Outcome reachable
   from anywhere on the diagram, not just an existing Cause/Outcome node).

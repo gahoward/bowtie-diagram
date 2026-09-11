@@ -427,6 +427,37 @@ html, body {
   gap: 12px;
 }
 
+.modal-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 0;
+}
+
+.modal-loading p {
+  margin: 0;
+  color: #374151;
+  font-size: 14px;
+}
+
+.modal-loading-spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid var(--border);
+  border-top-color: var(--cause-stroke);
+  animation: modal-loading-spin 0.8s linear infinite;
+}
+
+@keyframes modal-loading-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-loading-spinner { animation: none; }
+}
+
 .welcome-body p {
   margin: 0;
   color: #374151;
