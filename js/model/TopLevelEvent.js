@@ -4,7 +4,7 @@
   // node used to play before the Hazard/TLE split.
   class TopLevelEvent {
     constructor({
-      id = 'TLE', name = 'Top-Level Event', description = '', x = 0, y = 0, r = 70, pageId,
+      id = 'TLE', name = 'Top-Level Event', description = '', x = 0, y = 0, r = Bowtie.Geometry.TLE_DEFAULT_R, pageId,
     } = {}) {
       this.id = id;
       this.type = 'topLevelEvent';

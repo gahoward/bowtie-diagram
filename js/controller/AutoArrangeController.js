@@ -23,9 +23,11 @@
   // last barrier column into the TLE itself — see TLE_ADJACENT_GAP_TIGHT,
   // which is a genuinely different constraint (the Hazard sitting above the
   // TLE, not a label).
-  const BARRIER_LABEL_MAX_WIDTH = 110; // ShapeRenderer's renderControl `labelMaxWidth`
-  const CAUSE_OUTCOME_W = 140; // BowtieModel's addCause/addOutcome `w` — fixed, never resized
-  const TLE_DEFAULT_R = 70; // TopLevelEvent's default `r`
+  // Structural review finding 05: these five all used to be hand-copied
+  // literals, each carrying a comment promising to keep it in sync with
+  // whichever file actually owns the real number -- now read straight from
+  // Bowtie.Geometry, the one place that promise is now enforced.
+  const { BARRIER_LABEL_MAX_WIDTH, CAUSE_OUTCOME_W, TLE_DEFAULT_R } = Bowtie.Geometry;
   // Minimum vertical gap the topmost Cause/Outcome row must keep above the
   // TLE's own y (see the shift applied near the end of arrange()) — sized
   // generously past a typical TLE radius plus the Hazard's height/gap so
@@ -55,8 +57,8 @@
   // x reaches the Hazard's own edge" for the minimum horizontal run gives
   // `TLE_CLEARANCE * HAZARD_HALF_W / (TLE_DEFAULT_R + HAZARD_GAP)` — ~170px
   // for these constants — plus the same margin as COL_SPACING_TIGHT.
-  const HAZARD_HALF_W = 85; // Hazard's default w:170, halved
-  const HAZARD_GAP = 40; // Layout.js's HAZARD_GAP
+  const { HAZARD_GAP } = Bowtie.Geometry;
+  const HAZARD_HALF_W = Bowtie.Geometry.HAZARD_W / 2;
   const TLE_ADJACENT_GAP_TIGHT = Math.ceil(
     20 + ((TLE_CLEARANCE * HAZARD_HALF_W) / (TLE_DEFAULT_R + HAZARD_GAP)),
   );
@@ -68,15 +70,14 @@
   // compact spacing. Barrier geometry (below) is irrelevant here.
   const ROW_SPACING = 110;
 
-  // Barrier geometry mirrored from the model/render layer (BowtieModel's
-  // addPreventativeControl/_makeBarrierNear hardcode every barrier to
-  // w:36, h:110 — never resized; Layout.js's LANE_MARGIN is 16) — literals,
-  // not imports, since this controller only ever computes *positions*
-  // ahead of any render, but these are true model-level constants, not
-  // runtime/DOM-derived ones, so hand-deriving GROUP_GAP from them keeps
-  // it correct-by-construction rather than a re-guessed magic number.
-  const BARRIER_DEFAULT_H = 110;
-  const LABEL_GAP = 14; // ShapeRenderer's `labelTop = cy + h/2 + 14`
+  // Barrier geometry, read from the model/render layer's own Bowtie.Geometry
+  // (LineTopology's barriers are always this size, never resized) — this
+  // controller only ever computes *positions* ahead of any render, but
+  // these are true shape constants, not runtime/DOM-derived ones, so
+  // hand-deriving GROUP_GAP from them keeps it correct-by-construction
+  // rather than a re-guessed magic number. (Layout.js's own LANE_MARGIN,
+  // 16, is a separate render-time concern this controller doesn't need.)
+  const { BARRIER_H: BARRIER_DEFAULT_H, LABEL_GAP } = Bowtie.Geometry;
   // Generous upper bound on a barrier's id+name label block height
   // (ShapeRenderer wraps the name to a max width and stacks lines at 16px
   // each, plus one line for the id) — sized past what even a long,

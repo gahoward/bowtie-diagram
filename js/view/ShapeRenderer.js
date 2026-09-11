@@ -1,6 +1,7 @@
 (function (Bowtie) {
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const { LINE_HEIGHT, FONT_SIZE } = Bowtie.Layout;
+  const { BARRIER_LABEL_MAX_WIDTH, LABEL_GAP } = Bowtie.Geometry;
 
   function el(tag, attrs) {
     const node = document.createElementNS(SVG_NS, tag);
@@ -144,10 +145,9 @@
       rx: 4, ry: 4, class: 'shape',
     }));
 
-    const labelMaxWidth = 110;
-    const labelLines = Bowtie.TextWrap.wrapText(svgRoot, displayName, labelMaxWidth, FONT_SIZE);
+    const labelLines = Bowtie.TextWrap.wrapText(svgRoot, displayName, BARRIER_LABEL_MAX_WIDTH, FONT_SIZE);
     const labelBlockHeight = (labelLines.length + 1) * LINE_HEIGHT;
-    const labelTop = cy + h / 2 + 14;
+    const labelTop = cy + h / 2 + LABEL_GAP;
     const labelCenterY = labelTop + (labelBlockHeight / 2);
     g.appendChild(textBlock(node.x, labelCenterY, displayId, labelLines));
 
@@ -157,7 +157,7 @@
     return {
       g,
       bounds: {
-        w, h, cy, labelCenterY, labelHalfWidth: labelMaxWidth / 2, labelHalfHeight: labelBlockHeight / 2,
+        w, h, cy, labelCenterY, labelHalfWidth: BARRIER_LABEL_MAX_WIDTH / 2, labelHalfHeight: labelBlockHeight / 2,
       },
     };
   }

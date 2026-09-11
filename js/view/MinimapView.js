@@ -3,6 +3,14 @@
   const MINI_W = 220;
   const MINI_H = 140;
   const PAD = 10;
+  // Structural review finding 02: the expensive part of a minimap render is
+  // the clone (deep-cloning the entire live nodes/connections layers), not
+  // the transform maths or the viewport rect -- and unlike the main canvas,
+  // a stale minimap thumbnail mid-drag is invisible (the main canvas is
+  // already giving live feedback). Trailing-debouncing just the clone lets
+  // a burst of renders -- a drag's, or a bulk import's -- settle into one
+  // reclone instead of one per render.
+  const CONTENT_DEBOUNCE_MS = 120;
 
   function el(tag, attrs) {
     const node = document.createElementNS(SVG_NS, tag);
@@ -40,6 +48,8 @@
       this.panZoom = panZoom;
       this.contentBounds = null;
       this.dragging = false;
+      this._pendingLayers = null;
+      this._debounceTimer = null;
 
       this.svg = el('svg', {
         class: 'minimap', width: MINI_W, height: MINI_H, viewBox: `0 0 ${MINI_W} ${MINI_H}`,
@@ -61,15 +71,37 @@
     // elements, cloned rather than re-derived from model data — so the
     // minimap can never drift out of sync with what the main canvas
     // actually just rendered (a barrier's grown box, a bent connection
-    // into the TLE, focus/warning styling, all of it).
+    // into the TLE, focus/warning styling, all of it). contentBounds and
+    // the viewport rect update on every call, immediately -- a click/drag
+    // on the minimap itself needs both to stay accurate; only the clone
+    // itself (see CONTENT_DEBOUNCE_MS above) waits for renders to settle.
     render(connectionsLayer, nodesLayer, contentBounds) {
       this.contentBounds = contentBounds;
+      if (!contentBounds) {
+        this.contentGroup.replaceChildren();
+        this._pendingLayers = null;
+        if (this._debounceTimer !== null) {
+          clearTimeout(this._debounceTimer);
+          this._debounceTimer = null;
+        }
+        return;
+      }
+      this._updateViewportRect();
+      this._pendingLayers = { connectionsLayer, nodesLayer };
+      if (this._debounceTimer !== null) clearTimeout(this._debounceTimer);
+      this._debounceTimer = setTimeout(() => {
+        this._debounceTimer = null;
+        this._renderContent();
+      }, CONTENT_DEBOUNCE_MS);
+    }
+
+    _renderContent() {
+      const { connectionsLayer, nodesLayer } = this._pendingLayers;
       this.contentGroup.replaceChildren();
-      if (!contentBounds) return;
 
       const scale = this._scale();
-      const tx = PAD - contentBounds.minX * scale;
-      const ty = PAD - contentBounds.minY * scale;
+      const tx = PAD - this.contentBounds.minX * scale;
+      const ty = PAD - this.contentBounds.minY * scale;
       this.contentGroup.setAttribute('transform', `translate(${tx}, ${ty}) scale(${scale})`);
 
       const connectionsClone = connectionsLayer.cloneNode(true);
@@ -77,8 +109,6 @@
       rewriteDefIds(nodesClone);
       this.contentGroup.appendChild(connectionsClone);
       this.contentGroup.appendChild(nodesClone);
-
-      this._updateViewportRect();
     }
 
     _scale() {

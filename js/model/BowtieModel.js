@@ -337,7 +337,7 @@
       const node = this._resolveOrCreateNode('cause', opts, pageId);
       this.idCounters.placement += 1;
       const id = `PLACEMENT_${this.idCounters.placement}`;
-      const w = 140;
+      const w = Bowtie.Geometry.CAUSE_OUTCOME_W;
       const h = 60;
       const x = opts.x ?? 150;
       const y = opts.y ?? this._findClearY(pageId, x, w, h, TOP_MARGIN);
@@ -359,7 +359,7 @@
       const node = this._resolveOrCreateNode('outcome', opts, pageId);
       this.idCounters.placement += 1;
       const id = `PLACEMENT_${this.idCounters.placement}`;
-      const w = 140;
+      const w = Bowtie.Geometry.CAUSE_OUTCOME_W;
       const h = 60;
       const x = opts.x ?? (CANVAS_W - 150);
       const y = opts.y ?? this._findClearY(pageId, x, w, h, TOP_MARGIN);

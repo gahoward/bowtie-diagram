@@ -4,7 +4,8 @@
   // directly above the TLE (see Layout.hazardPosition) and moves with it.
   class Hazard {
     constructor({
-      id = 'HAZARD', name = 'Hazard', description = '', w = 170, h = 70, pageId,
+      id = 'HAZARD', name = 'Hazard', description = '',
+      w = Bowtie.Geometry.HAZARD_W, h = Bowtie.Geometry.HAZARD_H, pageId,
     } = {}) {
       this.id = id;
       this.type = 'hazard';
