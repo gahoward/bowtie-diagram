@@ -323,7 +323,9 @@ def test_many_pages_tab_strip_scrollable_and_jump_dropdown_reaches_all(page):
 # --- Per-page + document-level undo -------------------------------------
 
 def _cause_names(pg):
-    return [c["name"] for c in pg.evaluate("() => window.__lastModel.causes.map((c) => ({name: c.name}))")]
+    return pg.evaluate(
+        "() => window.__lastModel.causes.map((c) => window.__lastModel.getNode(c.nodeId).name)"
+    )
 
 
 def _add_second_page(pg, name="Page Two"):
@@ -334,18 +336,42 @@ def _add_second_page(pg, name="Page Two"):
 
 
 def test_per_page_undo_isolation_both_directions(page):
+    """addCause/addOutcome/etc. creating a brand-new node are document-tier
+    steps (node_library_proposal.md "Undo tier" — a shared library node's
+    identity isn't page-scoped), so this test exercises the tier that
+    genuinely stays per-page: placement-only mutations, e.g. moveElement.
+    See test_undo_redo.py's `_document_undo_depth`/`_page_undo_depth` split
+    for the same distinction at the model level."""
     _add_second_page(page)
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      const p1 = m.pages[0].id;
+      const p2 = m.pages[1].id;
+      m.addCause({x: 150, y: 200, name: 'P1 Cause', pageId: p1});
+      m.addCause({x: 150, y: 200, name: 'P2 Cause', pageId: p2});
+    }""")
+    page.wait_for_timeout(100)
+    page.evaluate("() => window.__lastUndo.reset();")  # discard the two document-tier creations
+
     page.locator(".page-tab").first.locator(".page-tab-label").click()
     page.wait_for_timeout(120)
-
-    page.evaluate("() => { window.__lastUndo.model.addCause({x: 150, y: 200, name: 'P1 Cause'}); }")
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      const pageId = m.pages[0].id;
+      const c = m.causesForPage(pageId)[0];
+      window.__lastUndo.snapshot(pageId); // moveElement itself is excluded from
+      m.moveElement(c.id, 150, 260);      // the proxy's generic hook -- see UndoController.js
+    }""")
     page.wait_for_timeout(80)
 
     page.locator(".page-tab").nth(1).locator(".page-tab-label").click()
     page.wait_for_timeout(120)
     page.evaluate("""() => {
-      const p2 = window.__lastModel.pages[1].id;
-      window.__lastUndo.model.addCause({x: 150, y: 200, name: 'P2 Cause', pageId: p2});
+      const m = window.__lastModel;
+      const pageId = m.pages[1].id;
+      const c = m.causesForPage(pageId)[0];
+      window.__lastUndo.snapshot(pageId);
+      m.moveElement(c.id, 150, 260);
     }""")
     page.wait_for_timeout(80)
 
@@ -354,19 +380,41 @@ def test_per_page_undo_isolation_both_directions(page):
     page.keyboard.press("Control+z")
     page.wait_for_timeout(120)
 
-    assert _cause_names(page) == ["P2 Cause"], "undo on page one must only revert page one's own edit"
+    p1_y = page.evaluate("() => window.__lastModel.causesForPage(window.__lastModel.pages[0].id)[0].y")
+    assert p1_y == 200, "undo on page one must only revert page one's own edit"
+    p2_y = page.evaluate("() => window.__lastModel.causesForPage(window.__lastModel.pages[1].id)[0].y")
+    assert p2_y == 260, "page two's own move must be untouched"
 
     page.keyboard.press("Control+y")
     page.wait_for_timeout(120)
-    assert sorted(_cause_names(page)) == ["P1 Cause", "P2 Cause"]
+    p1_y = page.evaluate("() => window.__lastModel.causesForPage(window.__lastModel.pages[0].id)[0].y")
+    assert p1_y == 260
 
 
 def test_redo_scoping_a_new_edit_clears_only_its_own_pages_redo(page):
+    """Same tier caveat as test_per_page_undo_isolation_both_directions:
+    addCause creates a brand-new document-tier node, so the page-scoped
+    mutation exercised here is moveElement instead."""
     _add_second_page(page)
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      const p1 = m.pages[0].id;
+      const p2 = m.pages[1].id;
+      m.addCause({x: 150, y: 200, pageId: p1});
+      m.addCause({x: 150, y: 200, pageId: p2});
+    }""")
+    page.wait_for_timeout(100)
+    page.evaluate("() => window.__lastUndo.reset();")  # discard the two document-tier creations
+
     page.locator(".page-tab").first.locator(".page-tab-label").click()
     page.wait_for_timeout(120)
-
-    page.evaluate("() => { window.__lastUndo.model.addCause({x: 150, y: 200, name: 'P1 A'}); }")
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      const pageId = m.pages[0].id;
+      const c = m.causesForPage(pageId)[0];
+      window.__lastUndo.snapshot(pageId); // moveElement itself is excluded from
+      m.moveElement(c.id, 150, 260);      // the proxy's generic hook -- see UndoController.js
+    }""")
     page.wait_for_timeout(80)
     page.keyboard.press("Control+z")  # leaves page one's own redo available
     page.wait_for_timeout(80)
@@ -374,8 +422,11 @@ def test_redo_scoping_a_new_edit_clears_only_its_own_pages_redo(page):
     page.locator(".page-tab").nth(1).locator(".page-tab-label").click()
     page.wait_for_timeout(120)
     page.evaluate("""() => {
-      const p2 = window.__lastModel.pages[1].id;
-      window.__lastUndo.model.addCause({x: 150, y: 200, name: 'P2 A', pageId: p2});
+      const m = window.__lastModel;
+      const pageId = m.pages[1].id;
+      const c = m.causesForPage(pageId)[0];
+      window.__lastUndo.snapshot(pageId);
+      m.moveElement(c.id, 150, 260);
     }""")
     page.wait_for_timeout(80)
     page.keyboard.press("Control+z")  # leaves page two's own redo available too
@@ -383,8 +434,11 @@ def test_redo_scoping_a_new_edit_clears_only_its_own_pages_redo(page):
 
     # A fresh edit on page two must clear ONLY page two's redo.
     page.evaluate("""() => {
-      const p2 = window.__lastModel.pages[1].id;
-      window.__lastUndo.model.addCause({x: 150, y: 260, name: 'P2 B', pageId: p2});
+      const m = window.__lastModel;
+      const pageId = m.pages[1].id;
+      const c = m.causesForPage(pageId)[0];
+      window.__lastUndo.snapshot(pageId);
+      m.moveElement(c.id, 320, 260);
     }""")
     page.wait_for_timeout(80)
     assert page.evaluate("() => document.getElementById('btn-redo').disabled") is True
@@ -396,11 +450,27 @@ def test_redo_scoping_a_new_edit_clears_only_its_own_pages_redo(page):
 
 
 def test_undo_picks_the_more_recent_document_tier_rename_over_an_older_page_edit(page):
+    """Same tier caveat as the isolation tests above: the "older page-tier
+    edit" here has to be a placement-only mutation (moveElement), since
+    creating a brand-new node is itself document-tier now."""
     _add_second_page(page)
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.addCause({x: 150, y: 200, name: 'P1 Cause', pageId: m.pages[0].id});
+    }""")
+    page.wait_for_timeout(100)
+    page.evaluate("() => window.__lastUndo.reset();")  # discard the document-tier creation
+
     page.locator(".page-tab").first.locator(".page-tab-label").click()
     page.wait_for_timeout(120)
 
-    page.evaluate("() => { window.__lastUndo.model.addCause({x: 150, y: 200, name: 'P1 Cause'}); }")
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      const pageId = m.pages[0].id;
+      const c = m.causesForPage(pageId)[0];
+      window.__lastUndo.snapshot(pageId); // moveElement itself is excluded from
+      m.moveElement(c.id, 150, 260);      // the proxy's generic hook -- see UndoController.js
+    }""")
     page.wait_for_timeout(80)
 
     page.locator(".page-tab").first.locator(".page-tab-edit").click()
@@ -412,11 +482,13 @@ def test_undo_picks_the_more_recent_document_tier_rename_over_an_older_page_edit
     page.keyboard.press("Control+z")
     page.wait_for_timeout(120)
     assert "Renamed" not in _active_tab_name(page), "the more recent rename must undo first"
-    assert _cause_names(page) == ["P1 Cause"], "the older page-tier edit must still be intact"
+    y = page.evaluate("() => window.__lastModel.causesForPage(window.__lastModel.pages[0].id)[0].y")
+    assert y == 260, "the older page-tier edit must still be intact"
 
     page.keyboard.press("Control+z")
     page.wait_for_timeout(120)
-    assert _cause_names(page) == [], "the next undo falls through to the page-tier edit"
+    y = page.evaluate("() => window.__lastModel.causesForPage(window.__lastModel.pages[0].id)[0].y")
+    assert y == 200, "the next undo falls through to the page-tier edit"
 
 
 def test_undo_picks_the_more_recent_page_edit_over_an_older_document_tier_rename(page):
@@ -563,7 +635,7 @@ def test_export_then_reimport_via_ui_round_trips_multiple_pages(page):
 
     state = page.evaluate("""() => {
       const m = window.__lastModel;
-      return { pages: m.pages.map((p) => p.name), causes: m.causes.map((c) => c.name) };
+      return { pages: m.pages.map((p) => p.name), causes: m.causes.map((c) => m.getNode(c.nodeId).name) };
     }""")
     assert state["pages"] == ["Untitled Page", "Page Two"]
     assert state["causes"] == ["P2 Cause"]
@@ -635,13 +707,20 @@ def test_orphan_warning_names_the_correct_page_for_a_non_active_barrier(page):
     assert 'on page "Page Two"' in warnings[0]
 
 
-def test_identifier_manager_retired_row_shows_page_and_falls_back_when_deleted(page):
+def test_node_library_retired_row_shows_no_page_info(page):
+    """node_library_proposal.md: retiring now happens at the NODE level
+    (deleteNode), not the placement level -- deleteElement (removing just
+    this page's placement) no longer retires anything at all -- and "no
+    page history is captured" for a retired node, since it may have had
+    placements across several pages. NodeLibraryController's retired rows
+    (see _buildRetiredRow) carry only the id and its enabled/disabled
+    status -- no `.id-manager-page` element at all any more."""
     _add_second_page(page)
     page.evaluate("""() => {
       const m = window.__lastModel;
       const p2 = m.pages[1].id;
       const cause = m.addCause({x: 150, y: 200, pageId: p2});
-      m.deleteElement(cause.id);
+      m.deleteNode(cause.nodeId);
     }""")
     page.wait_for_timeout(100)
 
@@ -649,29 +728,24 @@ def test_identifier_manager_retired_row_shows_page_and_falls_back_when_deleted(p
     page.click("#btn-manage-ids")
     page.wait_for_timeout(100)
     row = page.locator(".id-manager-row").first
-    assert "Page Two" in row.locator(".id-manager-page").text_content()
-    page.get_by_role("button", name="Close", exact=True).click()
-
-    page.locator(".page-tab", has_text="Page Two").locator(".page-tab-close").click()
-    page.get_by_role("button", name="Delete", exact=True).click()
-    page.wait_for_timeout(150)
-
-    page.click("#menu-trigger-settings")
-    page.click("#btn-manage-ids")
-    page.wait_for_timeout(100)
-    row = page.locator(".id-manager-row").first
-    assert "(page since deleted)" in row.locator(".id-manager-page").text_content()
+    assert "Retired" in row.locator(".id-manager-status").text_content()
+    assert row.locator(".id-manager-page").count() == 0, "no per-page info is captured any more"
 
 
-def test_identifier_manager_reassign_dropdown_shows_each_candidates_page(page):
+def test_node_library_reassign_dropdown_lists_live_nodes_without_page_info(page):
+    """Mirrors the old identifier-manager reassign dropdown test, updated
+    for NodeLibraryController's `_buildReassignRow`: it now iterates
+    `this.model.library[type]` (live NODES, not placements), so a node
+    with several -- or zero -- placements has no single page to show; each
+    option is just `${node.id} — ${node.name}`."""
     _add_second_page(page)
     page.evaluate("""() => {
       const m = window.__lastModel;
       const p1 = m.pages[0].id;
       const p2 = m.pages[1].id;
       const dead = m.addCause({x: 150, y: 200, pageId: p1});
-      m.deleteElement(dead.id);
-      m.reEnableId('cause', dead.id);
+      m.deleteNode(dead.nodeId);
+      m.reEnableId('cause', dead.nodeId);
       m.addCause({x: 150, y: 400, name: 'Live On P1', pageId: p1});
       m.addCause({x: 150, y: 200, name: 'Live On P2', pageId: p2});
     }""")
@@ -682,5 +756,6 @@ def test_identifier_manager_reassign_dropdown_shows_each_candidates_page(page):
     page.wait_for_timeout(100)
 
     options = page.locator(".id-manager-reassign select").first.locator("option").all_text_contents()
-    assert any("Live On P1" in o and "Untitled Page" in o for o in options)
-    assert any("Live On P2" in o and "Page Two" in o for o in options)
+    assert any("Live On P1" in o for o in options)
+    assert any("Live On P2" in o for o in options)
+    assert not any("Page" in o for o in options), "reassign options must not show any per-page info"

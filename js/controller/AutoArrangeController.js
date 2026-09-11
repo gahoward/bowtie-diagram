@@ -76,7 +76,6 @@
   // runtime/DOM-derived ones, so hand-deriving GROUP_GAP from them keeps
   // it correct-by-construction rather than a re-guessed magic number.
   const BARRIER_DEFAULT_H = 110;
-  const LANE_MARGIN = 16;
   const LABEL_GAP = 14; // ShapeRenderer's `labelTop = cy + h/2 + 14`
   // Generous upper bound on a barrier's id+name label block height
   // (ShapeRenderer wraps the name to a max width and stacks lines at 16px

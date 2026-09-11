@@ -77,3 +77,15 @@ def pick_attach_target(page, barrier_id):
     node label on the canvas underneath it."""
     page.locator(".attach-list-item", has=page.locator(".attach-list-id", has_text=barrier_id)).click()
     page.wait_for_timeout(80)
+
+
+def create_via_modal(page, name):
+    """Fills the "Create New" section of an open create-or-choose node
+    modal (node_library_proposal.md ask 3 -- every "Add ..." entry point
+    opens this modal now instead of creating immediately) and submits it.
+    Assumes the modal is already open (e.g. right after clicking "Add
+    Cause"/"Add Preventative Barrier"/etc.)."""
+    dialog = page.locator(".modal-dialog", has=page.locator(".create-or-choose-modal"))
+    dialog.locator(".create-or-choose-section .modal-field:has-text('Name*') input").fill(name)
+    dialog.get_by_role("button", name="Create", exact=False).click()
+    page.wait_for_timeout(80)

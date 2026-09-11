@@ -43,7 +43,10 @@
     const minimap = new Bowtie.MinimapView(document.getElementById('minimap-container'), panZoom);
 
     const renderAll = () => {
-      view.render(pageScopedModel, { showAnnotations: settings.showAnnotations });
+      view.render(pageScopedModel, {
+        showAnnotations: settings.showAnnotations,
+        displayUnit: projectSettings.getDisplayUnit(),
+      });
       minimap.render(view.connectionsLayer, view.nodesLayer, view.getContentBounds());
     };
     rawModel.onChange(renderAll);
@@ -59,6 +62,16 @@
     });
 
     const settings = new Bowtie.SettingsController(document.getElementById('btn-settings'), renderAll);
+    // Constructed here (before renderAll's first real call, and before
+    // ContextMenuController below needs its getDisplayUnit) even though the
+    // toolbar button it's wired to lives further down the settings
+    // dropdown — see the `settings`/`projectSettings` closure-over-a-later-
+    // const pattern already used for AutoArrangeController's
+    // arrangeSpacing/pullChainsCloser callbacks below.
+    const projectSettings = new Bowtie.ProjectSettingsController(
+      model, document.getElementById('btn-project-settings'), renderAll,
+      document.getElementById('import-risk-matrix-input'),
+    );
 
     new Bowtie.ToolbarController(pageScopedModel, {
       addCauseBtn: document.getElementById('btn-add-cause'),
@@ -96,7 +109,13 @@
       () => settings.arrangeSpacing,
       () => settings.pullChainsCloser,
     );
-    new Bowtie.ContextMenuController(pageScopedModel, svgRoot, () => autoArrange.arrange());
+    new Bowtie.ContextMenuController(
+      pageScopedModel, svgRoot, () => autoArrange.arrange(), () => projectSettings.getDisplayUnit(),
+      // `nodeLibrary` is constructed further down (design review finding
+      // 04's "Delete from Library…" item needs it) -- same closure-over-a-
+      // later-const pattern as `settings`/`projectSettings` above.
+      (nodeId) => nodeLibrary.openForNode(nodeId),
+    );
     new Bowtie.FocusController(pageScopedModel, svgRoot);
     const importExport = new Bowtie.ImportExportController(
       model,
@@ -116,7 +135,7 @@
       panZoom.fitToBounds(view.getContentBounds());
     });
 
-    new Bowtie.IdentifierManagerController(model, document.getElementById('btn-manage-ids'));
+    const nodeLibrary = new Bowtie.NodeLibraryController(model, document.getElementById('btn-manage-ids'));
 
     const EXPORT_BUTTON_IDS = ['btn-export-png', 'btn-export-svg', 'btn-export-json'];
     const warnings = new Bowtie.WarningsController(model, document.getElementById('btn-warnings'), EXPORT_BUTTON_IDS);
@@ -125,7 +144,7 @@
 
     const TOOLBAR_BUTTON_IDS = [
       'btn-add-cause', 'btn-add-outcome', 'btn-auto-arrange', 'btn-reset-view', 'btn-manage-ids', 'btn-settings',
-      'btn-export-png', 'btn-export-svg', 'btn-export-json', 'btn-import-json',
+      'btn-project-settings', 'btn-export-png', 'btn-export-svg', 'btn-export-json', 'btn-import-json',
       'menu-trigger-file', 'menu-trigger-add', 'menu-trigger-view', 'menu-trigger-settings',
     ];
     // Undo/Redo are deliberately NOT in this list — they start disabled and
@@ -136,6 +155,9 @@
 
     // Nothing is usable until the welcome flow (New or Import) completes.
     new Bowtie.WelcomeController(model, document.getElementById('import-file-input'), importExport, () => {
+      // Design review finding 05 -- the toolbar/canvas/minimap were fully
+      // painted (just non-interactive) behind the welcome modal until now.
+      document.getElementById('app').classList.remove('pre-welcome');
       TOOLBAR_BUTTON_IDS.forEach((id) => { document.getElementById(id).disabled = false; });
       // Warnings (e.g. an imported diagram with orphans) must re-block
       // export even though the loop above just unconditionally enabled it.

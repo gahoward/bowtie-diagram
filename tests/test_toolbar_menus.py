@@ -2,7 +2,7 @@
 dropdown menus (Undo/Redo stay as always-visible icon buttons), and a
 context menu reachable from empty canvas or the TLE offers Add Cause/Add
 Outcome — not just from an existing Cause/Outcome node."""
-from helpers import click_svg_point, menu_items
+from helpers import click_svg_point, create_via_modal, menu_items
 
 
 def _open_menu(page, name):
@@ -14,7 +14,7 @@ def test_each_toolbar_menu_opens_with_its_expected_items(page):
         "file": ["Import from JSON", "Export to JSON", "Export to SVG", "Export to PNG"],
         "add": ["Add Cause", "Add Outcome"],
         "view": ["Auto-arrange", "Reset view"],
-        "settings": ["Visual Settings", "Identifiers"],
+        "settings": ["Visual Settings", "Node Library"],
     }
     for name, expected_labels in cases.items():
         _open_menu(page, name)
@@ -40,6 +40,7 @@ def test_clicking_a_menu_item_runs_its_action_and_closes_the_menu(page):
     _open_menu(page, "add")
     page.click("#btn-add-cause")
     assert page.locator("#menu-dropdown-add").is_hidden()
+    create_via_modal(page, "New Cause")
     count = page.evaluate("() => window.__lastModel.causes.length")
     assert count == 1
 
@@ -66,6 +67,7 @@ def test_add_cause_from_empty_canvas_menu_places_it_at_the_clicked_point(page):
     click_svg_point(page, 150, 700)
     page.locator(".context-menu-item", has_text="Add Cause").click()
     page.wait_for_timeout(80)
+    create_via_modal(page, "New Cause")
     pos = page.evaluate("""() => {
       const m = window.__lastModel;
       const c = m.causes[0];
@@ -80,7 +82,7 @@ def test_right_click_the_tle_offers_add_cause_and_add_outcome(page):
     items = menu_items(page)
     assert "Add Cause" in items
     assert "Add Outcome" in items
-    assert "Rename" in items
+    assert "Properties" in items
 
 
 def test_add_cause_from_wrong_side_falls_back_to_toolbar_placement(page):
@@ -92,6 +94,7 @@ def test_add_cause_from_wrong_side_falls_back_to_toolbar_placement(page):
     click_svg_point(page, 1100, 700)  # right of the TLE (700, 400) -- Outcome side
     page.locator(".context-menu-item", has_text="Add Cause").click()
     page.wait_for_timeout(80)
+    create_via_modal(page, "New Cause")
     pos = page.evaluate("""() => {
       const c = window.__lastModel.causes[0];
       return { x: c.x, y: c.y };
@@ -106,6 +109,7 @@ def test_add_outcome_from_wrong_side_falls_back_to_toolbar_placement(page):
     click_svg_point(page, 150, 700)  # left of the TLE (700, 400) -- Cause side
     page.locator(".context-menu-item", has_text="Add Outcome").click()
     page.wait_for_timeout(80)
+    create_via_modal(page, "New Outcome")
     pos = page.evaluate("""() => {
       const o = window.__lastModel.outcomes[0];
       return { x: o.x, y: o.y };
@@ -120,6 +124,7 @@ def test_add_cause_from_correct_side_still_uses_the_click_point(page):
     click_svg_point(page, 150, 700)  # left of the TLE -- Cause side, correct
     page.locator(".context-menu-item", has_text="Add Cause").click()
     page.wait_for_timeout(80)
+    create_via_modal(page, "New Cause")
     pos = page.evaluate("""() => {
       const c = window.__lastModel.causes[0];
       return { x: c.x, y: c.y };

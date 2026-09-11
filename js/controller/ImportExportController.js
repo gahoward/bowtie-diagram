@@ -1,4 +1,17 @@
 (function (Bowtie) {
+  // Two nested requestAnimationFrame calls, not one: the first fires
+  // BEFORE the browser's next paint, so scheduling the heavy synchronous
+  // import work there would still block that very paint -- the loading
+  // modal opened just before calling this would never actually become
+  // visible. The second rAF is scheduled from inside the first, so it
+  // only runs AFTER that paint has happened, guaranteeing the modal was
+  // on screen at least one frame before the synchronous work begins.
+  function nextPaint() {
+    return new Promise((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    });
+  }
+
   class ImportExportController {
     // `getContentBounds` is a callback (not a static value) so exports always
     // reflect the diagram's current extent, not whatever it was on load.
@@ -31,7 +44,7 @@
       els.importJsonBtn.addEventListener('click', async () => {
         const result = await Bowtie.ExportUtil.pickJsonFileText();
         if (result.supported) {
-          if (result.text != null) this._processImportedText(result.text);
+          if (result.text != null) await this._processImportedText(result.text);
           return;
         }
         els.importFileInput.click();
@@ -45,6 +58,22 @@
       p.textContent = message;
       body.appendChild(p);
       Bowtie.ModalView.openModal({ title, bodyEl: body, actions: [{ label: 'OK', primary: true }] });
+    }
+
+    // No actions and dismissible: false -- nothing the user does (a stray
+    // click on the backdrop, Escape) should be able to close this while an
+    // import is still in flight; only `_processImportedText`'s own
+    // `finally` below ever calls `.close()` on the handle this returns.
+    _showLoadingModal(message) {
+      const body = document.createElement('div');
+      body.className = 'modal-loading';
+      const spinner = document.createElement('div');
+      spinner.className = 'modal-loading-spinner';
+      const p = document.createElement('p');
+      p.textContent = message;
+      body.appendChild(spinner);
+      body.appendChild(p);
+      return Bowtie.ModalView.openModal({ title: 'Importing', bodyEl: body, actions: [], dismissible: false });
     }
 
     _onImportFile(e) {
@@ -64,15 +93,30 @@
     // controller an already-*parsed* document object (the "Load Demo"
     // action; see loadDocument below). Only the JSON.parse step is specific
     // to text.
-    _processImportedText(text) {
+    //
+    // Wraps the actual load in a loading modal that stays up until the
+    // import has either failed (loadDocument shows its own error dialog on
+    // top before this closes it underneath) or the document has loaded AND
+    // the first page has rendered — `loadDocument` -> `model.loadFromJSON`
+    // -> `_emitChange` -> the app's own `onChange` listeners (PageTabsView,
+    // then CanvasView) all run synchronously, so by the time `loadDocument`
+    // returns, rendering has already either completed or thrown; there is
+    // no separate "wait for render" step needed beyond just awaiting it.
+    async _processImportedText(text) {
       let data;
       try {
         data = JSON.parse(text);
-      } catch (err) {
+      } catch {
         this._showMessage('Invalid File', 'That file is not valid JSON.');
         return;
       }
-      this.loadDocument(data);
+      const loading = this._showLoadingModal('Importing your diagram…');
+      try {
+        await nextPaint(); // let the loading modal actually paint before the synchronous work below
+        this.loadDocument(data);
+      } finally {
+        loading.close();
+      }
     }
 
     // Validates an already-parsed document (shape check, then exact
@@ -108,7 +152,18 @@
         );
         return false;
       }
-      this.model.loadFromJSON(data);
+      // loadFromJSON throws, changing nothing on the model, when `data`
+      // parses but doesn't hold together referentially (e.g. a placement
+      // pointing at a library node that no longer exists) -- design review
+      // finding 03. Routed through the same "Invalid File" dialog as the
+      // shape/version checks above, rather than left to surface as an
+      // uncaught page error over a half-loaded document.
+      try {
+        this.model.loadFromJSON(data);
+      } catch (err) {
+        this._showMessage('Invalid File', err.message);
+        return false;
+      }
       if (this.onImported) this.onImported();
       return true;
     }

@@ -5,10 +5,14 @@
   "description": "Bowtie diagram editor",
   "scripts": {
     "build": "node scripts/build.js",
-    "build:demo": "node scripts/build-demo-data.js"
+    "build:demo": "node scripts/build-demo-data.js",
+    "lint": "eslint js scripts"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "archiver": "^7.0.1",
-    "esbuild": "^0.25.0"
+    "esbuild": "^0.25.0",
+    "eslint": "^10.10.0",
+    "globals": "^17.12.0"
   }
 }

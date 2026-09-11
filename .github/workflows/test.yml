@@ -3,12 +3,28 @@ name: Test
 # Runs the full Playwright/pytest suite against the unbundled source on
 # every push/PR -- fast feedback, no build involved (deployment_proposal.md
 # §6). This is deliberately separate from release.yml: an ordinary push
-# should never need Node/esbuild at all.
+# should never need Node/esbuild to TEST the app.
+#
+# `lint` is a separate job rather than a step inside `test` for exactly that
+# reason: the pytest job stays Node-free, the two run in parallel, and a
+# lint failure is reported distinctly from a behavioural one.
 on:
   push:
   pull_request:
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - run: npm ci
+      - run: npm run lint
+
   test:
     runs-on: ubuntu-latest
     steps:

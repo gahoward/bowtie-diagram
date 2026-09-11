@@ -5,7 +5,14 @@ model primitives already covered in test_model_splicing.py — the bug was
 specifically that the *placement* (x/y of the newly created barrier) used a
 fixed offset blind to which direction the splice was headed.
 """
-from helpers import auto_arrange, click_menu_item, menu_items
+from helpers import auto_arrange, click_menu_item, create_via_modal, menu_items
+
+
+def placement_id_for_node(page, node_id):
+    """Resolves a NODE id (e.g. "PB_1") to its current placement's own
+    internal id -- Line.stops/originId store placement ids, not node ids
+    (node_library_proposal.md "Two id spaces")."""
+    return page.evaluate(f"() => window.__lastModel.findById('{node_id}').id")
 
 
 def test_first_barrier_lands_right_of_its_cause(page):
@@ -16,6 +23,7 @@ def test_first_barrier_lands_right_of_its_cause(page):
     box = line_el.bounding_box()
     page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2, button="right")
     click_menu_item(page, "Add Preventative Barrier")
+    create_via_modal(page, "New Barrier")
 
     state = page.evaluate("""() => {
       const m = window.__lastModel;
@@ -98,7 +106,9 @@ def test_shift_toward_tle_reorders_a_preventative_barrier_past_its_neighbor(page
       const line = m._lineFor(m.causes[0].id);
       return { stops: line.stops, pb1x: m.findById('PB_1').x, pb2x: m.findById('PB_2').x };
     }""")
-    assert state["stops"] == ["PB_2", "PB_1"], "the swap must reorder the line, not just move a node on screen"
+    pb1_id = placement_id_for_node(page, "PB_1")
+    pb2_id = placement_id_for_node(page, "PB_2")
+    assert state["stops"] == [pb2_id, pb1_id], "the swap must reorder the line, not just move a node on screen"
     assert state["pb1x"] > state["pb2x"]
 
 
@@ -119,7 +129,7 @@ def test_shift_away_from_tle_reorders_the_other_way(page):
 
     click_menu_item(page, "Shift Away From TLE")
     stops = page.evaluate("() => window.__lastModel._lineFor(window.__lastModel.causes[0].id).stops")
-    assert stops == ["PB_2", "PB_1"]
+    assert stops == [placement_id_for_node(page, "PB_2"), placement_id_for_node(page, "PB_1")]
 
 
 def test_shift_toward_tle_reorders_a_mitigative_barrier_the_mirrored_way(page):
@@ -142,7 +152,7 @@ def test_shift_toward_tle_reorders_a_mitigative_barrier_the_mirrored_way(page):
       const line = m._lineFor(m.outcomes[0].id);
       return { stops: line.stops, mb1x: m.findById('MB_1').x, mb2x: m.findById('MB_2').x };
     }""")
-    assert state["stops"] == ["MB_2", "MB_1"]
+    assert state["stops"] == [placement_id_for_node(page, "MB_2"), placement_id_for_node(page, "MB_1")]
     assert state["mb1x"] < state["mb2x"]
 
 
@@ -178,11 +188,11 @@ def test_shift_toward_tle_on_a_shared_barrier_prompts_for_which_path(page):
       m.addCause({x: 150, y: 300});
       const pb2 = m.addPreventativeControl(m.causes[1].id);
       m.attachExistingBarrier('preventativeBarrier', 'after', pb2.id, shared.id); // C_2: [PB_2, shared]
-      return { pb1: pb1.id, pb2: pb2.id, shared: shared.id };
+      return { pb1: pb1.id, pb2: pb2.id, shared: shared.id, sharedNodeId: shared.nodeId };
     }""")
     page.wait_for_timeout(100)
 
-    shared_node = page.locator(f'#bowtie-canvas .node.preventative-barrier[data-id="{ids["shared"]}"]')
+    shared_node = page.locator(f'#bowtie-canvas .node.preventative-barrier[data-id="{ids["sharedNodeId"]}"]')
     shared_node.click(button="right")
     click_menu_item(page, "Shift Away From TLE")
 
@@ -248,8 +258,11 @@ def test_shift_shared_barrier_on_both_paths_does_not_corrupt_positions(page):
         c2: m._lineFor('C_2').stops,
       };
     }""")
-    assert state["c1"] == ["PB_3", "PB_1"]
-    assert state["c2"] == ["PB_3", "PB_2"]
+    pb1_id = placement_id_for_node(page, "PB_1")
+    pb2_id = placement_id_for_node(page, "PB_2")
+    pb3_id = placement_id_for_node(page, "PB_3")
+    assert state["c1"] == [pb3_id, pb1_id]
+    assert state["c2"] == [pb3_id, pb2_id]
 
 
 def test_shift_shared_barrier_on_both_paths_then_auto_arrange_has_no_overlap(page):

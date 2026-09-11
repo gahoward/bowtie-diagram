@@ -140,13 +140,21 @@
     img.src = url;
   }
 
-  function exportJson(model, filename) {
-    const json = JSON.stringify(model.toJSON(), null, 2);
+  // Generic "save this plain object as a .json file" -- exportJson (the
+  // whole-document export) is just this applied to model.toJSON(); the
+  // risk matrix export (Project Settings' "Export Risk Matrix...") reuses
+  // it directly for a plain RiskMatrixDefinition object instead.
+  function exportJsonObject(obj, filename) {
+    const json = JSON.stringify(obj, null, 2);
     saveBlob(
       new Blob([json], { type: 'application/json' }),
       filename,
       { description: 'JSON File', accept: { 'application/json': ['.json'] } },
     );
+  }
+
+  function exportJson(model, filename) {
+    exportJsonObject(model.toJSON(), filename);
   }
 
   // Mirrors saveBlob for the import side: a real native "Open" dialog via
@@ -173,6 +181,6 @@
   }
 
   Bowtie.ExportUtil = {
-    exportSvg, exportPng, exportJson, pickJsonFileText,
+    exportSvg, exportPng, exportJson, exportJsonObject, pickJsonFileText,
   };
 })(window.Bowtie = window.Bowtie || {});

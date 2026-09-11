@@ -18,6 +18,14 @@
       const countEl = this.button.querySelector('.warning-count');
       if (countEl) countEl.textContent = String(warnings.length);
       this.button.hidden = warnings.length === 0;
+      // Design review finding 06 -- the count alone gives no hint where to
+      // look on a multi-page document before opening the modal; a native
+      // hover tooltip naming the affected page(s) costs nothing new to
+      // build (the modal one click away already names them in full).
+      const pageNames = [...new Set(warnings.map((w) => w.pageName).filter(Boolean))];
+      this.button.title = pageNames.length > 0
+        ? `Warnings on: ${pageNames.join(', ')}`
+        : 'Warnings';
 
       this.exportButtonIds.forEach((id) => {
         const btn = document.getElementById(id);

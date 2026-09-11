@@ -117,6 +117,15 @@ step for the app itself, so tests run directly against `index.html` as-is.
   movement) leaving undo/redo history completely untouched — a real,
   previously-uncaught bug an architecture review found (see
   `DESIGN_NOTES.md`'s `DRAG_THRESHOLD_PX` entry).
+- **`test_model_node_library.py`** — model-level coverage for
+  node_library_proposal.md: the node/placement split, node CRUD, cross-page
+  reuse (including design review finding 09: resolving a shared node's id
+  document-wide throws once it's placed on more than one page, rather than
+  silently picking whichever placement is found first), retiring at the
+  node level, and the identifier-uniqueness/display-mode machinery
+  (including finding 02: switching to custom identifiers must never
+  backfill two nodes into the same visible label). Drives
+  `window.__lastModel` directly, matching `test_model_splicing.py`'s style.
 - **`test_model_pages.py`** — BowtieModel's multi-page primitives: page CRUD,
   the `*ForPage` filters, per-page `_findClearY` scoping, `findById` across
   pages, global id uniqueness, `toJSON`/`fromJSON` round-tripping across
@@ -129,9 +138,90 @@ step for the app itself, so tests run directly against `index.html` as-is.
   undo/redo (per-page vs document-level), JSON export/reimport and Load Demo
   across pages, SVG export reflecting only the active page, and identifier
   manager page-context labels.
-- **`test_import_export.py`** — schema v7 round-trip and the
-  version-mismatch guard (there is no migration path for older schema
-  versions; an incompatible file is rejected outright).
+- **`test_page_scoped_model_completeness.py`** — design review finding 04:
+  every `BowtieModel` method that mutates document state (directly, or by
+  delegating one level into a `NodeLibrary`/`LineTopology` collaborator)
+  must appear either on `PageScopedModel`'s own prototype or in its
+  `DOCUMENT_SCOPED` allowlist. Detected at runtime via `Function.toString()`
+  source inspection, not a second hand-maintained list — the exact gap that
+  let `renameNode` go missing from the facade entirely, and let
+  `renameElement` silently drop its third argument, before this existed.
+- **`test_node_library_controller.py`** — design review finding 05:
+  `NodeLibraryController` had no controller-level coverage before this file
+  (an entire control was once removed from the modal in a session and the
+  model-level-only suite stayed green) — edit-in-place saving through
+  `renameNode`, delete cascading across pages and retiring the node's id,
+  adding straight to the library creating a node with zero placements, and
+  the "placed on which page(s)" text reflecting placements as they're added.
+  Also covers UI-review findings 01 (every edit form starts collapsed, not
+  just the one under test that already clicked Edit) and 04 (a node's
+  right-click menu's "Delete from Library…" item opens this modal
+  pre-expanded to that exact node, and the focus doesn't leak into a later,
+  unrelated open).
+- **`test_warnings_controller.py`** — design review finding 05:
+  `WarningsController` had no controller-level coverage before this file,
+  including the rule `getWarnings().length` enforces — export disabled
+  entirely while any warning is active. Orphans a barrier (`Connect
+  Directly to TLE` truncating a Line past it, per `DESIGN_NOTES.md`),
+  confirms the badge/count/export-disable and the warning text itself, then
+  resolves it and confirms all three re-enable. Also covers UI-review
+  finding 06: the badge's `title` attribute names every page a warning is
+  on, not just a bare count.
+- **`test_import_export.py`** — schema round-trip and the version-mismatch
+  guard (there is no migration path for older schema versions; an
+  incompatible file is rejected outright). The round-trip test (design
+  review finding 08) reads every persisted field off the ORIGINAL live
+  model, not off its own `toJSON()` output, before comparing against the
+  same read taken off a round-tripped copy — a field `toJSON()` forgot to
+  serialize would be equally absent from both sides of a
+  serialized-to-serialized comparison, and pass vacuously. Includes
+  `tleAggregation` (design review finding 11).
+- **`test_document_validation.py`** — referential-integrity checking on
+  document import (design review finding 03): a version-correct export can
+  still be internally broken (a placement whose `nodeId` no longer exists
+  in the library, a line stop that doesn't resolve) — `loadFromJSON` now
+  throws, changing nothing on the live model, and the real import path
+  (driven through the mocked native file picker, same as
+  `test_file_handlers.py`) shows "Invalid File" instead of crashing over a
+  half-loaded document.
+- **`test_model_quantitative.py`** — model-level coverage for
+  quantitative_mode_proposal.md's calculation pipeline (TLE max,
+  consequence multiply, Unknown-threat/-barrier exclusion) and the
+  qualitative/quantitative risk-class lookup, driven directly against
+  `window.__lastModel`, mirroring `test_model_splicing.py`. Also covers
+  `tleAggregation` (design review finding 11): defaults to `'max'`, `'sum'`
+  produces a visibly different answer against the exact same topology the
+  `'max'` test uses, still excludes Unknown threats, round-trips through
+  `toJSON`/`fromJSON`, and defaults to `'max'` for a document exported
+  before the field existed (purely additive, no schema-version bump).
+- **`test_canvas_risk_summary.py`** — the canvas "at a glance" risk
+  summaries (quantitative_mode_proposal.md "Canvas badges"): the read-only
+  text block under each Outcome (severity/likelihood) and under the TLE
+  (computed likelihood), and Cause frequency / barrier RRF text — distinct
+  from the small colour-coded risk-class badge. Also covers UI-review
+  finding 03 (Quantitative mode's figures render via the `.node-info-text-
+  emphasized` style — larger and darker than a Qualitative-mode class
+  label's quieter default) and finding 02 (the risk-class badge's own SVG
+  `<title>` names the full label and review period, not just the bare
+  letter on the circle).
+- **`test_properties_modal.py`** — the shared Properties modal
+  (double-click or the context menu's "Properties" item on any of the 5
+  node types), driven through the real modal rather than by calling model
+  methods directly — the regression this guards against (`PageScopedModel`
+  had no `renameNode` passthrough, so every save from the real UI threw)
+  was invisible to every model-level test that called `renameNode`
+  directly instead. Also covers barrier metadata (design review
+  finding 10, phase 1): type/owner/effectiveness, barriers only, rendered
+  and saved independent of the document's risk mode.
+- **`test_project_settings.py`** — the single "Project Settings" modal:
+  analysis name, identifier display mode, the risk analysis mode/matrix
+  picker, and the events/hour ↔ events/year display-unit preference. Also
+  covers the TLE aggregation toggle (design review finding 11, Quantitative
+  mode only): changing it calls `setTleAggregation` and the canvas TLE
+  badge names whichever policy produced its figure. And UI-review
+  finding 02's risk-class legend: appears once a matrix is selected (not
+  before), lists every class with its full label, and clears again if the
+  matrix is cleared.
 - **`test_file_handlers.py`** — import/export preferring the native File
   System Access API (`showSaveFilePicker`/`showOpenFilePicker`) with a
   fallback to the legacy download-link/hidden-`<input>` path wherever that
@@ -142,6 +232,15 @@ step for the app itself, so tests run directly against `index.html` as-is.
   deterministically. Also covers `exportPng`'s null-blob guard (an
   oversized canvas — plausible given auto-arrange's unbounded layout —
   makes `canvas.toBlob` hand back `null` instead of throwing).
+- **`test_import_loading_modal.py`** — the non-dismissible "Importing…"
+  loading modal `ImportExportController._processImportedText` now shows
+  for the duration of an import (native picker, legacy hidden-`<input>`,
+  and the welcome dropzone/upload button all funnel through it), closed
+  only once the load has either failed (leaving just the error dialog) or
+  the document has loaded and the first page has rendered. A real import
+  is too fast to catch by wall-clock timing, so these spy on
+  `Bowtie.ModalView.openModal` to record what was actually opened rather
+  than racing the browser's paint.
 - **`test_toolbar_menus.py`** — the File/Add/View/Settings dropdown menus
   and the empty-canvas/TLE context menu (Add Cause/Add Outcome reachable
   from anywhere on the diagram, not just an existing Cause/Outcome node).
@@ -164,7 +263,10 @@ step for the app itself, so tests run directly against `index.html` as-is.
   loading the demo routes through `ImportExportController.loadDocument`'s
   same shape/version validation a real import gets (a deliberately staled
   `Bowtie.DEMO_DATA.version` must fail the same "Unsupported File Version"
-  dialog, not silently load).
+  dialog, not silently load). Also covers UI-review finding 05: `#app`
+  (toolbar, page tabs, minimap) stays `visibility: hidden` — present for
+  layout, absent from paint — until the welcome flow completes, rather
+  than painting a live-looking document behind the modal from first load.
 - **`test_auto_arrange_fix.py`** — auto-arrange-fix.md's two fixes: §4 (a
   bare, zero-stop Cause/Outcome's line must never cross an unrelated
   barrier's box — geometry-sampled in both Loose and Tight mode, plus a
@@ -204,6 +306,34 @@ step for the app itself, so tests run directly against `index.html` as-is.
   still clears the Hazard (a real bug caught live — see `DESIGN_NOTES.md`'s
   Auto-arrange horizontal-spacing section), and the per-side-depth fix
   (a shallower side no longer padded out to match a deeper one).
+
+- **`test_decimal.py`** — unit tests for `js/model/Decimal.js`, the exact
+  mantissa+exponent decimal type quantitative mode uses instead of native
+  `Number` for every frequency/reduction-factor value, down to 1E-15
+  precision. Driven via `page.evaluate` against `window.Bowtie.Decimal`,
+  the same way every other JS unit in this app is tested. Also covers
+  `add` (design review finding 11), exact across differing exponents,
+  matching, and same-exponent/negative-value inputs, the same alignment
+  `compare` already exercises.
+- **`test_rational.py`** — unit tests for `js/model/Rational.js`, the
+  exact numerator/denominator pair the quantitative pipeline carries a
+  computed likelihood in so that dividing by a barrier's Risk Reduction
+  Factor never rounds mid-calculation; the one division happens at
+  display. Covers exact vs. non-terminating quotients, cross-multiplied
+  comparison past the point a rounded value would call two numbers equal,
+  and risk-matrix banding on an exact boundary. Also covers `add`/`sum`
+  (design review finding 11): exact across different denominators, a sum
+  of several contributions matching repeated `add`, and the empty/
+  single-value edge cases.
+- **`test_risk_matrix.py`** — golden-master test for the shipped Leaflet 5
+  risk matrix preset, plus unit tests for `js/model/RiskMatrix.js`'s pure
+  lookup/banding helpers.
+- **`test_risk_matrix_validator.py`** — unit tests for
+  `js/model/RiskMatrixValidator.js`, the runtime validator Project
+  Settings' "Import Risk Matrix..." runs a user-supplied JSON file through
+  (the same checks `scripts/build-risk-matrix-presets.js` applies to a
+  bundled preset at build time, ported so the two can't drift), plus its
+  export-side mirror image, `denormalizeRiskMatrixForExport`.
 
 ## Adding a test
 

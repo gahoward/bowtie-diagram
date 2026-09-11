@@ -98,6 +98,31 @@ def test_load_demo_button_populates_the_editor_and_dismisses_the_modal(browser, 
         pg.close()
 
 
+def test_app_chrome_stays_hidden_until_the_welcome_flow_completes(browser, base_url):
+    """Design review finding 05: BowtieModel's constructor always creates
+    one bridging-default page (TLE + Hazard) so every pre-multi-page call
+    site has something to read -- the visible side effect was the toolbar,
+    an "Untitled Page" tab, and a populated minimap all painting behind the
+    welcome modal before New/Import/Demo was even chosen. `#app` now stays
+    `visibility: hidden` (present for layout, absent from paint) until the
+    flow completes."""
+    pg = _fresh_page(browser, base_url)
+    try:
+        app = pg.locator("#app")
+        assert app.evaluate("(el) => getComputedStyle(el).visibility") == "hidden"
+        # Layout must still be intact underneath -- only painting is
+        # suppressed, so the canvas isn't zero-sized when it becomes visible.
+        box = app.bounding_box()
+        assert box["width"] > 0 and box["height"] > 0
+
+        pg.get_by_role("button", name="Load Demo", exact=True).click()
+        pg.wait_for_timeout(150)
+        assert app.evaluate("(el) => getComputedStyle(el).visibility") == "visible"
+    finally:
+        assert pg.errors == []
+        pg.close()
+
+
 def test_ctrl_alt_d_loads_the_demo_while_the_welcome_modal_is_open(browser, base_url):
     pg = _fresh_page(browser, base_url)
     try:
@@ -136,7 +161,8 @@ def test_ctrl_alt_d_does_nothing_once_the_welcome_modal_has_closed(browser, base
 
         state = pg.evaluate("""() => {
           const m = window.__lastModel;
-          return { causeCount: m.causes.length, firstCauseName: m.causes[0] ? m.causes[0].name : null };
+          const first = m.causes[0];
+          return { causeCount: m.causes.length, firstCauseName: first ? m.getNode(first.nodeId).name : null };
         }""")
         assert state["causeCount"] == 1
         assert state["firstCauseName"] == "Real work"
@@ -147,12 +173,19 @@ def test_ctrl_alt_d_does_nothing_once_the_welcome_modal_has_closed(browser, base
 
 def test_load_demo_routes_through_the_same_version_validation_as_a_real_import(browser, base_url):
     """demo_json_proposal.md §2: the demo must not bypass
-    ImportExportController's validation -- if Bowtie.DEMO_DATA ever goes
-    stale relative to SCHEMA_VERSION, it should fail exactly like a real
-    stale export would, not silently load."""
+    ImportExportController's validation -- if a Bowtie.DEMO_DATA_VARIANTS
+    entry ever goes stale relative to SCHEMA_VERSION, it should fail exactly
+    like a real stale export would, not silently load. The welcome wizard's
+    "Load Demo" button loads whichever variant its own <select> defaults to
+    (WelcomeController._demoVariant, 'simple') via DEMO_DATA_VARIANTS -- not
+    the standalone Bowtie.DEMO_DATA back-compat alias -- so every variant is
+    staled out here regardless of which one is actually selected."""
     pg = _fresh_page(browser, base_url)
     try:
         pg.evaluate("""() => {
+          Object.keys(window.Bowtie.DEMO_DATA_VARIANTS).forEach((key) => {
+            window.Bowtie.DEMO_DATA_VARIANTS[key] = { ...window.Bowtie.DEMO_DATA_VARIANTS[key], version: -1 };
+          });
           window.Bowtie.DEMO_DATA = { ...window.Bowtie.DEMO_DATA, version: -1 };
         }""")
         pg.get_by_role("button", name="Load Demo", exact=True).click()

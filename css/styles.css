@@ -30,6 +30,20 @@ html, body {
   height: 100%;
 }
 
+/* Design review finding 05 -- BowtieModel's constructor always creates one
+   bridging-default page (TLE + Hazard) so every pre-multi-page call site
+   still has something to read; the visible side effect was the toolbar,
+   an "Untitled Page" tab, and a populated minimap all rendering behind the
+   welcome modal before New/Import/Demo was even chosen. `visibility`
+   (not `display`) so layout/measurement (getBoundingClientRect, SVG
+   getBBox) stays correct for the render main.js already runs before the
+   welcome flow completes -- only painting is suppressed. Removed by
+   WelcomeController's completion callback in main.js, the same moment the
+   toolbar buttons themselves go from disabled to enabled. */
+#app.pre-welcome {
+  visibility: hidden;
+}
+
 #toolbar {
   display: grid;
   /* Outer columns are equal-width (1fr each) rather than auto-sized, so the
@@ -327,6 +341,15 @@ html, body {
   user-select: none;
 }
 
+/* Design review finding 03 -- Quantitative mode's frequency/RRF/likelihood
+   text (CanvasView._renderInfoText's `emphasized` option) gets the same
+   fill the shape labels above use, instead of the quieter default
+   .node-info-text gray -- these numbers are the actual deliverable of
+   that mode, not secondary chrome. */
+.node-info-text-emphasized text {
+  fill: var(--node-text);
+}
+
 .node-id-text {
   font-weight: 700;
 }
@@ -404,6 +427,16 @@ html, body {
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
 }
 
+.modal-dialog-wide {
+  width: min(600px, 92vw);
+}
+
+.modal-subtitle {
+  margin: -8px 0 12px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
 .modal-title {
   margin: 0 0 12px;
   font-size: 17px;
@@ -415,6 +448,37 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.modal-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 0;
+}
+
+.modal-loading p {
+  margin: 0;
+  color: #374151;
+  font-size: 14px;
+}
+
+.modal-loading-spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid var(--border);
+  border-top-color: var(--cause-stroke);
+  animation: modal-loading-spin 0.8s linear infinite;
+}
+
+@keyframes modal-loading-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-loading-spinner { animation: none; }
 }
 
 .welcome-body p {
@@ -521,12 +585,136 @@ html, body {
   color: #111827;
 }
 
-.modal-field input {
+.modal-field input,
+.modal-field select,
+.modal-field textarea {
   padding: 8px 10px;
   font-size: 14px;
   font-weight: 400;
+  font-family: inherit;
+  color: #111827;
+  background: white;
   border: 1px solid var(--border);
   border-radius: 6px;
+}
+
+.modal-field textarea {
+  min-height: 56px;
+  resize: vertical;
+}
+
+.modal-field-error {
+  margin: 0;
+  font-size: 12px;
+  color: #b91c1c;
+}
+
+.modal-field-hint {
+  margin: 0;
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+/* Design review finding 02 -- the persistent reference for what a canvas
+   risk badge's bare letter means, shown once here rather than requiring a
+   hover per badge. Mirrors the badge's own colour + letter treatment
+   (CanvasView._renderRiskBadge) so the two are recognizably the same code. */
+.risk-class-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 4px;
+}
+
+.risk-class-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #374151;
+}
+
+.risk-class-legend-swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  color: #ffffff;
+  flex-shrink: 0;
+}
+
+/* Groups a Properties/Project Settings modal's fields into labeled
+   sections (Identity / Risk Analysis / Computed) rather than one long
+   undifferentiated column of fields. */
+.modal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.modal-section:first-of-type {
+  padding-top: 0;
+  border-top: none;
+}
+
+.modal-section-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+/* Read-only computed values (e.g. a consequence's computed likelihood/risk
+   class, the TLE's computed frequency) -- never an editable input, always
+   derived, so styled distinctly from the fields above it. */
+.modal-computed-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 10px;
+  font-size: 13px;
+  background: #f9fafb;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.modal-computed-label {
+  color: #6b7280;
+}
+
+.modal-computed-value {
+  font-weight: 600;
+  color: #111827;
+}
+
+.modal-risk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.modal-risk-chip-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+.modal-computed-note {
+  margin: 0;
+  font-size: 11px;
+  color: #b45309;
 }
 
 .modal-actions {
@@ -669,6 +857,102 @@ html, body {
   flex: 1;
   min-width: 0;
   padding: 5px 6px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.node-library-subsection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.node-library-subsection h4 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+
+.node-library-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.node-library-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.node-library-row .id-manager-id {
+  min-width: 40px;
+}
+
+.node-library-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-library-pages {
+  flex: 2;
+  min-width: 0;
+  overflow: hidden;
+  color: #9ca3af;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-library-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: -2px 0 4px;
+  padding: 10px;
+  background: #f9fafb;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+/* Design review finding 01 -- `.node-library-edit-form`'s own `display: flex`
+   above beats the browser's `[hidden] { display: none }` default at equal
+   specificity (the author stylesheet loads after the UA one), so the
+   `editForm.hidden` toggle NodeLibraryController's Edit button flips had no
+   visible effect: every row's edit form rendered open, always, regardless of
+   whether Edit was ever clicked. Every other class in this file that gets
+   toggled via `.hidden = true/false` already carries this same override
+   (`.warning-badge[hidden]`, `.menu-dropdown[hidden]`, `.attach-list-item
+   [hidden]`, `.page-jump-dropdown[hidden]`) -- this one was simply missed.
+   See DESIGN_NOTES.md's own "CSS [hidden] vs. a class's own display rule"
+   gotcha, which documents exactly this failure mode. */
+.node-library-edit-form[hidden] {
+  display: none;
+}
+
+.node-library-add-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.node-library-add-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
   font-size: 12px;
   border: 1px solid var(--border);
   border-radius: 6px;

@@ -22,12 +22,28 @@ def _undo_redo_disabled(page):
 
 def _page_undo_depth(page):
     """{undo, redo} stack lengths for the fixture's one page's own
-    per-page tier (not the document-level tier — nothing in this file
-    triggers that one)."""
+    per-page tier -- placement-only mutations (moveElement/setPositions/
+    deleteElement, and the {nodeId} "place an existing node" shape) stay
+    here. A bare addCause/addOutcome/addPreventativeControl/
+    addMitigativeControl/insertBarrier call (creating a brand-new NODE,
+    node_library_proposal.md's "Undo tier") is a DOCUMENT-level step
+    instead -- see `_document_undo_depth` below for those."""
     return page.evaluate("""() => {
       const pageId = window.__lastModel.pages[0].id;
       const stack = window.__lastUndo.pageStacks.get(pageId) || { undoStack: [], redoStack: [] };
       return { undo: stack.undoStack.length, redo: stack.redoStack.length };
+    }""")
+
+
+def _document_undo_depth(page):
+    """{undo, redo} stack lengths for the document-level tier -- every
+    "create a brand-new node + placement in one call" mutation lands here
+    (node_library_proposal.md "Undo tier"), since a shared library node's
+    identity can be visible on other pages too, so it can never be a
+    page-scoped step."""
+    return page.evaluate("""() => {
+      const u = window.__lastUndo;
+      return { undo: u.documentUndoStack.length, redo: u.documentRedoStack.length };
     }""")
 
 
@@ -89,11 +105,14 @@ def test_failed_mutation_does_not_create_a_phantom_undo_step(page):
 
 
 def test_stack_is_capped_at_fifty(page):
+    # Each bare addCause() creates a brand-new node -- a document-tier step
+    # (node_library_proposal.md "Undo tier") -- so the cap being tested here
+    # is the document stack's, not the page stack's.
     page.evaluate("""() => {
       const m = window.__lastUndo.model;
       for (let i = 0; i < 55; i += 1) m.addCause({ x: 150, y: 100 + i });
     }""")
-    assert _page_undo_depth(page)["undo"] == 50
+    assert _document_undo_depth(page)["undo"] == 50
     assert page.evaluate("() => window.__lastModel.causes.length") == 55
 
     page.evaluate("""() => {
@@ -137,7 +156,7 @@ def test_import_resets_undo_and_redo_history(page):
       m.addCause({x: 150, y: 400});
     }""")
     page.evaluate("() => window.__lastUndo.undo();")  # leave something in both stacks
-    depth = _page_undo_depth(page)
+    depth = _document_undo_depth(page)
     assert depth["undo"] > 0 and depth["redo"] > 0
 
     page.evaluate("""() => {
@@ -145,7 +164,7 @@ def test_import_resets_undo_and_redo_history(page):
       window.__lastModel.loadFromJSON(data);
       window.__lastUndo.reset();
     }""")
-    depth = _page_undo_depth(page)
+    depth = _document_undo_depth(page)
     assert depth == {"undo": 0, "redo": 0}
     assert _undo_redo_disabled(page) == {"undo": True, "redo": True}
 
@@ -179,7 +198,7 @@ def test_clicking_a_node_to_inspect_it_does_not_touch_undo_redo_history(page):
       m.addCause({x: 150, y: 400});
     }""")
     page.evaluate("() => window.__lastUndo.undo();")  # 1 undo-able step left, 1 redo-able step available
-    before = _page_undo_depth(page)
+    before = _document_undo_depth(page)
     assert before["redo"] > 0, "test setup should have left something redo-able"
 
     # A plain click (pointerdown immediately followed by pointerup at the
@@ -188,5 +207,5 @@ def test_clicking_a_node_to_inspect_it_does_not_touch_undo_redo_history(page):
     page.locator("#bowtie-canvas .node.cause").first.click()
     page.wait_for_timeout(80)
 
-    after = _page_undo_depth(page)
+    after = _document_undo_depth(page)
     assert after == before, "a plain inspection click must not push an undo snapshot or clear redo history"

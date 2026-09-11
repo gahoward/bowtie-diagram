@@ -1,12 +1,17 @@
 (function (Bowtie) {
   // Shared dialog-on-a-backdrop component used by the welcome flow, the
   // rename-bowtie dialog, and the attach-existing-node pickers.
-  function openModal({ title, bodyEl, actions, dismissible = true }) {
+  // `size: 'wide'` widens the dialog for content-heavy modals (the
+  // Properties/Project Settings modals) that don't fit the default
+  // 420px-ish width meant for a single name field or a short list.
+  function openModal({
+    title, bodyEl, actions, dismissible = true, size = 'normal',
+  }) {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
 
     const dialog = document.createElement('div');
-    dialog.className = 'modal-dialog';
+    dialog.className = size === 'wide' ? 'modal-dialog modal-dialog-wide' : 'modal-dialog';
 
     const titleEl = document.createElement('h2');
     titleEl.className = 'modal-title';

@@ -46,10 +46,42 @@
   // content, not just its header, so its undo has to be a full
   // whole-document restore regardless — an inherent property of a
   // document-structural operation, not a gap in the per-page design below.
+  //
+  // `addNode`/`renameNode`/`deleteNode`/`setMode`/`setRiskMatrix`/
+  // `setIdentifierDisplayMode` join this list per node_library_proposal.md
+  // "Undo tier": a shared library node's identity (and the quantitative/
+  // qualitative fields renameNode also mutates) can be visible on pages
+  // other than the one an edit was invoked from, so none of these can be a
+  // page-scoped step the way renameElement (TLE/Hazard only, now) still is.
   const DOCUMENT_METHODS = [
     'addPage', 'deletePage', 'renamePage',
     'reEnableId', 'disableRetiredId', 'reassignId', 'setName',
+    'addNode', 'renameNode', 'deleteNode', 'setMode', 'setRiskMatrix', 'setIdentifierDisplayMode',
+    'setTleAggregation',
   ];
+
+  // addCause/addOutcome/addPreventativeControl/addMitigativeControl/
+  // insertBarrier are MIXED (node_library_proposal.md "Undo tier"): each
+  // accepts two call shapes -- `{ name, ... }` (create a brand-new node AND
+  // a new placement in one call: a document-level step, so undoing it
+  // removes both) or `{ nodeId, ... }` (place an already-existing node:
+  // only a placement is created, the node itself untouched, so this stays
+  // page-scoped exactly like every other placement-only mutation). Which
+  // shape a given call used has to be read from ITS OWN arguments, not just
+  // its method name -- the one dispatch case here that isn't mechanical.
+  const WHOLE_DOCUMENT_ON_CREATE = [
+    'addCause', 'addOutcome', 'addPreventativeControl', 'addMitigativeControl', 'insertBarrier',
+  ];
+  // Index of the `opts` argument within each method's own parameter list --
+  // `{ nodeId }` present in opts means "place an existing node" (page-
+  // scoped); its absence means "create a new node" (document-scoped).
+  const OPTS_ARG_INDEX = {
+    addCause: 0, addOutcome: 0, addPreventativeControl: 1, addMitigativeControl: 1, insertBarrier: 3,
+  };
+  function isPlacingExistingNode(methodName, args) {
+    const opts = args[OPTS_ARG_INDEX[methodName]] || {};
+    return Boolean(opts.nodeId);
+  }
 
   // Wraps `model` in a Proxy that snapshots immediately before any call to
   // one of the methods above — every "add a barrier", "rename", "attach",
@@ -106,6 +138,11 @@
           if (typeof value !== 'function') return value;
           if (DOCUMENT_METHODS.includes(prop)) {
             return (...args) => this._runDocumentScoped(target, value, args);
+          }
+          if (WHOLE_DOCUMENT_ON_CREATE.includes(prop)) {
+            return (...args) => (isPlacingExistingNode(prop, args)
+              ? this._runPageScoped(prop, target, value, args)
+              : this._runDocumentScoped(target, value, args));
           }
           if (PAGE_RESOLVERS[prop]) {
             return (...args) => this._runPageScoped(prop, target, value, args);

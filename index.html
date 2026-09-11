@@ -6,7 +6,7 @@
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-  <div id="app">
+  <div id="app" class="pre-welcome">
     <div id="toolbar">
       <div class="toolbar-group toolbar-left">
         <button id="btn-undo" type="button" class="icon-btn" disabled title="Undo (Ctrl+Z)">
@@ -50,7 +50,8 @@
             <button type="button" id="menu-trigger-settings" class="menu-bar-trigger" disabled>Settings</button>
             <div id="menu-dropdown-settings" class="menu-dropdown" hidden>
               <button id="btn-settings" type="button" class="menu-dropdown-item" disabled>Visual Settings…</button>
-              <button id="btn-manage-ids" type="button" class="menu-dropdown-item" disabled>Identifiers…</button>
+              <button id="btn-manage-ids" type="button" class="menu-dropdown-item" disabled>Node Library…</button>
+              <button id="btn-project-settings" type="button" class="menu-dropdown-item" disabled>Project Settings…</button>
             </div>
           </div>
         </div>
@@ -62,6 +63,7 @@
         </button>
       </div>
       <input id="import-file-input" type="file" accept="application/json,.json" hidden>
+      <input id="import-risk-matrix-input" type="file" accept="application/json,.json" hidden>
     </div>
     <div id="canvas-wrapper">
       <svg id="bowtie-canvas" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 800">
@@ -73,16 +75,24 @@
     <div id="page-tabs"></div>
   </div>
 
+  <script src="js/model/Decimal.js"></script>
+  <script src="js/model/Rational.js"></script>
   <script src="js/model/TopLevelEvent.js"></script>
   <script src="js/model/Hazard.js"></script>
-  <script src="js/model/Cause.js"></script>
-  <script src="js/model/Outcome.js"></script>
-  <script src="js/model/PreventativeBarrier.js"></script>
-  <script src="js/model/MitigativeBarrier.js"></script>
+  <script src="js/model/Node.js"></script>
+  <script src="js/model/Placement.js"></script>
   <script src="js/model/Line.js"></script>
+  <script src="js/model/RiskMatrix.js"></script>
+  <script src="js/model/RiskMatrixValidator.js"></script>
+  <script src="js/model/Quantitative.js"></script>
+  <script src="js/model/Warnings.js"></script>
+  <script src="js/model/DocumentSerializer.js"></script>
+  <script src="js/model/NodeLibrary.js"></script>
+  <script src="js/model/LineTopology.js"></script>
   <script src="js/model/BowtieModel.js"></script>
   <script src="js/model/PageScopedModel.js"></script>
 
+  <script src="js/data/RiskMatrixPresets.js"></script>
   <script src="js/data/DemoData.js"></script>
 
   <script src="js/view/TextWrap.js"></script>
@@ -93,6 +103,9 @@
   <script src="js/view/ExportUtil.js"></script>
   <script src="js/view/MinimapView.js"></script>
   <script src="js/view/ModalView.js"></script>
+  <script src="js/view/CreateOrChooseNodeModal.js"></script>
+  <script src="js/view/RiskFieldsForm.js"></script>
+  <script src="js/view/PropertiesModal.js"></script>
   <script src="js/view/PageTabsView.js"></script>
 
   <script src="js/controller/UndoController.js"></script>
@@ -105,7 +118,8 @@
   <script src="js/controller/ImportExportController.js"></script>
   <script src="js/controller/PanZoomController.js"></script>
   <script src="js/controller/WelcomeController.js"></script>
-  <script src="js/controller/IdentifierManagerController.js"></script>
+  <script src="js/controller/NodeLibraryController.js"></script>
+  <script src="js/controller/ProjectSettingsController.js"></script>
   <script src="js/controller/WarningsController.js"></script>
   <script src="js/controller/SettingsController.js"></script>
   <script src="js/controller/FocusController.js"></script>

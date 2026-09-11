@@ -35,7 +35,7 @@ def test_export_json_uses_the_native_save_picker_when_available(page):
       return { suggestedName: savedOpts.suggestedName, written: JSON.parse(writtenText) };
     }""")
     assert result["suggestedName"] == "bowtie-diagram.json"
-    assert result["written"]["causes"][0]["id"] == "C_1"
+    assert result["written"]["causes"][0]["nodeId"] == "C_1"
 
 
 def test_export_falls_back_to_download_when_the_api_is_unavailable(page):
@@ -58,7 +58,7 @@ def _sample_export_with_one_cause_named(page, name):
           const m = window.__lastModel;
           m.addCause({x: 150, y: 200});
           const data = m.toJSON();
-          data.causes[0].name = name;
+          data.library.cause[0].name = name; // a placement has no name of its own -- see Node.js
           return data;
         }""",
         name,
@@ -79,7 +79,7 @@ def test_import_uses_the_native_open_picker_when_available(page):
     page.click("#btn-import-json")
     page.wait_for_timeout(100)
 
-    causes = page.evaluate("() => window.__lastModel.causes.map((c) => c.name)")
+    causes = page.evaluate("() => window.__lastModel.causes.map((c) => window.__lastModel.getNode(c.nodeId).name)")
     assert causes == ["From Picker"]
 
 
@@ -96,7 +96,7 @@ def test_import_falls_back_to_the_hidden_input_when_the_api_is_unavailable(page,
     fc_info.value.set_files(str(file_path))
     page.wait_for_timeout(100)
 
-    causes = page.evaluate("() => window.__lastModel.causes.map((c) => c.name)")
+    causes = page.evaluate("() => window.__lastModel.causes.map((c) => window.__lastModel.getNode(c.nodeId).name)")
     assert causes == ["From Input"]
 
 

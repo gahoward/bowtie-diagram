@@ -204,28 +204,36 @@ def test_to_json_from_json_round_trips_three_pages(page):
     assert result is True
 
 
-def test_delete_element_stamps_retired_id_with_page_and_reassign_carries_it(page):
+def test_delete_element_does_not_retire_but_delete_node_does_with_no_page_info(page):
+    """Superseded by node_library_proposal.md's "Two id spaces": retiring
+    moved from the placement level to the node level (node ids are the
+    visible ones now), and deliberately carries NO page information any
+    more ("no page history is captured, per feedback on the mockup that
+    recording where a deleted node used to be placed isn't worth showing")
+    -- this replaces this test's old expectation that a retired id
+    remembered its page. See tests/test_model_node_library.py for the
+    fuller node-CRUD/retiring/reassign coverage; this keeps one
+    multi-page-flavored case here since that's this file's own focus."""
     result = page.evaluate("""() => {
       const m = window.__lastModel;
       const page2Id = m.addPage({ name: 'Page Two' }).id;
       const c1 = m.addCause({x: 150, y: 200, pageId: page2Id});
-      m.deleteElement(c1.id);
-      const retired = m.retiredIds.cause.find((e) => e.id === c1.id);
+      const nodeId = c1.nodeId;
+      m.deleteElement(c1.id); // placement-only removal -- must not retire anything
+      const retiredAfterDeleteElement = m.retiredIds.cause.find((e) => e.id === nodeId);
 
-      m.reEnableId('cause', c1.id);
-      const c2 = m.addCause({x: 150, y: 400, pageId: page2Id});
-      const c2OldId = c2.id; // reassignId mutates c2.id in place below
-      m.reassignId(c2.id, c1.id); // c2's element takes back the retired id
-      const newlyRetired = m.retiredIds.cause.find((e) => e.id === c2OldId);
+      const c1Again = m.addCause({nodeId, pageId: page2Id}); // re-place the same (still-live) node
+      m.deleteNode(nodeId); // the real, cascading delete -- retires the NODE id
+      const retiredAfterDeleteNode = m.retiredIds.cause.find((e) => e.id === nodeId);
 
       return {
-        retiredPageId: retired.pageId,
-        newlyRetiredPageId: newlyRetired ? newlyRetired.pageId : null,
-        expected: page2Id,
+        retiredAfterDeleteElement: retiredAfterDeleteElement || null,
+        retiredAfterDeleteNodeKeys: retiredAfterDeleteNode ? Object.keys(retiredAfterDeleteNode).sort() : null,
+        placementStillLive: !!m.findById(c1Again.id),
       };
     }""")
-    assert result["retiredPageId"] == result["expected"]
-    assert result["newlyRetiredPageId"] == result["expected"]
+    assert result["retiredAfterDeleteElement"] is None, "deleteElement (placement-only) must not retire anything"
+    assert result["retiredAfterDeleteNodeKeys"] == ["id", "reEnabled"], "no pageId -- no page history is captured"
 
 
 def test_get_page_json_load_page_from_json_round_trips_and_isolates_other_state(page):
