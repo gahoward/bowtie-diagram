@@ -26,6 +26,7 @@
           const node = model.getNode(pb.nodeId);
           warnings.push({
             id: pb.id, type: 'orphaned-preventative-control',
+            pageId: page.id, pageName: page.name,
             message: `${node.id} (${node.name}) on page "${page.name}" is not connected to any Cause.`,
           });
         }
@@ -37,6 +38,7 @@
           const node = model.getNode(mb.nodeId);
           warnings.push({
             id: mb.id, type: 'orphaned-mitigative-control',
+            pageId: page.id, pageName: page.name,
             message: `${node.id} (${node.name}) on page "${page.name}" is not connected to any Outcome.`,
           });
         }

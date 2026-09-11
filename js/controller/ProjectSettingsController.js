@@ -176,6 +176,7 @@
 
       if (this.model.mode !== 'simple') {
         section.appendChild(this._buildMatrixPicker());
+        if (this.model.riskMatrix) section.appendChild(this._buildRiskClassLegend());
       }
       if (this.model.mode === 'quantitative') {
         section.appendChild(this._buildTleAggregationToggle());
@@ -265,6 +266,40 @@
       field.appendChild(select);
       wrap.appendChild(field);
       wrap.appendChild(this._buildMatrixImportExportRow(current));
+      return wrap;
+    }
+
+    // Design review finding 02: the canvas risk badge only ever draws a
+    // bare `riskClass.id` (a single letter) — nothing else in the app
+    // showed what that letter actually means, short of exporting the
+    // document and reading the matrix JSON by hand. This is the persistent
+    // reference that pairs with the badge's own hover tooltip
+    // (CanvasView._renderRiskBadge): the same colour + letter, plus the
+    // full label every shipped preset already carries, shown once here
+    // rather than requiring a hover per badge per visit.
+    _buildRiskClassLegend() {
+      const wrap = document.createElement('div');
+      wrap.className = 'modal-field risk-class-legend-field';
+      const label = document.createElement('span');
+      label.textContent = 'Risk classes';
+      wrap.appendChild(label);
+
+      const legend = document.createElement('div');
+      legend.className = 'risk-class-legend';
+      (this.model.riskMatrix.riskClasses || []).forEach((riskClass) => {
+        const item = document.createElement('div');
+        item.className = 'risk-class-legend-item';
+        const swatch = document.createElement('span');
+        swatch.className = 'risk-class-legend-swatch';
+        swatch.style.background = riskClass.colour || '#888';
+        swatch.textContent = riskClass.id;
+        const text = document.createElement('span');
+        text.textContent = riskClass.label;
+        item.appendChild(swatch);
+        item.appendChild(text);
+        legend.appendChild(item);
+      });
+      wrap.appendChild(legend);
       return wrap;
     }
 

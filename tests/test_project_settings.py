@@ -92,6 +92,31 @@ def test_project_settings_matrix_picker_and_display_unit_appear_only_in_matching
     assert page.locator(".modal-field:has-text('Combine multiple causes')").count() == 0
 
 
+def test_risk_class_legend_appears_once_a_matrix_is_active(page):
+    """Design review finding 02: the canvas risk badge only ever draws a
+    bare letter -- this legend is the persistent, always-visible reference
+    for what each letter means, shown once a matrix is picked rather than
+    requiring a hover per badge."""
+    _open_project_settings(page)
+    page.locator("input[name=analysis-mode][value=qualitative]").check()
+    page.wait_for_timeout(80)
+    assert page.locator(".risk-class-legend").count() == 0, "no matrix selected yet"
+
+    page.locator(".modal-field:has-text('Risk matrix') select").select_option("leaflet5")
+    page.wait_for_timeout(80)
+
+    legend = page.locator(".risk-class-legend")
+    assert legend.count() == 1
+    items = legend.locator(".risk-class-legend-item").all_text_contents()
+    assert len(items) == 4
+    assert any("A - Intolerable" in t for t in items)
+    assert any("D - Broadly Acceptable" in t for t in items)
+
+    page.locator(".modal-field:has-text('Risk matrix') select").select_option("")
+    page.wait_for_timeout(80)
+    assert page.locator(".risk-class-legend").count() == 0, "cleared alongside the matrix itself"
+
+
 def test_project_settings_tle_aggregation_toggle_updates_model_and_canvas(page):
     """Design review finding 11: the aggregation toggle drives
     BowtieModel.setTleAggregation, and the canvas TLE badge names whichever

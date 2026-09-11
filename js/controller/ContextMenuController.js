@@ -48,11 +48,18 @@
     // TLE) — left alone, the diagram would keep showing stale x/y until the
     // user remembered to click Auto-arrange, which is exactly the kind of
     // manual step these actions are meant to replace.
-    constructor(model, svgRoot, triggerAutoArrange, getDisplayUnit = () => 'hour') {
+    // `openNodeLibraryFor` (design review finding 04): right-clicking a
+    // node never offered a path to actually deleting it, only "Remove from
+    // Page" -- a defensible consequence of placements vs. library nodes
+    // (see node_library_proposal.md), but nothing in the menu said so.
+    // Defaults to a no-op so this stays constructible without it (tests
+    // that build a ContextMenuController directly, if any ever do).
+    constructor(model, svgRoot, triggerAutoArrange, getDisplayUnit = () => 'hour', openNodeLibraryFor = () => {}) {
       this.model = model;
       this.svgRoot = svgRoot;
       this.triggerAutoArrange = triggerAutoArrange;
       this.getDisplayUnit = getDisplayUnit;
+      this.openNodeLibraryFor = openNodeLibraryFor;
       this.menuEl = null;
 
       svgRoot.addEventListener('contextmenu', (e) => this._onContextMenu(e));
@@ -206,6 +213,12 @@
         // implying it destroys the node, which may still be placed on other
         // pages, or sit in the library with no placement at all.
         items.push({ label: 'Remove from Page', action: () => this.model.deleteElement(el.id) });
+        // The actual delete-the-node action lives in Node Library (it can
+        // affect every page the node is placed on, so it needs the
+        // cross-page confirmation that modal already shows) — this just
+        // opens straight to it, pre-expanded to this exact node, rather
+        // than leaving "how do I really delete this" undiscoverable.
+        items.push({ label: 'Delete from Library…', action: () => this.openNodeLibraryFor(el.nodeId) });
       }
       return items;
     }

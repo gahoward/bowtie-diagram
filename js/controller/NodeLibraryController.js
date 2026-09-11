@@ -19,7 +19,11 @@
     constructor(model, button) {
       this.model = model;
       this.modal = null;
-      button.addEventListener('click', () => this._open());
+      // Design review finding 04 -- which node's edit form (if any) should
+      // start expanded on the next _open()/_refresh(). Cleared on every
+      // ordinary open so it never leaks into a later, unrelated visit.
+      this._focusNodeId = null;
+      button.addEventListener('click', () => { this._focusNodeId = null; this._open(); });
       model.onChange(() => this._refresh());
     }
 
@@ -29,6 +33,24 @@
         bodyEl: this._buildBody(),
         actions: [{ label: 'Close' }],
       });
+      this._scrollToFocusedRow();
+    }
+
+    // Design review finding 04 -- ContextMenuController's "Delete from
+    // Library…" item calls this so a right-click on a node opens straight
+    // to that node's own edit form (which already carries the Delete
+    // button and its cross-page confirmation), instead of leaving "how do
+    // I actually delete this" reachable only by hunting through every
+    // section of the modal by hand.
+    openForNode(nodeId) {
+      this._focusNodeId = nodeId;
+      this._open();
+    }
+
+    _scrollToFocusedRow() {
+      if (!this._focusNodeId || !this.modal) return;
+      const row = this.modal.overlay.querySelector('.node-library-edit-form:not([hidden])');
+      if (row) row.scrollIntoView({ block: 'center' });
     }
 
     _refresh() {
@@ -137,7 +159,10 @@
       row.appendChild(deleteBtn);
 
       const editForm = this._buildEditForm(type, node);
-      editForm.hidden = true;
+      // Design review finding 04 -- pre-expanded when this is the node
+      // openForNode() was asked to focus, so "Delete from Library…" on the
+      // canvas lands directly on the right form instead of a collapsed list.
+      editForm.hidden = node.id !== this._focusNodeId;
       editBtn.addEventListener('click', () => { editForm.hidden = !editForm.hidden; });
 
       const container = document.createElement('div');

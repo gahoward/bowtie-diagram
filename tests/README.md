@@ -153,13 +153,20 @@ step for the app itself, so tests run directly against `index.html` as-is.
   `renameNode`, delete cascading across pages and retiring the node's id,
   adding straight to the library creating a node with zero placements, and
   the "placed on which page(s)" text reflecting placements as they're added.
+  Also covers UI-review findings 01 (every edit form starts collapsed, not
+  just the one under test that already clicked Edit) and 04 (a node's
+  right-click menu's "Delete from Library…" item opens this modal
+  pre-expanded to that exact node, and the focus doesn't leak into a later,
+  unrelated open).
 - **`test_warnings_controller.py`** — design review finding 05:
   `WarningsController` had no controller-level coverage before this file,
   including the rule `getWarnings().length` enforces — export disabled
   entirely while any warning is active. Orphans a barrier (`Connect
   Directly to TLE` truncating a Line past it, per `DESIGN_NOTES.md`),
   confirms the badge/count/export-disable and the warning text itself, then
-  resolves it and confirms all three re-enable.
+  resolves it and confirms all three re-enable. Also covers UI-review
+  finding 06: the badge's `title` attribute names every page a warning is
+  on, not just a bare count.
 - **`test_import_export.py`** — schema round-trip and the version-mismatch
   guard (there is no migration path for older schema versions; an
   incompatible file is rejected outright). The round-trip test (design
@@ -191,7 +198,12 @@ step for the app itself, so tests run directly against `index.html` as-is.
   summaries (quantitative_mode_proposal.md "Canvas badges"): the read-only
   text block under each Outcome (severity/likelihood) and under the TLE
   (computed likelihood), and Cause frequency / barrier RRF text — distinct
-  from the small colour-coded risk-class badge.
+  from the small colour-coded risk-class badge. Also covers UI-review
+  finding 03 (Quantitative mode's figures render via the `.node-info-text-
+  emphasized` style — larger and darker than a Qualitative-mode class
+  label's quieter default) and finding 02 (the risk-class badge's own SVG
+  `<title>` names the full label and review period, not just the bare
+  letter on the circle).
 - **`test_properties_modal.py`** — the shared Properties modal
   (double-click or the context menu's "Properties" item on any of the 5
   node types), driven through the real modal rather than by calling model
@@ -206,7 +218,10 @@ step for the app itself, so tests run directly against `index.html` as-is.
   picker, and the events/hour ↔ events/year display-unit preference. Also
   covers the TLE aggregation toggle (design review finding 11, Quantitative
   mode only): changing it calls `setTleAggregation` and the canvas TLE
-  badge names whichever policy produced its figure.
+  badge names whichever policy produced its figure. And UI-review
+  finding 02's risk-class legend: appears once a matrix is selected (not
+  before), lists every class with its full label, and clears again if the
+  matrix is cleared.
 - **`test_file_handlers.py`** — import/export preferring the native File
   System Access API (`showSaveFilePicker`/`showOpenFilePicker`) with a
   fallback to the legacy download-link/hidden-`<input>` path wherever that
@@ -248,7 +263,10 @@ step for the app itself, so tests run directly against `index.html` as-is.
   loading the demo routes through `ImportExportController.loadDocument`'s
   same shape/version validation a real import gets (a deliberately staled
   `Bowtie.DEMO_DATA.version` must fail the same "Unsupported File Version"
-  dialog, not silently load).
+  dialog, not silently load). Also covers UI-review finding 05: `#app`
+  (toolbar, page tabs, minimap) stays `visibility: hidden` — present for
+  layout, absent from paint — until the welcome flow completes, rather
+  than painting a live-looking document behind the modal from first load.
 - **`test_auto_arrange_fix.py`** — auto-arrange-fix.md's two fixes: §4 (a
   bare, zero-stop Cause/Outcome's line must never cross an unrelated
   barrier's box — geometry-sampled in both Loose and Tight mode, plus a

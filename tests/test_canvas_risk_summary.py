@@ -195,3 +195,63 @@ def test_barrier_shows_no_rrf_text_in_qualitative_mode(page):
       m.addPreventativeControl(c.id);
     """)
     assert not any("RRF" in t for t in _info_texts(page))
+
+
+# --- Design review finding 03: Quantitative figures render emphasized -----
+
+def _emphasized_texts(page):
+    return page.evaluate("""
+      () => Array.from(document.getElementById('nodes-layer')
+        .querySelectorAll('.node-info-text-emphasized text'))
+        .map((t) => t.textContent)
+    """)
+
+
+def test_quantitative_figures_render_in_the_emphasized_style(page):
+    _setup_and_emit(page, """
+      const m = window.__lastModel;
+      m.setMode('quantitative');
+      const c = m.addCause({x: 150, y: 200});
+      m.getNode(c.nodeId).frequency = { value: '1E-3' };
+      const pb = m.addPreventativeControl(c.id);
+      m.getNode(pb.nodeId).riskReductionFactor = { value: '10' };
+    """)
+    emphasized = _emphasized_texts(page)
+    assert any("Frequency: 0.001/hr" == t for t in emphasized)
+    assert any("RRF: 10" == t for t in emphasized)
+    assert any(t.startswith("Likelihood:") for t in emphasized), "TLE badge must also be emphasized"
+
+
+def test_qualitative_class_labels_stay_at_the_quieter_default_style(page):
+    # A manually-picked class (Qualitative mode) is a static category, not
+    # a computed result -- it keeps the original, quieter treatment.
+    _setup_and_emit(page, """
+      const m = window.__lastModel;
+      m.setMode('qualitative');
+      m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
+      const c = m.addCause({x: 150, y: 200});
+      m.getNode(c.nodeId).likelihoodClassId = m.riskMatrix.likelihoodClasses[0].id;
+    """)
+    assert _emphasized_texts(page) == []
+    assert any("Likelihood:" in t for t in _info_texts(page))
+
+
+# --- Design review finding 02: risk-class badge hover tooltip -------------
+
+def test_risk_class_badge_has_a_title_tooltip_naming_the_full_label(page):
+    _setup_and_emit(page, """
+      const m = window.__lastModel;
+      m.setMode('quantitative');
+      m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
+      const o = m.addOutcome({x: 1200, y: 200});
+      m.getNode(o.nodeId).severityClassId = m.riskMatrix.severityClasses[m.riskMatrix.severityClasses.length - 1].id;
+      const c = m.addCause({x: 150, y: 200});
+      m.getNode(c.nodeId).frequency = { value: '1' };
+    """)
+    titles = page.evaluate("""
+      () => Array.from(document.getElementById('nodes-layer').querySelectorAll('.risk-class-badge title'))
+        .map((t) => t.textContent)
+    """)
+    assert len(titles) == 1
+    assert titles[0].startswith("A - Intolerable")
+    assert "Immediate action required" in titles[0]

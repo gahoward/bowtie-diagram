@@ -8,12 +8,32 @@ exactly the paths where the facade bugs test_properties_modal.py guards
 against would have surfaced: driven through the real modal, not by calling
 model methods directly.
 """
+from helpers import click_menu_item
 
 
 def _open_node_library(page):
     page.click("#menu-trigger-settings")
     page.click("#btn-manage-ids")
     page.wait_for_timeout(100)
+
+
+def test_edit_forms_are_collapsed_by_default(page):
+    """Design review finding 01: `.node-library-edit-form` used to set
+    `display: flex` with no `[hidden]` override, so the browser's default
+    `[hidden] { display: none }` lost the cascade and every row's edit form
+    rendered open on load, whether Edit had ever been clicked or not."""
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.addCause({ x: 150, y: 200, name: 'Gas Release' });
+      m.addCause({ x: 150, y: 400, name: 'Flange Leak' });
+    }""")
+    page.wait_for_timeout(80)
+    _open_node_library(page)
+
+    forms = page.locator(".node-library-edit-form")
+    assert forms.count() == 2
+    for i in range(forms.count()):
+        assert not forms.nth(i).is_visible()
 
 
 def test_edit_in_place_saves_through_rename_node(page):
@@ -112,3 +132,39 @@ def test_library_row_page_list_reflects_placements_as_they_are_added(page):
     row = page.locator(".node-library-row", has_text="Reused Threat")
     text = row.locator(".node-library-pages").text_content()
     assert "Page A" in text and "Page B" in text
+
+
+def test_delete_from_library_context_menu_item_opens_straight_to_the_node(page):
+    """Design review finding 04: right-clicking a node's only removal
+    option used to be "Remove from Page", which reads like delete but only
+    ever un-places it from the current page -- nothing pointed at where a
+    real delete actually lives. "Delete from Library…" closes that gap by
+    opening this exact modal pre-expanded to this exact node."""
+    page.evaluate("() => { window.__lastModel.addCause({ x: 150, y: 200, name: 'Gas Release' }); }")
+    page.wait_for_timeout(80)
+
+    node = page.locator('#bowtie-canvas .node.cause[data-id="C_1"]')
+    node.click(button="right")
+    assert "Delete from Library…" in page.locator(".context-menu-item").all_text_contents()
+    click_menu_item(page, "Delete from Library")
+    page.wait_for_timeout(100)
+
+    assert page.locator(".modal-title").text_content() == "Node Library"
+    container = page.locator(".node-library-list > div", has_text="Gas Release")
+    form = container.locator(".node-library-edit-form")
+    assert form.is_visible(), "the node the menu item was invoked on must open pre-expanded"
+    assert form.locator(".modal-field:has-text('Name') input").input_value() == "Gas Release"
+
+
+def test_focused_node_does_not_leak_into_a_later_ordinary_open(page):
+    page.evaluate("() => { window.__lastModel.addCause({ x: 150, y: 200, name: 'Gas Release' }); }")
+    page.wait_for_timeout(80)
+
+    page.locator('#bowtie-canvas .node.cause[data-id="C_1"]').click(button="right")
+    click_menu_item(page, "Delete from Library")
+    page.wait_for_timeout(100)
+    page.get_by_role("button", name="Close", exact=True).click()
+    page.wait_for_timeout(80)
+
+    _open_node_library(page)
+    assert not page.locator(".node-library-edit-form").first.is_visible()

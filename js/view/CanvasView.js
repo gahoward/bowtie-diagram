@@ -17,10 +17,23 @@
     // language" the design doc asks for (a simple, legible chip rather
     // than a full data panel on the canvas itself; the Node Library/rename
     // modal is where the full likelihood/severity picks live).
+    //
+    // Design review finding 02: the letter alone (`riskClass.id`) means
+    // nothing without already having the active risk matrix memorized --
+    // every class the matrix defines also carries a full `label` (e.g. "A -
+    // Intolerable") and, on the shipped presets, a `reviewPeriod` ("Immediate
+    // action required"). A native SVG <title> is the cheapest way to surface
+    // that on hover without adding any new UI; see ProjectSettingsController
+    // for the persistent legend this pairs with.
     _renderRiskBadge(cx, cy, riskClass) {
       const svgNs = 'http://www.w3.org/2000/svg';
       const g = document.createElementNS(svgNs, 'g');
       g.setAttribute('class', 'risk-class-badge');
+      const title = document.createElementNS(svgNs, 'title');
+      title.textContent = riskClass.reviewPeriod
+        ? `${riskClass.label} — ${riskClass.reviewPeriod}`
+        : riskClass.label;
+      g.appendChild(title);
       const circle = document.createElementNS(svgNs, 'circle');
       circle.setAttribute('cx', cx);
       circle.setAttribute('cy', cy);
@@ -49,17 +62,35 @@
     // (quantitative_mode_proposal.md's own "Node Library/rename modal is
     // where the full picks live" note only scopes the CUSTOM MATRIX EDITOR
     // out of the canvas, not a plain summary of the picks already made).
-    _renderInfoText(cx, topY, lines) {
+    // `emphasized` (design review finding 03): Quantitative mode's frequency/
+    // RRF/likelihood figures are the actual deliverable of that mode, not
+    // secondary chrome the way a Simple-mode Cause/Outcome name's plain
+    // label is -- rendering them at the same quiet 11px/muted-gray weight
+    // as everything else meant every diagram's headline numbers were also
+    // its smallest, least contrasted text, and one that only gets smaller
+    // once PanZoomController's viewBox zooms out to fit a larger diagram.
+    // Qualitative mode's manually-picked class labels keep the quieter
+    // default -- they're a static category pick, not a computed result.
+    _renderInfoText(cx, topY, lines, { emphasized = false } = {}) {
       const svgNs = 'http://www.w3.org/2000/svg';
       const g = document.createElementNS(svgNs, 'g');
-      g.setAttribute('class', 'node-info-text');
+      g.setAttribute('class', emphasized ? 'node-info-text node-info-text-emphasized' : 'node-info-text');
+      const lineHeight = emphasized ? 15 : 13;
       lines.forEach((line, i) => {
         const text = document.createElementNS(svgNs, 'text');
         text.setAttribute('x', cx);
-        text.setAttribute('y', topY + i * 13);
+        text.setAttribute('y', topY + i * lineHeight);
         text.setAttribute('text-anchor', 'middle');
-        text.setAttribute('font-size', '11');
-        text.setAttribute('fill', '#4b5563');
+        text.setAttribute('font-size', emphasized ? '13' : '11');
+        if (emphasized) {
+          text.setAttribute('font-weight', '600');
+          // fill comes from .node-info-text-emphasized text in styles.css
+          // (the same --node-text token .node text already uses) rather
+          // than an inline var(...) attribute, matching how every other
+          // token-driven fill in this file is applied via a CSS rule.
+        } else {
+          text.setAttribute('fill', '#4b5563');
+        }
         text.textContent = line;
         g.appendChild(text);
       });
@@ -134,8 +165,8 @@
           const lines = [`Likelihood: ${text} (${model.tleAggregation})`];
           if (residual.excludedThreatCount) lines.push(`(${residual.excludedThreatCount} excluded)`);
           const infoY = model.topLevelEvent.y + tleResult.bounds.r + 14;
-          nodeGroups.push(this._renderInfoText(model.topLevelEvent.x, infoY, lines));
-          extend(model.topLevelEvent.x, infoY + lines.length * 13, 60, 10);
+          nodeGroups.push(this._renderInfoText(model.topLevelEvent.x, infoY, lines, { emphasized: true }));
+          extend(model.topLevelEvent.x, infoY + lines.length * 15, 60, 10);
         }
       }
 
@@ -197,9 +228,10 @@
             }
           }
           if (infoLines.length > 0) {
+            const emphasized = model.mode === 'quantitative';
             const infoY = cause.y + result.bounds.h / 2 + 14;
-            nodeGroups.push(this._renderInfoText(cause.x, infoY, infoLines));
-            extend(cause.x, infoY + infoLines.length * 13, result.bounds.w / 2, 10);
+            nodeGroups.push(this._renderInfoText(cause.x, infoY, infoLines, { emphasized }));
+            extend(cause.x, infoY + infoLines.length * (emphasized ? 15 : 13), result.bounds.w / 2, 10);
           }
         }
       });
@@ -254,9 +286,10 @@
             if (text) infoLines.push(`Likelihood: ${text} (${model.tleAggregation})`);
           }
           if (infoLines.length > 0) {
+            const emphasized = model.mode === 'quantitative';
             const infoY = outcome.y + result.bounds.h / 2 + 14;
-            nodeGroups.push(this._renderInfoText(outcome.x, infoY, infoLines));
-            extend(outcome.x, infoY + infoLines.length * 13, result.bounds.w / 2, 10);
+            nodeGroups.push(this._renderInfoText(outcome.x, infoY, infoLines, { emphasized }));
+            extend(outcome.x, infoY + infoLines.length * (emphasized ? 15 : 13), result.bounds.w / 2, 10);
           }
         }
       });
@@ -276,9 +309,11 @@
         const pbNode = model.getNode(pb.nodeId);
         const infoLines = this._barrierInfoLines(model, pbNode);
         if (infoLines.length > 0) {
+          // _barrierInfoLines only ever returns lines in Quantitative mode
+          // (see its own guard) -- always the RRF figure, so always emphasized.
           const infoY = result.bounds.labelCenterY + result.bounds.labelHalfHeight + 14;
-          nodeGroups.push(this._renderInfoText(pb.x, infoY, infoLines));
-          extend(pb.x, infoY + infoLines.length * 13, result.bounds.labelHalfWidth, 10);
+          nodeGroups.push(this._renderInfoText(pb.x, infoY, infoLines, { emphasized: true }));
+          extend(pb.x, infoY + infoLines.length * 15, result.bounds.labelHalfWidth, 10);
         }
       });
 
@@ -297,9 +332,11 @@
         const mbNode = model.getNode(mb.nodeId);
         const infoLines = this._barrierInfoLines(model, mbNode);
         if (infoLines.length > 0) {
+          // Same as the Preventative Barrier case above: always Quantitative
+          // mode's RRF figure, so always emphasized.
           const infoY = result.bounds.labelCenterY + result.bounds.labelHalfHeight + 14;
-          nodeGroups.push(this._renderInfoText(mb.x, infoY, infoLines));
-          extend(mb.x, infoY + infoLines.length * 13, result.bounds.labelHalfWidth, 10);
+          nodeGroups.push(this._renderInfoText(mb.x, infoY, infoLines, { emphasized: true }));
+          extend(mb.x, infoY + infoLines.length * 15, result.bounds.labelHalfWidth, 10);
         }
       });
 

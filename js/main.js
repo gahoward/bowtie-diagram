@@ -111,6 +111,10 @@
     );
     new Bowtie.ContextMenuController(
       pageScopedModel, svgRoot, () => autoArrange.arrange(), () => projectSettings.getDisplayUnit(),
+      // `nodeLibrary` is constructed further down (design review finding
+      // 04's "Delete from Library…" item needs it) -- same closure-over-a-
+      // later-const pattern as `settings`/`projectSettings` above.
+      (nodeId) => nodeLibrary.openForNode(nodeId),
     );
     new Bowtie.FocusController(pageScopedModel, svgRoot);
     const importExport = new Bowtie.ImportExportController(
@@ -131,7 +135,7 @@
       panZoom.fitToBounds(view.getContentBounds());
     });
 
-    new Bowtie.NodeLibraryController(model, document.getElementById('btn-manage-ids'));
+    const nodeLibrary = new Bowtie.NodeLibraryController(model, document.getElementById('btn-manage-ids'));
 
     const EXPORT_BUTTON_IDS = ['btn-export-png', 'btn-export-svg', 'btn-export-json'];
     const warnings = new Bowtie.WarningsController(model, document.getElementById('btn-warnings'), EXPORT_BUTTON_IDS);
@@ -151,6 +155,9 @@
 
     // Nothing is usable until the welcome flow (New or Import) completes.
     new Bowtie.WelcomeController(model, document.getElementById('import-file-input'), importExport, () => {
+      // Design review finding 05 -- the toolbar/canvas/minimap were fully
+      // painted (just non-interactive) behind the welcome modal until now.
+      document.getElementById('app').classList.remove('pre-welcome');
       TOOLBAR_BUTTON_IDS.forEach((id) => { document.getElementById(id).disabled = false; });
       // Warnings (e.g. an imported diagram with orphans) must re-block
       // export even though the loop above just unconditionally enabled it.

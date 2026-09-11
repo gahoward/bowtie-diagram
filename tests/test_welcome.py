@@ -98,6 +98,31 @@ def test_load_demo_button_populates_the_editor_and_dismisses_the_modal(browser, 
         pg.close()
 
 
+def test_app_chrome_stays_hidden_until_the_welcome_flow_completes(browser, base_url):
+    """Design review finding 05: BowtieModel's constructor always creates
+    one bridging-default page (TLE + Hazard) so every pre-multi-page call
+    site has something to read -- the visible side effect was the toolbar,
+    an "Untitled Page" tab, and a populated minimap all painting behind the
+    welcome modal before New/Import/Demo was even chosen. `#app` now stays
+    `visibility: hidden` (present for layout, absent from paint) until the
+    flow completes."""
+    pg = _fresh_page(browser, base_url)
+    try:
+        app = pg.locator("#app")
+        assert app.evaluate("(el) => getComputedStyle(el).visibility") == "hidden"
+        # Layout must still be intact underneath -- only painting is
+        # suppressed, so the canvas isn't zero-sized when it becomes visible.
+        box = app.bounding_box()
+        assert box["width"] > 0 and box["height"] > 0
+
+        pg.get_by_role("button", name="Load Demo", exact=True).click()
+        pg.wait_for_timeout(150)
+        assert app.evaluate("(el) => getComputedStyle(el).visibility") == "visible"
+    finally:
+        assert pg.errors == []
+        pg.close()
+
+
 def test_ctrl_alt_d_loads_the_demo_while_the_welcome_modal_is_open(browser, base_url):
     pg = _fresh_page(browser, base_url)
     try:
