@@ -28,10 +28,18 @@
     // per pointermove (`moveElement` itself is deliberately excluded from
     // its generic per-method-call snapshot hook), AND a plain click that
     // never becomes a drag never snapshots or touches redo history at all.
-    constructor(model, svgRoot, onDragStart) {
+    // `onDragEnd`, if given, fires once a real drag (one that crossed the
+    // threshold and called `onDragStart`) releases — structural review
+    // finding 02: main.js uses the start/end pair to coalesce the many
+    // `moveElement` calls a single drag fires into at most one render per
+    // animation frame, then forces one final synchronous render here so the
+    // dropped position is never left waiting on a frame that has nothing
+    // left to invalidate it.
+    constructor(model, svgRoot, onDragStart, onDragEnd) {
       this.model = model;
       this.svgRoot = svgRoot;
       this.onDragStart = onDragStart;
+      this.onDragEnd = onDragEnd;
       this.pending = null; // { el, startClientX, startClientY, offset } — below threshold, not yet a drag
       this.dragging = null;
       this.offset = { dx: 0, dy: 0 };
@@ -183,6 +191,7 @@
       if (!this.dragging) return;
       this.dragging = null;
       this.svgRoot.classList.remove('is-dragging');
+      if (this.onDragEnd) this.onDragEnd();
     }
   }
 

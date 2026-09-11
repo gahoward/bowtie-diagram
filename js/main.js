@@ -49,7 +49,29 @@
       });
       minimap.render(view.connectionsLayer, view.nodesLayer, view.getContentBounds());
     };
-    rawModel.onChange(renderAll);
+    // Structural review finding 02: renderAll used to run synchronously off
+    // every single _emitChange, which is exactly right for an ordinary
+    // action (one mutation, one render) but not for a drag -- DragController
+    // calls moveElement on every pointermove, so one drag gesture measured
+    // at up to 11 full teardown-and-rebuild passes over both SVG layers.
+    // Scoped to just that case (isDragging, set by DragController's start/
+    // end callbacks below) rather than deferring every render generally:
+    // ImportExportController's "loading modal stays up until the first page
+    // has rendered" guarantee depends on loadDocument's _emitChange chain
+    // rendering synchronously, and this leaves that path untouched.
+    let isDragging = false;
+    let dragRenderFrameId = null;
+    rawModel.onChange(() => {
+      if (!isDragging) {
+        renderAll();
+        return;
+      }
+      if (dragRenderFrameId !== null) return;
+      dragRenderFrameId = requestAnimationFrame(() => {
+        dragRenderFrameId = null;
+        renderAll();
+      });
+    });
     // A page switch (or add/delete changing which page is active) re-renders
     // for the new active page, then re-fits the viewport to it — the same
     // call `btn-reset-view` already uses — since a different page's content
@@ -95,7 +117,22 @@
     // pointermove, not once per gesture. Scoped to whichever page is
     // active at that moment — DragController (wired through
     // PageScopedModel) can only ever be dragging an element on that page.
-    new Bowtie.DragController(pageScopedModel, svgRoot, () => undo.snapshot(pageTabs.getActivePageId()));
+    new Bowtie.DragController(
+      pageScopedModel,
+      svgRoot,
+      () => {
+        isDragging = true;
+        undo.snapshot(pageTabs.getActivePageId());
+      },
+      () => {
+        isDragging = false;
+        if (dragRenderFrameId !== null) {
+          cancelAnimationFrame(dragRenderFrameId);
+          dragRenderFrameId = null;
+        }
+        renderAll();
+      },
+    );
     // Constructed ahead of ContextMenuController so its arrange() can be
     // handed in as the "topology just changed, tidy up" callback below —
     // reorder/attach actions move a barrier's depth without repositioning

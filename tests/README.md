@@ -312,6 +312,17 @@ step for the app itself, so tests run directly against `index.html` as-is.
   rectangle going stale after a plain window resize with no pan/zoom in
   between, since nothing was watching the SVG element's own rendered size —
   fixed via a `ResizeObserver` in `PanZoomController.js`.
+- **`test_render_coalescing.py`** — structural review finding 02: a drag
+  gesture used to cost one full `CanvasView.render()` + `MinimapView` clone
+  per `pointermove` (measured live at up to 11 per gesture). Verifies the
+  fix directly: a 30-move synchronous pointer-event burst (Playwright's own
+  `mouse.move(steps=…)` paces each step onto its own frame, which would
+  defeat the coalescing under test, so this dispatches `PointerEvent`s
+  itself) collapses to a handful of renders instead of 30, the final render
+  still reflects the true dropped position, an ordinary non-drag mutation
+  still renders synchronously with no added delay, and `MinimapView`'s own
+  expensive clone step settles a mutation burst into exactly one reclone via
+  its trailing debounce.
 - **`test_tight_spacing.py`** — Settings' Loose/Tight auto-arrange spacing:
   tight mode measurably closer columns, still no horizontal label overlap,
   still clears the Hazard (a real bug caught live — see `DESIGN_NOTES.md`'s
