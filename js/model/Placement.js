@@ -23,11 +23,14 @@
   // Every live construction site passes `w`/`h` explicitly; the defaults
   // below only matter when parsing a document (DocumentSerializer) whose
   // stored placement is missing one -- an older or hand-edited file.
+  // Cause/Outcome's `h` (60) has no Geometry entry of its own -- it's a
+  // dynamic minimum a real box always grows past once its name wraps
+  // (Layout.MIN_H), not a true fixed shape constant the way `w` is.
   const DEFAULT_DIMENSIONS = {
-    cause: { w: 140, h: 60 },
-    outcome: { w: 140, h: 60 },
-    preventativeBarrier: { w: 36, h: 110 },
-    mitigativeBarrier: { w: 36, h: 110 },
+    cause: { w: Bowtie.Geometry.CAUSE_OUTCOME_W, h: 60 },
+    outcome: { w: Bowtie.Geometry.CAUSE_OUTCOME_W, h: 60 },
+    preventativeBarrier: { w: Bowtie.Geometry.BARRIER_W, h: Bowtie.Geometry.BARRIER_H },
+    mitigativeBarrier: { w: Bowtie.Geometry.BARRIER_W, h: Bowtie.Geometry.BARRIER_H },
   };
 
   class Placement {

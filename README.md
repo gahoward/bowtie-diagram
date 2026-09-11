@@ -25,7 +25,9 @@ playwright install chromium
 pytest tests/
 ```
 
-See `tests/README.md` for how the test suite is structured.
+See `tests/README.md` for how the test suite is structured, and
+`DESIGN_NOTES_POINTER.md` for where to find the architecture rationale
+behind why the code is shaped the way it is.
 
 There's also a linter, run separately from the tests (and as its own CI job, so testing the app still needs no Node toolchain):
 
