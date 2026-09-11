@@ -10,7 +10,7 @@
   const LINE_HEIGHT = 16;
   const PADDING = 10;
   const MIN_H = 60;
-  const HAZARD_GAP = 40; // vertical gap between the Hazard's bottom edge and the TLE's top edge
+  const { HAZARD_GAP } = Bowtie.Geometry;
 
   // `displayName` is the placement's NODE's name (node_library_proposal.md
   // "Two id spaces" — a placement itself no longer carries a `name` at

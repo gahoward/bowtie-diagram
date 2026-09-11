@@ -167,8 +167,8 @@
       const node = model._resolveOrCreateNode(kind, opts, origin.pageId);
       model.idCounters.placement += 1;
       const id = `PLACEMENT_${model.idCounters.placement}`;
-      const w = 36;
-      const h = 110;
+      const w = Bowtie.Geometry.BARRIER_W;
+      const h = Bowtie.Geometry.BARRIER_H;
       const x = opts.x ?? (anchor.x + side.xSign * (anchor.w + 60));
       const y = model._findClearY(origin.pageId, x, w, h, opts.y ?? anchor.y);
       const barrier = new Bowtie.Placement({
@@ -234,8 +234,8 @@
       const node = model._resolveOrCreateNode(kind, opts, anchor.pageId);
       model.idCounters.placement += 1;
       const id = `PLACEMENT_${model.idCounters.placement}`;
-      const w = 36;
-      const h = 110;
+      const w = Bowtie.Geometry.BARRIER_W;
+      const h = Bowtie.Geometry.BARRIER_H;
       const x = opts.x ?? (anchor.x + dir * 60);
       const y = model._findClearY(anchor.pageId, x, w, h, opts.y ?? anchor.y);
       const barrier = new Bowtie.Placement({

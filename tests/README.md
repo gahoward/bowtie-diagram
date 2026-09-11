@@ -328,6 +328,17 @@ step for the app itself, so tests run directly against `index.html` as-is.
   still clears the Hazard (a real bug caught live — see `DESIGN_NOTES.md`'s
   Auto-arrange horizontal-spacing section), and the per-side-depth fix
   (a shallower side no longer padded out to match a deeper one).
+- **`test_geometry.py`** — structural review finding 05: a shape constant
+  (TLE radius, Hazard size, Cause/Outcome width, barrier size) now lives
+  exactly once, in `js/model/Geometry.js`, instead of being hand-copied into
+  every file that needs it (AutoArrangeController's positioning maths
+  chiefly). Verified by mutating `Bowtie.Geometry` at runtime and checking
+  that a newly-created TLE/Hazard/Cause/Outcome/barrier actually picks up
+  the change — proof the wiring is live, not a coincidentally-matching
+  literal left behind by the refactor. Covers both of LineTopology's
+  barrier-creation paths (chained off a bare Cause/Outcome, and inserted
+  into an existing chain), which each carried their own separate copy of
+  the same two literals before this.
 
 - **`test_decimal.py`** — unit tests for `js/model/Decimal.js`, the exact
   mantissa+exponent decimal type quantitative mode uses instead of native
