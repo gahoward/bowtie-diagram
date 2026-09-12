@@ -12,7 +12,15 @@
   // A v8 document would still parse cleanly and silently invert every
   // barrier's effect, so the version bump is what turns a silent misread
   // into the outright rejection ImportExportController already does.
-  const SCHEMA_VERSION = 9;
+  //
+  // v10 (barrier_measures_proposal.md): `riskReductionFactor` -> Node.
+  // `protection`, a measure-tagged quantity (`{ measure, value, ... } |
+  // { unknown: true } | null` -- see BarrierMeasures.js) rather than a
+  // bare RRF. Same failure mode as v9 if silently misread -- a v9
+  // document's plain `{ value: '10' }` would be read as a PFD_avg of 10,
+  // not an RRF of 10 -- so this is a version bump, not an additive field,
+  // and there is (as with v9) no migration path.
+  const SCHEMA_VERSION = 10;
 
   class BowtieModel {
     constructor() {
@@ -54,6 +62,16 @@
       // so this doesn't bump SCHEMA_VERSION -- same reasoning as the
       // barrier-metadata fields in Node.js.
       this.tleAggregation = 'max';
+      // barrier_measures_proposal.md's ProjectDefaults: the fallbacks a
+      // barrier's own `protection` overrides (dangerousFraction) or falls
+      // back to when it doesn't set its own (proofTestIntervalH, standby
+      // barriers only). Decimal STRINGS, like every other quantitative
+      // value, parsed at calculation time -- see Quantitative._defaults.
+      // Purely additive, safe default (an older document simply lacks
+      // them and reads as these values), so this doesn't bump
+      // SCHEMA_VERSION -- same reasoning as tleAggregation above.
+      this.dangerousFraction = '1';
+      this.proofTestIntervalH = String(Bowtie.HOURS_PER_YEAR);
       this.idCounters = {
         page: 0,
         cause: 0,
@@ -431,12 +449,15 @@
     }
 
     // --- Warnings / orphan detection -----------------------------------
-    // Delegates to the read-only Warnings collaborator (design review
-    // finding 06, phase 2; see Warnings.js) — kept here, unchanged in name
-    // and signature, for the same reason as computeTleLikelihood above.
+    // Merges the read-only Warnings collaborator's orphan checks (design
+    // review finding 06, phase 2; see Warnings.js) with Quantitative's two
+    // advisory barrier-measure checks (barrier_measures_proposal.md) — the
+    // one sanctioned place outside Quantitative's own three methods below
+    // that reaches into `this._quantitative` (see the comment there for
+    // why nothing else may).
 
     getWarnings() {
-      return this._warnings.getWarnings();
+      return [...this._warnings.getWarnings(), ...this._quantitative.computeBarrierWarnings()];
     }
 
     // --- Lookup ---------------------------------------------------------
@@ -513,6 +534,17 @@
     setTleAggregation(policy) {
       if (!['max', 'sum'].includes(policy)) throw new Error(`Unknown TLE aggregation policy: ${policy}`);
       this.tleAggregation = policy;
+      this._emitChange();
+    }
+
+    // barrier_measures_proposal.md's ProjectDefaults -- see the
+    // constructor's `dangerousFraction`/`proofTestIntervalH` comment.
+    // Document-wide, like setTleAggregation above; both are optional
+    // (only provided keys change) so ProjectSettingsController can commit
+    // one field on blur without clobbering the other.
+    setQuantitativeDefaults({ dangerousFraction, proofTestIntervalH } = {}) {
+      if (dangerousFraction !== undefined) this.dangerousFraction = dangerousFraction;
+      if (proofTestIntervalH !== undefined) this.proofTestIntervalH = proofTestIntervalH;
       this._emitChange();
     }
 
@@ -647,7 +679,10 @@
     // here, unchanged in name and signature, because UndoController's Proxy
     // resolves undo behaviour by intercepting method names on THIS object,
     // PageScopedModel mirrors THIS surface, and ~300 tests call THESE names
-    // directly. Never call `this._quantitative` from outside this class.
+    // directly. Never call `this._quantitative` from outside this class --
+    // getWarnings() above is the one other call site, for exactly the same
+    // reason (it's a BowtieModel method, gluing two of its own collaborators
+    // together, not an outside caller reaching in).
 
     computeTleLikelihood(pageId, opts = {}) {
       return this._quantitative.computeTleLikelihood(pageId, opts);
@@ -659,6 +694,13 @@
 
     getConsequenceRiskClass(outcomeId, opts = {}) {
       return this._quantitative.getConsequenceRiskClass(outcomeId, opts);
+    }
+
+    // barrier_measures_proposal.md's demand-rate readout -- see
+    // Quantitative.computeDemandRateAt. Same delegation reasoning as the
+    // three methods above.
+    computeDemandRateAt(barrierId) {
+      return this._quantitative.computeDemandRateAt(barrierId);
     }
 
     // --- Serialization ----------------------------------------------------

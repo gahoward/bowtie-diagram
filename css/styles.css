@@ -609,6 +609,18 @@ html, body {
   color: #b91c1c;
 }
 
+/* barrier_measures_proposal.md's measure-detail sub-panel (RiskFieldsForm's
+   buildBarrierProtectionField): a visually distinct group of fields whose
+   shape depends on the selected barrier measure. */
+.barrier-protection-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+  padding-left: 12px;
+  border-left: 2px solid var(--border);
+}
+
 .modal-field-hint {
   margin: 0;
   font-size: 11px;

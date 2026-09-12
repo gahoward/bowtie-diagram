@@ -9,9 +9,12 @@
     }
 
     // A barrier not appearing in any Line's stops is an orphan -- nothing
-    // actually flows through it. Export is blocked while any warning
-    // exists. A library node with zero placements anywhere is deliberately
-    // NOT flagged here (node_library_proposal.md Open question 2, resolved
+    // actually flows through it. Export is blocked while any BLOCKING
+    // warning exists (WarningsController.js) -- these two are integrity
+    // failures, unlike the advisory barrier-measure checks Quantitative.js
+    // computes (see BowtieModel.getWarnings, which merges the two). A
+    // library node with zero placements anywhere is deliberately NOT
+    // flagged here (node_library_proposal.md Open question 2, resolved
     // toward silent) -- ask 2 explicitly wants nodes to survive with no
     // placements as a normal "staging" state, not a mistake.
     getWarnings() {
@@ -25,7 +28,7 @@
           const page = model.getPage(pb.pageId);
           const node = model.getNode(pb.nodeId);
           warnings.push({
-            id: pb.id, type: 'orphaned-preventative-control',
+            id: pb.id, type: 'orphaned-preventative-control', severity: 'blocking',
             pageId: page.id, pageName: page.name,
             message: `${node.id} (${node.name}) on page "${page.name}" is not connected to any Cause.`,
           });
@@ -37,7 +40,7 @@
           const page = model.getPage(mb.pageId);
           const node = model.getNode(mb.nodeId);
           warnings.push({
-            id: mb.id, type: 'orphaned-mitigative-control',
+            id: mb.id, type: 'orphaned-mitigative-control', severity: 'blocking',
             pageId: page.id, pageName: page.name,
             message: `${node.id} (${node.name}) on page "${page.name}" is not connected to any Outcome.`,
           });

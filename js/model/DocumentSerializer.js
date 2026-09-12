@@ -107,6 +107,8 @@
         mode: model.mode,
         riskMatrix: model.riskMatrix,
         tleAggregation: model.tleAggregation,
+        dangerousFraction: model.dangerousFraction,
+        proofTestIntervalH: model.proofTestIntervalH,
         identifierDisplayMode: model.identifierDisplayMode,
         idCounters: { ...model.idCounters },
         retiredIds: {
@@ -164,6 +166,8 @@
       model.mode = data.mode || 'simple';
       model.riskMatrix = data.riskMatrix || null;
       model.tleAggregation = data.tleAggregation === 'sum' ? 'sum' : 'max';
+      model.dangerousFraction = data.dangerousFraction || '1';
+      model.proofTestIntervalH = data.proofTestIntervalH || String(Bowtie.HOURS_PER_YEAR);
       model.identifierDisplayMode = data.identifierDisplayMode || 'internal';
       if (data.pages && data.pages.length > 0) {
         model.pages = data.pages.map((p) => this.pageHeaderFromJSON(p));
@@ -285,6 +289,8 @@
       model.mode = fresh.mode;
       model.riskMatrix = fresh.riskMatrix;
       model.tleAggregation = fresh.tleAggregation;
+      model.dangerousFraction = fresh.dangerousFraction;
+      model.proofTestIntervalH = fresh.proofTestIntervalH;
       model.idCounters = fresh.idCounters;
       model.retiredIds = fresh.retiredIds;
     },

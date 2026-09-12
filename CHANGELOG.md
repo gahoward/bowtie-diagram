@@ -1,5 +1,40 @@
 # Changelog
 
+## v0.2.2 - 2026-09-12
+
+- Reworked Quantitative mode's barrier treatment (`barrier_measures_
+  proposal.md`, `bowtie-diagram-docs`): a barrier's `protection` (renamed
+  from `riskReductionFactor`; schema v9 → v10, no migration) is now a
+  measure-tagged quantity rather than a bare RRF, supporting PFD_avg, raw
+  probability, unavailability, PFH, SIL bands (worst case), and three
+  rate-based forms (running, running-repairable with MTTR, and standby
+  with a proof-test interval), each with its own rate unit and an
+  optional per-barrier dangerous-fraction/test-interval override falling
+  back to new document-wide Project Settings defaults. Every measure
+  normalises to one of three exact composition operations on the running
+  frequency (`attenuate`/`divide`/existing multiplication, plus a new
+  frequency-LIMITING `min()` rule for PFH and non-repairable running
+  rates) — never to a converted value — so no division or transcendental
+  function enters the calculation pipeline; an MTBF/MTTF-derived rate is
+  carried as an exact `Rational` all the way through rather than ever
+  computing its reciprocal.
+- Fixed a real (previously harmless) bug this surfaced: mitigative
+  barriers were folded in the order an Outcome's Line stores them
+  (nearest-Outcome-first), the opposite of how a computed likelihood
+  actually propagates outward from the TLE. Multiplication is
+  commutative, so this never produced a wrong number until the new
+  frequency-limiting `min()` rule made barrier order along a Line
+  genuinely significant — now walked TLE-first, matching the preventative
+  side.
+- Added two advisory warnings (informational only — unlike the existing
+  orphan checks, they never block export): a frequency-limiting barrier
+  whose own rate isn't actually below the demand reaching it (crediting
+  zero risk reduction silently), and a low-demand measure applied where
+  the local demand rate exceeds IEC 61511's ~1/year low/high-demand
+  boundary. The Properties modal now also shows a barrier's own computed
+  demand rate read-only, the number that decides which of the two regimes
+  applies.
+
 ## v0.2.1 - 2026-09-07
 
 - Added a randomized/generative auto-arrange test (30 seeded random

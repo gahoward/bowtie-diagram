@@ -71,6 +71,47 @@ def test_badge_title_lists_every_affected_page_once_each(page):
     assert set(names) == {"Topside", "Subsea"}
 
 
+# --- barrier_measures_proposal.md: advisory warnings never block export --
+
+def _add_pfh_barrier_that_never_limits(page):
+    # Committed through renameNode (not a bare property assignment) so it
+    # fires model.onChange -- WarningsController's refresh() is bound to
+    # that, the same way the real UI's Properties modal save path does.
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.setMode('quantitative');
+      const c = m.addCause({x: 150, y: 200});
+      m.renameNode(c.nodeId, { frequency: { value: '1' } });
+      const pb = m.addPreventativeControl(c.id);
+      m.renameNode(pb.nodeId, { protection: { measure: 'pfh', value: '10' } });
+    }""")
+    page.wait_for_timeout(80)
+
+
+def test_advisory_barrier_warning_shows_the_badge_but_leaves_export_enabled(page):
+    _add_pfh_barrier_that_never_limits(page)
+
+    badge = page.locator("#btn-warnings")
+    assert badge.is_visible()
+    assert badge.locator(".warning-count").text_content() == "1"
+    for btn_id in EXPORT_BUTTON_IDS:
+        assert page.locator(f"#{btn_id}").is_enabled(), "advisory warnings must never disable export"
+
+    badge.click()
+    page.wait_for_timeout(50)
+    assert "Advisory" in page.locator(".modal-overlay").text_content()
+    page.get_by_role("button", name="Close", exact=True).click()
+
+
+def test_a_blocking_and_an_advisory_warning_together_still_disable_export(page):
+    _add_pfh_barrier_that_never_limits(page)
+    _orphan_a_preventative_barrier(page)
+
+    assert page.locator("#btn-warnings").locator(".warning-count").text_content() == "2"
+    for btn_id in EXPORT_BUTTON_IDS:
+        assert page.locator(f"#{btn_id}").is_disabled(), "the blocking orphan warning must still disable export"
+
+
 def test_resolving_the_orphan_hides_the_badge_and_re_enables_export(page):
     for btn_id in EXPORT_BUTTON_IDS:
         assert page.locator(f"#{btn_id}").is_enabled(), "sanity check: a fresh bowtie has no warnings"

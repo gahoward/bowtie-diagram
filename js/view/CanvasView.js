@@ -71,10 +71,15 @@
     // once PanZoomController's viewBox zooms out to fit a larger diagram.
     // Qualitative mode's manually-picked class labels keep the quieter
     // default -- they're a static category pick, not a computed result.
-    _renderInfoText(cx, topY, lines, { emphasized = false } = {}) {
+    _renderInfoText(cx, topY, lines, { emphasized = false, title = null } = {}) {
       const svgNs = 'http://www.w3.org/2000/svg';
       const g = document.createElementNS(svgNs, 'g');
       g.setAttribute('class', emphasized ? 'node-info-text node-info-text-emphasized' : 'node-info-text');
+      if (title) {
+        const titleEl = document.createElementNS(svgNs, 'title');
+        titleEl.textContent = title;
+        g.appendChild(titleEl);
+      }
       const lineHeight = emphasized ? 15 : 13;
       lines.forEach((line, i) => {
         const text = document.createElementNS(svgNs, 'text');
@@ -113,18 +118,28 @@
       return `${shown.toDisplayNumber(3)}/${perYear ? 'yr' : 'hr'}`;
     }
 
-    // Risk-reduction-factor "at a glance" summary, underneath a barrier's
-    // own id/name label -- shared by both Preventative and Mitigative
-    // barriers. An explicit "Unknown" line matters here too: an Unknown
-    // barrier isn't excluded like an Unknown cause, it's silently SKIPPED
-    // from the product instead (BowtieModel.computeTleLikelihood/
-    // computeConsequenceLikelihood's own "conservative" skip rule) -- worth
-    // flagging on the barrier itself since nothing else surfaces it.
+    // Barrier protection "at a glance" summary, underneath a barrier's own
+    // id/name label -- shared by both Preventative and Mitigative
+    // barriers. Shows WHAT WAS ENTERED (e.g. "PFD: 1.0E-2"), per barrier_
+    // measures_proposal.md's "Units and display" -- that's what the
+    // engineer recognises from their own source document; the normalised
+    // equivalent (BarrierMeasures.describe) goes in the hover title
+    // instead, following the risk-badge tooltip precedent. An explicit
+    // "Unknown" line matters here too: an Unknown barrier isn't excluded
+    // like an Unknown cause, it's silently SKIPPED from the fold instead
+    // (Quantitative.js's own "conservative" skip rule) -- worth flagging
+    // on the barrier itself since nothing else surfaces it.
     _barrierInfoLines(model, node) {
-      if (model.mode !== 'quantitative' || !node.riskReductionFactor) return [];
-      if (node.riskReductionFactor.unknown) return ['RRF: Unknown'];
-      const rrf = Bowtie.RiskMatrix.quantityToDecimal(node.riskReductionFactor);
-      return rrf ? [`RRF: ${rrf.toDisplayNumber(3)}`] : [];
+      if (model.mode !== 'quantitative' || !node.protection) return { lines: [], title: null };
+      if (node.protection.unknown) return { lines: ['Barrier: Unknown'], title: null };
+      const measure = Bowtie.BarrierMeasures.list().find((m) => m.id === node.protection.measure);
+      if (!measure) return { lines: [], title: null };
+      const value = Bowtie.Decimal.parse(node.protection.value).toDisplayNumber(3);
+      const defaults = { dangerousFraction: model.dangerousFraction, proofTestIntervalH: model.proofTestIntervalH };
+      return {
+        lines: [`${measure.short}: ${value}`],
+        title: Bowtie.BarrierMeasures.describe(node.protection, defaults),
+      };
     }
 
     render(model, opts = {}) {
@@ -307,12 +322,13 @@
         extend(pb.x, result.bounds.labelCenterY, result.bounds.labelHalfWidth, result.bounds.labelHalfHeight);
 
         const pbNode = model.getNode(pb.nodeId);
-        const infoLines = this._barrierInfoLines(model, pbNode);
+        const { lines: infoLines, title: infoTitle } = this._barrierInfoLines(model, pbNode);
         if (infoLines.length > 0) {
           // _barrierInfoLines only ever returns lines in Quantitative mode
-          // (see its own guard) -- always the RRF figure, so always emphasized.
+          // (see its own guard) -- always the protection figure, so always
+          // emphasized.
           const infoY = result.bounds.labelCenterY + result.bounds.labelHalfHeight + 14;
-          nodeGroups.push(this._renderInfoText(pb.x, infoY, infoLines, { emphasized: true }));
+          nodeGroups.push(this._renderInfoText(pb.x, infoY, infoLines, { emphasized: true, title: infoTitle }));
           extend(pb.x, infoY + infoLines.length * 15, result.bounds.labelHalfWidth, 10);
         }
       });
@@ -330,12 +346,12 @@
         extend(mb.x, result.bounds.labelCenterY, result.bounds.labelHalfWidth, result.bounds.labelHalfHeight);
 
         const mbNode = model.getNode(mb.nodeId);
-        const infoLines = this._barrierInfoLines(model, mbNode);
+        const { lines: infoLines, title: infoTitle } = this._barrierInfoLines(model, mbNode);
         if (infoLines.length > 0) {
-          // Same as the Preventative Barrier case above: always Quantitative
-          // mode's RRF figure, so always emphasized.
+          // Same as the Preventative Barrier case above: always
+          // Quantitative mode's protection figure, so always emphasized.
           const infoY = result.bounds.labelCenterY + result.bounds.labelHalfHeight + 14;
-          nodeGroups.push(this._renderInfoText(mb.x, infoY, infoLines, { emphasized: true }));
+          nodeGroups.push(this._renderInfoText(mb.x, infoY, infoLines, { emphasized: true, title: infoTitle }));
           extend(mb.x, infoY + infoLines.length * 15, result.bounds.labelHalfWidth, 10);
         }
       });

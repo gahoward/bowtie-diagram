@@ -168,6 +168,48 @@ def test_project_settings_tle_aggregation_toggle_updates_model_and_canvas(page):
     assert "(sum)" in tle_info_text()
 
 
+def test_project_settings_quantitative_defaults_update_the_model(page):
+    """barrier_measures_proposal.md's ProjectDefaults: the dangerous-
+    fraction and proof-test-interval fallbacks a barrier's own protection
+    overrides -- committed via setQuantitativeDefaults, same
+    change-on-blur / _suppressNextRefresh pattern as the Name field."""
+    assert page.evaluate("() => window.__lastModel.dangerousFraction") == "1"
+    assert page.evaluate("() => window.__lastModel.proofTestIntervalH") == "8760"
+
+    _open_project_settings(page)
+    page.locator("input[name=analysis-mode][value=quantitative]").check()
+    page.wait_for_timeout(80)
+
+    df_input = page.locator(".modal-field:has-text('dangerous fraction') input[type=text]")
+    df_input.fill("0.5")
+    df_input.blur()
+    page.wait_for_timeout(80)
+
+    ti_input = page.locator(".modal-field:has-text('proof-test interval') input[type=text]")
+    ti_input.fill("4380")
+    ti_input.blur()
+    page.wait_for_timeout(80)
+
+    page.get_by_role("button", name="Close", exact=True).click()
+    page.wait_for_timeout(80)
+
+    assert page.evaluate("() => window.__lastModel.dangerousFraction") == "0.5"
+    assert page.evaluate("() => window.__lastModel.proofTestIntervalH") == "4380"
+
+
+def test_project_settings_quantitative_defaults_reject_out_of_range_values(page):
+    _open_project_settings(page)
+    page.locator("input[name=analysis-mode][value=quantitative]").check()
+    page.wait_for_timeout(80)
+
+    df_input = page.locator(".modal-field:has-text('dangerous fraction') input[type=text]")
+    df_input.fill("1.5")
+    df_input.blur()
+    page.wait_for_timeout(80)
+
+    assert page.evaluate("() => window.__lastModel.dangerousFraction") == "1", "out-of-range input must be rejected"
+
+
 def test_project_settings_selecting_a_matrix_preset_embeds_a_full_copy(page):
     _open_project_settings(page)
     page.locator("input[name=analysis-mode][value=quantitative]").check()

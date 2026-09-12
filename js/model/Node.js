@@ -18,9 +18,13 @@
   //   - `frequency`: cause only, Quantitative mode only -- a Quantity
   //     (`{ value: decimalString } | { unknown: true }`), canonical
   //     events/hour.
-  //   - `riskReductionFactor`: preventativeBarrier/mitigativeBarrier only,
-  //     Quantitative mode only -- a Quantity in the IEC 61511 RRF sense
-  //     (>= 1, equal to 1/PFD; DIVIDES the frequency -- see Quantitative.js).
+  //   - `protection`: preventativeBarrier/mitigativeBarrier only,
+  //     Quantitative mode only -- barrier_measures_proposal.md's
+  //     measure-tagged quantity: `{ measure, value, ...extra } |
+  //     { unknown: true } | null`. Renamed from `riskReductionFactor` (v9
+  //     -> v10, no migration -- see BowtieModel.js's version comment) once
+  //     the field could hold a PFH or a bare rate as easily as an RRF; see
+  //     BarrierMeasures.js for what `measure` normalises to.
   //
   // Barrier metadata (design review finding 10, phase 1): `barrierType`/
   // `owner`/`effectiveness`, preventativeBarrier/mitigativeBarrier only,
@@ -35,7 +39,7 @@
     constructor({
       id, type, name, description = '', identifier = '',
       likelihoodClassId = null, severityClassId = null,
-      frequency = null, riskReductionFactor = null,
+      frequency = null, protection = null,
       barrierType = null, owner = '', effectiveness = null,
     } = {}) {
       this.id = id;
@@ -46,7 +50,7 @@
       this.likelihoodClassId = likelihoodClassId;
       this.severityClassId = severityClassId;
       this.frequency = frequency;
-      this.riskReductionFactor = riskReductionFactor;
+      this.protection = protection;
       this.barrierType = barrierType; // 'hardware' | 'human' | 'active' | 'passive' | null
       this.owner = owner;
       this.effectiveness = effectiveness; // 'high' | 'medium' | 'low' | null

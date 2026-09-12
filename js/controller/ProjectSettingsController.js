@@ -197,9 +197,67 @@
       }
       if (this.model.mode === 'quantitative') {
         section.appendChild(this._buildTleAggregationToggle());
+        section.appendChild(this._buildQuantitativeDefaultsFields());
         section.appendChild(this._buildDisplayUnitToggle());
       }
       return section;
+    }
+
+    // barrier_measures_proposal.md's ProjectDefaults: the dangerous
+    // fraction and standby proof-test interval a barrier's own protection
+    // falls back to when it doesn't set its own override. Persisted
+    // (BowtieModel.setQuantitativeDefaults), unlike the display-unit
+    // toggle just below, since they change what a barrier's own computed
+    // figure means, not just how it's shown.
+    _buildQuantitativeDefaultsFields() {
+      const wrap = document.createElement('div');
+
+      const df = document.createElement('label');
+      df.className = 'modal-field';
+      const dfLabel = document.createElement('span');
+      dfLabel.textContent = 'Default dangerous fraction (0–1, applies unless a barrier overrides it)';
+      const dfInput = document.createElement('input');
+      dfInput.type = 'text';
+      dfInput.value = this.model.dangerousFraction;
+      dfInput.addEventListener('change', () => {
+        const value = dfInput.value.trim();
+        try {
+          const d = Bowtie.Decimal.parse(value);
+          if (d.lessThan(Bowtie.Decimal.parse('0')) || d.greaterThan(Bowtie.Decimal.parse('1'))) throw new Error();
+        } catch {
+          dfInput.value = this.model.dangerousFraction;
+          return;
+        }
+        this._suppressNextRefresh = true;
+        this.model.setQuantitativeDefaults({ dangerousFraction: value });
+      });
+      df.appendChild(dfLabel);
+      df.appendChild(dfInput);
+      wrap.appendChild(df);
+
+      const ti = document.createElement('label');
+      ti.className = 'modal-field';
+      const tiLabel = document.createElement('span');
+      tiLabel.textContent = 'Default proof-test interval, hours (standby barriers, unless overridden)';
+      const tiInput = document.createElement('input');
+      tiInput.type = 'text';
+      tiInput.value = this.model.proofTestIntervalH;
+      tiInput.addEventListener('change', () => {
+        const value = tiInput.value.trim();
+        try {
+          if (!Bowtie.Decimal.parse(value).greaterThan(Bowtie.Decimal.parse('0'))) throw new Error();
+        } catch {
+          tiInput.value = this.model.proofTestIntervalH;
+          return;
+        }
+        this._suppressNextRefresh = true;
+        this.model.setQuantitativeDefaults({ proofTestIntervalH: value });
+      });
+      ti.appendChild(tiLabel);
+      ti.appendChild(tiInput);
+      wrap.appendChild(ti);
+
+      return wrap;
     }
 
     // Design review finding 11 -- how the TLE combines multiple causes'

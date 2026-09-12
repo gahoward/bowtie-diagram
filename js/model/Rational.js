@@ -82,6 +82,20 @@
 
     greaterThanOrEqualToDecimal(decimal) { return this.compareToDecimal(decimal) >= 0; }
 
+    // min(this, operand). Exact: `compare` already cross-multiplies rather
+    // than dividing, so this needs nothing new but a select -- the "limit"
+    // composition rule barrier_measures_proposal.md adds for PFH and
+    // rate-based frequency-limiting barriers (F_out = min(F_in, lambda)),
+    // where naive multiplication stops being commutative with the fold and
+    // order along a Line starts to matter. `operand` may be a plain
+    // Decimal (PFH, already canonical events/hour) or itself a Rational
+    // (an MTBF/MTTF-derived rate, kept as an exact df/MTBF_h quotient
+    // rather than a computed reciprocal -- see BarrierMeasures.js).
+    clampTo(operand) {
+      const asRational = operand instanceof Rational ? operand : Rational.fromDecimal(operand);
+      return this.compare(asRational) > 0 ? asRational : this;
+    }
+
     static max(values) {
       return values.reduce((best, v) => (best === null || v.greaterThan(best) ? v : best), null);
     }
