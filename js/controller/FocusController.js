@@ -101,8 +101,17 @@
       if (focusedLines.length === 0) return;
       const side = focusedLines[0].originType; // 'cause' | 'outcome'
 
-      const relatedOriginIds = new Set(focusedLines.map((l) => l.originId));
-      const relatedBarrierIds = new Set(focusedLines.flatMap((l) => l.stops));
+      // Line.originId/.stops are internal PLACEMENT ids (never rendered),
+      // but a node's DOM element is keyed by its NODE id (`data-id` --
+      // node_library_proposal.md "Two id spaces") since the node-library
+      // rework. Resolve each placement id to its owning node's id before
+      // comparing against `data-id` below.
+      const nodeIdFor = (placementId) => {
+        const el = this.model.findById(placementId);
+        return el ? el.nodeId : null;
+      };
+      const relatedOriginIds = new Set(focusedLines.map((l) => nodeIdFor(l.originId)));
+      const relatedBarrierIds = new Set(focusedLines.flatMap((l) => l.stops).map(nodeIdFor));
 
       nodes.forEach((n) => {
         const cls = n.getAttribute('class') || '';

@@ -111,62 +111,70 @@
     return new Bowtie.Rational(r.numerator, r.numerator.add(r.denominator));
   }
 
+  // `group` is UI-only: which <optgroup> a measure's own <option> sits in
+  // (RiskFieldsForm.js) — the registry itself makes no arithmetic
+  // distinction beyond `op` above. Splitting "probability" (a barrier's
+  // reliability entered as a single dimensionless number, however that
+  // number's own source convention names it) from "rate" (entered as a
+  // raw failure rate + duty, which this module itself derives a
+  // dimensionless-or-limiting operand FROM) is what actually separates
+  // these nine rows into two families a user picks between.
   const MEASURES = {
     rrf: {
       label: 'Risk Reduction Factor (RRF, ≥ 1)',
-      short: 'RRF', op: 'divide', dimension: 'dimensionless',
+      short: 'RRF', op: 'divide', dimension: 'dimensionless', group: 'probability',
       bounds: { min: '1', exclusiveMin: false },
       boundMessage: 'Risk Reduction Factor must be 1 or greater. RRF is 1/PFD, so a barrier worth one order of '
         + 'magnitude is 10 — a value below 1 would increase the risk.',
       toOperand: (p) => Bowtie.Decimal.parse(p.value),
     },
     pfdavg: {
-      label: 'PFDₐᵥᵍ — average probability of failure on demand',
-      short: 'PFD', op: 'attenuate', dimension: 'dimensionless',
+      label: 'PFD_avg — average probability of failure on demand',
+      short: 'PFD', op: 'attenuate', dimension: 'dimensionless', group: 'probability',
       bounds: { min: '0', exclusiveMin: true, max: '1', exclusiveMax: false },
       boundMessage: 'PFD_avg must be greater than 0 and no more than 1.',
       toOperand: (p) => Bowtie.Decimal.parse(p.value),
     },
     probability: {
-      label: 'Raw probability of failure on demand',
-      short: 'p', op: 'attenuate', dimension: 'dimensionless',
+      label: 'Raw probability of failure on demand (p)',
+      short: 'p', op: 'attenuate', dimension: 'dimensionless', group: 'probability',
       bounds: { min: '0', exclusiveMin: true, max: '1', exclusiveMax: false },
       boundMessage: 'Probability must be greater than 0 and no more than 1.',
       toOperand: (p) => Bowtie.Decimal.parse(p.value),
     },
     unavailability: {
       label: 'Unavailability (U)',
-      short: 'U', op: 'attenuate', dimension: 'dimensionless',
+      short: 'U', op: 'attenuate', dimension: 'dimensionless', group: 'probability',
       bounds: { min: '0', exclusiveMin: true, max: '1', exclusiveMax: false },
       boundMessage: 'Unavailability must be greater than 0 and no more than 1.',
       toOperand: (p) => Bowtie.Decimal.parse(p.value),
     },
-    pfh: {
-      label: 'PFH — probability of dangerous failure per hour',
-      short: 'PFH', op: 'limit', dimension: 'perHour',
-      bounds: { min: '0', exclusiveMin: true },
-      boundMessage: 'PFH must be greater than 0.',
-      toOperand: (p) => Bowtie.Decimal.parse(p.value),
-    },
     sil: {
       label: 'SIL band (low demand, worst case)',
-      short: 'SIL', op: 'attenuate', dimension: 'sil',
+      short: 'SIL', op: 'attenuate', dimension: 'sil', group: 'probability',
       bounds: { min: '1', max: '4', integer: true },
       boundMessage: 'SIL must be an integer from 1 to 4.',
       uiValueKind: 'select', uiOptions: ['1', '2', '3', '4'],
       toOperand: (p) => Bowtie.Decimal.parse(SIL_WORST_CASE_PFD[p.value]),
     },
+    pfh: {
+      label: 'PFH — probability of dangerous failure per hour',
+      short: 'PFH', op: 'limit', dimension: 'perHour', group: 'rate',
+      bounds: { min: '0', exclusiveMin: true },
+      boundMessage: 'PFH must be greater than 0.',
+      toOperand: (p) => Bowtie.Decimal.parse(p.value),
+    },
     rateRunning: {
-      label: 'Running / continuous barrier — failure rate (frequency-limiting)',
-      short: 'λₑ(run)', op: 'limit', dimension: 'rate',
+      label: 'Running / continuous — frequency-limiting',
+      short: 'λₑ(run)', op: 'limit', dimension: 'rate', group: 'rate',
       bounds: { min: '0', exclusiveMin: true },
       boundMessage: 'Rate must be greater than 0.',
       needsRateFields: true,
       toOperand: (p, defaults) => lambdaDangerousOf(p, defaults),
     },
     rateRunningRepairable: {
-      label: 'Running / continuous barrier, repairable — failure rate + MTTR',
-      short: 'λₑ(MTTR)', op: 'attenuate', dimension: 'rate',
+      label: 'Running / continuous, repairable — with MTTR',
+      short: 'λₑ(MTTR)', op: 'attenuate', dimension: 'rate', group: 'rate',
       bounds: { min: '0', exclusiveMin: true },
       boundMessage: 'Rate must be greater than 0.',
       needsRateFields: true,
@@ -174,8 +182,8 @@
       toOperand: (p, defaults) => repairableOperand(p, defaults),
     },
     rateStandby: {
-      label: 'Standby / periodically tested barrier — failure rate + test interval',
-      short: 'λₑ(standby)', op: 'attenuate', dimension: 'rate',
+      label: 'Standby / periodically tested — with test interval',
+      short: 'λₑ(standby)', op: 'attenuate', dimension: 'rate', group: 'rate',
       bounds: { min: '0', exclusiveMin: true },
       boundMessage: 'Rate must be greater than 0.',
       needsRateFields: true,
@@ -186,7 +194,7 @@
 
   function list() {
     return Object.entries(MEASURES).map(([id, row]) => ({
-      id, label: row.label, short: row.short, dimension: row.dimension,
+      id, label: row.label, short: row.short, dimension: row.dimension, group: row.group,
       needsRateFields: !!row.needsRateFields, needsMttr: !!row.needsMttr, needsTestInterval: !!row.needsTestInterval,
       uiValueKind: row.uiValueKind || 'decimal', uiOptions: row.uiOptions || null,
     }));
