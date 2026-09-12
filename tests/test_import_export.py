@@ -1,4 +1,4 @@
-"""Schema v9 round-trip, and the version-mismatch guard that replaced the
+"""Schema v10 round-trip, and the version-mismatch guard that replaced the
 old migration path (this project has exactly one user, so there is no
 migration code any more — an incompatible file is rejected outright rather
 than silently misread)."""
@@ -19,6 +19,8 @@ _SNAPSHOT_JS = """
   mode: m.mode,
   riskMatrixId: m.riskMatrix ? m.riskMatrix.id : null,
   tleAggregation: m.tleAggregation,
+  dangerousFraction: m.dangerousFraction,
+  proofTestIntervalH: m.proofTestIntervalH,
   identifierDisplayMode: m.identifierDisplayMode,
   idCounters: { ...m.idCounters },
   retiredIds: Object.fromEntries(
@@ -37,7 +39,7 @@ _SNAPSHOT_JS = """
         likelihoodClassId: n.likelihoodClassId,
         severityClassId: n.severityClassId,
         frequency: n.frequency,
-        riskReductionFactor: n.riskReductionFactor,
+        protection: n.protection,
         barrierType: n.barrierType,
         owner: n.owner,
         effectiveness: n.effectiveness,
@@ -78,6 +80,7 @@ def test_export_then_import_round_trips_every_persisted_field(page):
       m.setMode('quantitative');
       m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
       m.setTleAggregation('sum');
+      m.setQuantitativeDefaults({ dangerousFraction: '0.9', proofTestIntervalH: '4380' });
       m.setIdentifierDisplayMode('custom');
       m.setName('Distinctive Document Name');
 
@@ -90,7 +93,7 @@ def test_export_then_import_round_trips_every_persisted_field(page):
       m.renameNode(cause.nodeId, { identifier: 'CUSTOM-CAUSE', frequency: { value: '1E-3' } });
       const pb = m.addPreventativeControl(cause.id);
       m.renameNode(pb.nodeId, {
-        riskReductionFactor: { value: '10' },
+        protection: { measure: 'rrf', value: '10' },
         barrierType: 'hardware', owner: 'Ops Team', effectiveness: 'high',
       });
 
@@ -100,7 +103,7 @@ def test_export_then_import_round_trips_every_persisted_field(page):
         likelihoodClassId: m.riskMatrix.likelihoodClasses[1].id,
       });
       const mb = m.addMitigativeControl(outcome.id);
-      m.renameNode(mb.nodeId, { riskReductionFactor: { unknown: true } });
+      m.renameNode(mb.nodeId, { protection: { unknown: true } });
 
       // Populate retiredIds with a distinctive, re-enabled entry.
       const doomed = m.addCause({ name: 'Doomed' });
@@ -137,4 +140,4 @@ def test_wrong_schema_version_is_rejected_with_a_message(page):
       return { mismatch, current: Bowtie.BowtieModel.SCHEMA_VERSION };
     }""")
     assert shown["mismatch"] is True
-    assert shown["current"] == 9
+    assert shown["current"] == 10

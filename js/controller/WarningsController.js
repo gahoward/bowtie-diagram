@@ -1,6 +1,9 @@
 (function (Bowtie) {
-  // Toolbar warning badge (orphaned PCs/MCs, etc.) with a notification count.
-  // Export is blocked entirely while any warning is active.
+  // Toolbar warning badge (orphaned PCs/MCs, plus barrier_measures_
+  // proposal.md's two advisory barrier-measure checks) with a
+  // notification count. Export is blocked only while a BLOCKING warning
+  // is active (severity !== 'advisory') -- the two barrier-measure checks
+  // are advisory: they inform without blocking export.
   class WarningsController {
     constructor(model, button, exportButtonIds) {
       this.model = model;
@@ -15,6 +18,7 @@
 
     refresh() {
       const warnings = this.model.getWarnings();
+      const blocking = warnings.filter((w) => w.severity !== 'advisory');
       const countEl = this.button.querySelector('.warning-count');
       if (countEl) countEl.textContent = String(warnings.length);
       this.button.hidden = warnings.length === 0;
@@ -29,7 +33,7 @@
 
       this.exportButtonIds.forEach((id) => {
         const btn = document.getElementById(id);
-        if (btn) btn.disabled = warnings.length > 0;
+        if (btn) btn.disabled = blocking.length > 0;
       });
 
       if (this.modal && document.body.contains(this.modal.overlay)) {
@@ -53,18 +57,28 @@
         wrap.appendChild(p);
         return wrap;
       }
-      const intro = document.createElement('p');
-      intro.textContent = 'Export is disabled while these warnings are unresolved:';
-      wrap.appendChild(intro);
+      const blocking = warnings.filter((w) => w.severity !== 'advisory');
+      const advisory = warnings.filter((w) => w.severity === 'advisory');
 
-      const list = document.createElement('ul');
-      list.className = 'warning-list';
-      warnings.forEach((w) => {
-        const li = document.createElement('li');
-        li.textContent = w.message;
-        list.appendChild(li);
-      });
-      wrap.appendChild(list);
+      const addList = (items, introText) => {
+        const intro = document.createElement('p');
+        intro.textContent = introText;
+        wrap.appendChild(intro);
+        const list = document.createElement('ul');
+        list.className = 'warning-list';
+        items.forEach((w) => {
+          const li = document.createElement('li');
+          li.textContent = w.message;
+          list.appendChild(li);
+        });
+        wrap.appendChild(list);
+      };
+
+      if (blocking.length > 0) addList(blocking, 'Export is disabled while these warnings are unresolved:');
+      // Advisory (barrier_measures_proposal.md): informational, never
+      // block export -- shown in their own section so the distinction is
+      // visible rather than lumped in with the blocking ones above.
+      if (advisory.length > 0) addList(advisory, "Advisory -- don't block export, but worth a look:");
       return wrap;
     }
   }

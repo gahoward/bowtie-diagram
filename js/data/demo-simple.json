@@ -1,5 +1,5 @@
 {
-  "version": 9,
+  "version": 10,
   "name": "Demo: Pipeline Overpressure Release",
   "idCounters": {
     "page": 2,
@@ -322,7 +322,7 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "riskReductionFactor": null
+        "protection": null
       },
       {
         "id": "C_2",
@@ -333,7 +333,7 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "riskReductionFactor": null
+        "protection": null
       },
       {
         "id": "C_3",
@@ -344,7 +344,7 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "riskReductionFactor": null
+        "protection": null
       },
       {
         "id": "C_4",
@@ -355,7 +355,7 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "riskReductionFactor": null
+        "protection": null
       },
       {
         "id": "C_5",
@@ -366,7 +366,7 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "riskReductionFactor": null
+        "protection": null
       }
     ],
     "outcome": [
@@ -379,7 +379,7 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "riskReductionFactor": null
+        "protection": null
       },
       {
         "id": "O_2",
@@ -390,7 +390,7 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "riskReductionFactor": null
+        "protection": null
       },
       {
         "id": "O_3",
@@ -401,7 +401,7 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "riskReductionFactor": null
+        "protection": null
       },
       {
         "id": "O_4",
@@ -412,7 +412,7 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "riskReductionFactor": null
+        "protection": null
       },
       {
         "id": "O_5",
@@ -423,7 +423,7 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "riskReductionFactor": null
+        "protection": null
       }
     ],
     "preventativeBarrier": [
@@ -436,7 +436,7 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "riskReductionFactor": null,
+        "protection": null,
         "barrierType": "hardware",
         "owner": "Process Engineering",
         "effectiveness": "high"
@@ -450,7 +450,7 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "riskReductionFactor": null,
+        "protection": null,
         "barrierType": "human",
         "owner": "Maintenance",
         "effectiveness": "medium"
@@ -464,7 +464,7 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "riskReductionFactor": null,
+        "protection": null,
         "barrierType": "hardware",
         "owner": "Process Engineering",
         "effectiveness": "medium"
@@ -478,7 +478,7 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "riskReductionFactor": null,
+        "protection": null,
         "barrierType": "human",
         "owner": "HSE",
         "effectiveness": "medium"
@@ -494,7 +494,7 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "riskReductionFactor": null,
+        "protection": null,
         "barrierType": "hardware",
         "owner": "Fire Safety",
         "effectiveness": "high"
@@ -508,7 +508,7 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "riskReductionFactor": null,
+        "protection": null,
         "barrierType": "hardware",
         "owner": "Instrumentation",
         "effectiveness": "high"
@@ -522,7 +522,7 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "riskReductionFactor": null,
+        "protection": null,
         "barrierType": "passive",
         "owner": "Civil/Structural",
         "effectiveness": "high"
@@ -536,7 +536,7 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "riskReductionFactor": null,
+        "protection": null,
         "barrierType": "human",
         "owner": "Emergency Response",
         "effectiveness": "medium"

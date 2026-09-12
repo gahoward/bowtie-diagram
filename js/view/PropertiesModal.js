@@ -165,6 +165,30 @@
     return any ? section : null;
   }
 
+  // The Computed section for a barrier: the demand rate reaching it
+  // (barrier_measures_proposal.md's UI ask -- "the single number that
+  // decides low-demand versus high-demand mode", see BowtieModel.
+  // computeDemandRateAt), plus a note once that rate crosses IEC 61511's
+  // own ~1/year low/high-demand boundary -- the same threshold
+  // Quantitative.computeBarrierWarnings flags on the canvas, surfaced
+  // here too since a barrier with no Line at all yet (nothing to warn
+  // about) still benefits from seeing the number before entering a value.
+  function buildBarrierComputedSection(model, el, displayUnit) {
+    const rate = model.computeDemandRateAt(el.id);
+    if (rate === null) return null;
+    const section = makeSection('Computed');
+    section.appendChild(makeComputedRow('Demand rate at this barrier', formatLikelihood(rate, displayUnit)));
+    const highDemandFloor = Bowtie.convertHourYear(Bowtie.Decimal.parse('1'), 'yearToHour');
+    if (rate.compareToDecimal(highDemandFloor) > 0) {
+      const note = document.createElement('p');
+      note.className = 'modal-computed-note';
+      note.textContent = 'Above ~1/year — consider a rate-based (high-demand) measure such as PFH rather than '
+        + 'PFD_avg/RRF/SIL.';
+      section.appendChild(note);
+    }
+    return section;
+  }
+
   // The Computed section for the TLE: the highest contributing cause's
   // frequency x its own known preventative barriers (BowtieModel.
   // computeTleLikelihoodForActivePage), residual and inherent (before any
@@ -241,6 +265,7 @@
     let computedSection = null;
     if (el.type === 'outcome') computedSection = buildOutcomeComputedSection(model, el, displayUnit);
     else if (el.type === 'topLevelEvent') computedSection = buildTleComputedSection(model, displayUnit);
+    else if (isBarrier && model.mode === 'quantitative') computedSection = buildBarrierComputedSection(model, el, displayUnit);
     if (computedSection) body.appendChild(computedSection);
 
     const errorP = document.createElement('p');

@@ -35,7 +35,7 @@ def test_tle_likelihood_multiplies_through_known_barriers(page):
       const c1 = m.addCause({});
       m.getNode(c1.nodeId).frequency = { value: '0.001' };
       const pb = m.addPreventativeControl(c1.id);
-      m.getNode(pb.nodeId).riskReductionFactor = { value: '10' };
+      m.getNode(pb.nodeId).protection = { measure: 'rrf', value: '10' };
       const computed = m.computeTleLikelihood(m.pages[0].id);
       return computed.value.toExactDecimal().toDecimalString();
     """)
@@ -47,7 +47,7 @@ def test_tle_likelihood_skips_unknown_barrier_from_the_product_conservatively(pa
       const c1 = m.addCause({});
       m.getNode(c1.nodeId).frequency = { value: '0.001' };
       const pb = m.addPreventativeControl(c1.id);
-      m.getNode(pb.nodeId).riskReductionFactor = { unknown: true };
+      m.getNode(pb.nodeId).protection = { unknown: true };
       const computed = m.computeTleLikelihood(m.pages[0].id);
       return { value: computed.value.toExactDecimal().toDecimalString(), excluded: computed.excludedThreatCount };
     """)
@@ -96,7 +96,7 @@ def test_consequence_likelihood_multiplies_tle_by_its_own_mitigative_barriers(pa
       m.getNode(c1.nodeId).frequency = { value: '0.01' };
       const o1 = m.addOutcome({});
       const mb = m.addMitigativeControl(o1.id);
-      m.getNode(mb.nodeId).riskReductionFactor = { value: '2' };
+      m.getNode(mb.nodeId).protection = { measure: 'rrf', value: '2' };
       const computed = m.computeConsequenceLikelihood(o1.id);
       return computed.value.toExactDecimal().toDecimalString();
     """)
@@ -122,7 +122,7 @@ def test_inherent_vs_residual_differ_only_by_barrier_inclusion(page):
       const c1 = m.addCause({});
       m.getNode(c1.nodeId).frequency = { value: '0.001' };
       const pb = m.addPreventativeControl(c1.id);
-      m.getNode(pb.nodeId).riskReductionFactor = { value: '10' };
+      m.getNode(pb.nodeId).protection = { measure: 'rrf', value: '10' };
       const residual = m.computeTleLikelihood(m.pages[0].id, { includeBarriers: true });
       const inherent = m.computeTleLikelihood(m.pages[0].id, { includeBarriers: false });
       return { residual: residual.value.toExactDecimal().toDecimalString(), inherent: inherent.value.toExactDecimal().toDecimalString() };
@@ -295,3 +295,88 @@ def test_set_tle_aggregation_rejects_unknown_policy(page):
       catch { return true; }
     }""")
     assert threw is True
+
+
+# --- barrier_measures_proposal.md: measure equivalence and order ----------
+
+def test_rrf_and_equivalent_pfd_avg_compute_bit_identical_results(page):
+    """The property that makes the whole normalisation trustworthy: a
+    document using rrf: 10 and one using pfdavg: 0.1 must agree exactly."""
+    result = run_quant(page, """
+      const mk = (protection) => {
+        const c = m.addCause({});
+        m.getNode(c.nodeId).frequency = { value: '1E-3' };
+        const pb = m.addPreventativeControl(c.id);
+        m.getNode(pb.nodeId).protection = protection;
+        return m.computeTleLikelihood(m.pages[0].id).value;
+      };
+      const viaRrf = mk({ measure: 'rrf', value: '10' });
+      const viaPfd = mk({ measure: 'pfdavg', value: '0.1' });
+      return viaRrf.compare(viaPfd);
+    """)
+    assert result == 0
+
+
+def test_barrier_order_affects_the_result_once_a_limiting_measure_is_mixed_in(page):
+    """barrier_measures_proposal.md's worked example, pinned exactly: f_in
+    = 1/hr through a PFD-0.1 barrier then a PFH-0.5/hr barrier gives
+    1 * 0.1 = 0.1, then min(0.1, 0.5) = 0.1 (the clamp does nothing, PFH
+    isn't limiting here); the OTHER order clamps FIRST (min(1, 0.5) = 0.5)
+    and only then attenuates (0.5 * 0.1 = 0.05) -- a factor of two
+    different, pinning that the fold is no longer order-independent once
+    `limit` is mixed with `attenuate`/`divide`. Each ordering gets its own
+    page (rather than two causes on one page) so `computeTleLikelihood`'s
+    own max-of-causes doesn't obscure either individual number."""
+    result = page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.setMode('quantitative');
+
+      const pfdThenPfhPage = m.pages[0];
+      const c1 = m.addCause({ pageId: pfdThenPfhPage.id });
+      m.getNode(c1.nodeId).frequency = { value: '1' };
+      const pfd = m.addPreventativeControl(c1.id);
+      m.getNode(pfd.nodeId).protection = { measure: 'pfdavg', value: '0.1' };
+      const pfh = m.addPreventativeControl(c1.id); // appends toward the TLE, i.e. AFTER pfd
+      m.getNode(pfh.nodeId).protection = { measure: 'pfh', value: '0.5' };
+      const pfdThenPfh = m.computeTleLikelihood(pfdThenPfhPage.id).value.toDisplayNumber(6);
+
+      const pfhThenPfdPage = m.addPage({ name: 'Reversed order' });
+      const c2 = m.addCause({ pageId: pfhThenPfdPage.id });
+      m.getNode(c2.nodeId).frequency = { value: '1' };
+      const pfh2 = m.addPreventativeControl(c2.id);
+      m.getNode(pfh2.nodeId).protection = { measure: 'pfh', value: '0.5' };
+      const pfd2 = m.addPreventativeControl(c2.id); // appends toward the TLE, i.e. AFTER pfh2
+      m.getNode(pfd2.nodeId).protection = { measure: 'pfdavg', value: '0.1' };
+      const pfhThenPfd = m.computeTleLikelihood(pfhThenPfdPage.id).value.toDisplayNumber(6);
+
+      return { pfdThenPfh, pfhThenPfd };
+    }""")
+    assert abs(result["pfdThenPfh"] - 0.1) < 1e-9
+    assert abs(result["pfhThenPfd"] - 0.05) < 1e-9
+
+
+def test_mitigative_barriers_fold_tle_first_not_outcome_first(page):
+    """The reversed-storage-convention fix (DESIGN_NOTES.md gotcha #1):
+    an Outcome's Line stores stops nearest-Outcome-first, but a demand
+    physically reaches the TLE-nearest mitigative barrier FIRST. Order a
+    PFH barrier nearest the Outcome and a PFD barrier nearest the TLE --
+    walking stops as stored (Outcome-first) would apply PFD first then
+    clamp with PFH; walking TLE-first (correct) clamps first, then
+    attenuates -- a different, and cross-checkable, number."""
+    result = run_quant(page, """
+      const c1 = m.addCause({});
+      m.getNode(c1.nodeId).frequency = { value: '1' };
+      const o1 = m.addOutcome({});
+      // First mitigative control chained off the Outcome sits nearest the
+      // Outcome (stops[0]); the next one chained sits further toward the
+      // TLE (stops[1]) -- addMitigativeControl always appends toward the
+      // TLE, same convention as the preventative side.
+      const nearOutcome = m.addMitigativeControl(o1.id);
+      m.getNode(nearOutcome.nodeId).protection = { measure: 'pfdavg', value: '0.1' };
+      const nearTle = m.addMitigativeControl(o1.id);
+      m.getNode(nearTle.nodeId).protection = { measure: 'pfh', value: '0.5' };
+      return m.computeConsequenceLikelihood(o1.id).value.toDisplayNumber(6);
+    """)
+    # TLE-first (correct): min(1, 0.5) = 0.5, then * 0.1 = 0.05.
+    # Outcome-first (the old bug): 1 * 0.1 = 0.1, then min(0.1, 0.5) = 0.1.
+    assert abs(result - 0.05) < 1e-9

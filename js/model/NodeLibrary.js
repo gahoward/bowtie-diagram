@@ -31,7 +31,7 @@
       // or placement. A node can have zero, one, or several placements —
       // zero is a normal "staging" state, not an orphan (see
       // placementsForNode). Also the home for quantitative_mode_proposal.md's
-      // per-element risk fields (frequency/riskReductionFactor/
+      // per-element risk fields (frequency/protection/
       // likelihoodClassId/severityClassId), since those are globally
       // linked per node, not per placement — see Node.js.
       this.library = {
@@ -130,7 +130,7 @@
 
     // The node analogue of renamePage/renameElement — also doubles as the
     // mutator for the quantitative/qualitative risk fields (frequency,
-    // riskReductionFactor, likelihoodClassId, severityClassId) and barrier
+    // protection, likelihoodClassId, severityClassId) and barrier
     // metadata (barrierType, owner, effectiveness — design review
     // finding 10), since those all live on the same Node record (see
     // Node.js). Same identifier-uniqueness check as addNode/_createNode,
@@ -149,7 +149,7 @@
       if (opts.likelihoodClassId !== undefined) node.likelihoodClassId = opts.likelihoodClassId;
       if (opts.severityClassId !== undefined) node.severityClassId = opts.severityClassId;
       if (opts.frequency !== undefined) node.frequency = opts.frequency;
-      if (opts.riskReductionFactor !== undefined) node.riskReductionFactor = opts.riskReductionFactor;
+      if (opts.protection !== undefined) node.protection = opts.protection;
       if (opts.barrierType !== undefined) node.barrierType = opts.barrierType;
       if (opts.owner !== undefined) node.owner = opts.owner;
       if (opts.effectiveness !== undefined) node.effectiveness = opts.effectiveness;

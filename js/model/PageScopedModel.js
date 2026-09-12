@@ -33,7 +33,7 @@
     'addNode', 'deleteNode', 'reEnableId', 'disableRetiredId', 'reassignId',
     // Document-wide settings -- ProjectSettingsController/WelcomeController
     // hold the real model directly.
-    'setMode', 'setRiskMatrix', 'setIdentifierDisplayMode', 'setTleAggregation',
+    'setMode', 'setRiskMatrix', 'setIdentifierDisplayMode', 'setTleAggregation', 'setQuantitativeDefaults',
     // Whole-document (re)load -- only ever called by ImportExportController
     // (a real import) or by UndoController itself (restoring a
     // document-level snapshot); never something a page-scoped canvas
@@ -90,6 +90,14 @@
     // `setTleAggregation` itself is document-scoped (see DOCUMENT_SCOPED).
     get tleAggregation() { return this.realModel.tleAggregation; }
 
+    // barrier_measures_proposal.md's ProjectDefaults -- CanvasView (this
+    // facade) reads these to describe a barrier's normalised equivalent
+    // in its hover title. Read-only here, same as tleAggregation above;
+    // `setQuantitativeDefaults` itself is document-scoped (DOCUMENT_SCOPED).
+    get dangerousFraction() { return this.realModel.dangerousFraction; }
+
+    get proofTestIntervalH() { return this.realModel.proofTestIntervalH; }
+
     getNode(nodeId) { return this.realModel.getNode(nodeId); }
 
     getNodeOfType(type, nodeId) { return this.realModel.getNodeOfType(type, nodeId); }
@@ -122,6 +130,12 @@
 
     getConsequenceRiskClass(outcomeId, opts) {
       return this.realModel.getConsequenceRiskClass(outcomeId, opts);
+    }
+
+    // barrier_measures_proposal.md's demand-rate readout -- PropertiesModal
+    // (constructed with this facade) shows it in a barrier's Properties.
+    computeDemandRateAt(barrierId) {
+      return this.realModel.computeDemandRateAt(barrierId);
     }
 
     addCause(opts = {}) {

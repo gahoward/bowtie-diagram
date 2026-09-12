@@ -157,7 +157,7 @@ def test_cause_shows_nothing_when_no_risk_fields_are_set(page):
     assert _info_texts(page) == []
 
 
-# --- Barrier: risk reduction factor (quantitative only) --------------------
+# --- Barrier: protection measure (quantitative only) ------------------------
 
 def test_preventative_barrier_shows_risk_reduction_factor(page):
     _setup_and_emit(page, """
@@ -165,28 +165,40 @@ def test_preventative_barrier_shows_risk_reduction_factor(page):
       m.setMode('quantitative');
       const c = m.addCause({x: 150, y: 200});
       const pb = m.addPreventativeControl(c.id);
-      m.getNode(pb.nodeId).riskReductionFactor = { value: '10' };
+      m.getNode(pb.nodeId).protection = { measure: 'rrf', value: '10' };
     """)
     texts = _info_texts(page)
     assert any("RRF: 10" == t for t in texts)
 
 
-def test_mitigative_barrier_shows_risk_reduction_factor_unknown(page):
+def test_preventative_barrier_shows_pfd_measure(page):
+    _setup_and_emit(page, """
+      const m = window.__lastModel;
+      m.setMode('quantitative');
+      const c = m.addCause({x: 150, y: 200});
+      const pb = m.addPreventativeControl(c.id);
+      m.getNode(pb.nodeId).protection = { measure: 'pfdavg', value: '0.01' };
+    """)
+    texts = _info_texts(page)
+    assert any("PFD: 0.01" == t for t in texts)
+
+
+def test_mitigative_barrier_shows_protection_unknown(page):
     _setup_and_emit(page, """
       const m = window.__lastModel;
       m.setMode('quantitative');
       const o = m.addOutcome({x: 1200, y: 200});
       const mb = m.addMitigativeControl(o.id);
-      m.getNode(mb.nodeId).riskReductionFactor = { unknown: true };
+      m.getNode(mb.nodeId).protection = { unknown: true };
     """)
     texts = _info_texts(page)
-    assert any("RRF: Unknown" == t for t in texts)
+    assert any("Barrier: Unknown" == t for t in texts)
 
 
-def test_barrier_shows_no_rrf_text_in_qualitative_mode(page):
-    # riskReductionFactor is quantitative-only (qualitative mode never
-    # stores it -- RiskFieldsForm.js only renders that field in Quantitative
-    # mode), so a barrier must never show an RRF line outside it.
+def test_barrier_shows_no_protection_text_in_qualitative_mode(page):
+    # protection is quantitative-only (qualitative mode never stores it --
+    # RiskFieldsForm.js only renders that field in Quantitative mode), so a
+    # barrier must never show a protection line outside it.
     _setup_and_emit(page, """
       const m = window.__lastModel;
       m.setMode('qualitative');
@@ -194,7 +206,7 @@ def test_barrier_shows_no_rrf_text_in_qualitative_mode(page):
       const c = m.addCause({x: 150, y: 200});
       m.addPreventativeControl(c.id);
     """)
-    assert not any("RRF" in t for t in _info_texts(page))
+    assert not any("RRF" in t or "PFD" in t or "Barrier:" in t for t in _info_texts(page))
 
 
 # --- Design review finding 03: Quantitative figures render emphasized -----
@@ -214,7 +226,7 @@ def test_quantitative_figures_render_in_the_emphasized_style(page):
       const c = m.addCause({x: 150, y: 200});
       m.getNode(c.nodeId).frequency = { value: '1E-3' };
       const pb = m.addPreventativeControl(c.id);
-      m.getNode(pb.nodeId).riskReductionFactor = { value: '10' };
+      m.getNode(pb.nodeId).protection = { measure: 'rrf', value: '10' };
     """)
     emphasized = _emphasized_texts(page)
     assert any("Frequency: 0.001/hr" == t for t in emphasized)

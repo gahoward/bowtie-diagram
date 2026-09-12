@@ -333,6 +333,9 @@ def test_properties_modal_saves_cause_frequency_in_quantitative_mode(page):
 
 
 def test_properties_modal_saves_barrier_risk_reduction_factor_in_quantitative_mode(page):
+    # 'rrf' is the measure select's default, so the RRF value field is
+    # already showing without picking anything -- same one-step flow the
+    # old single-field form had.
     _set_quantitative_mode(page)
     page.evaluate("""() => {
       const m = window.__lastModel;
@@ -342,17 +345,66 @@ def test_properties_modal_saves_barrier_risk_reduction_factor_in_quantitative_mo
     page.wait_for_timeout(80)
 
     _open_properties_modal(page, ".node.preventative-barrier")
-    page.locator(".modal-field:has-text('Risk Reduction Factor') input[type=checkbox]").uncheck()
-    page.locator(".modal-field:has-text('Risk Reduction Factor') input[type=text]").fill("20")
+    page.locator(".barrier-protection-detail input[type=checkbox]").uncheck()
+    page.locator(".barrier-protection-detail input[type=text]").fill("20")
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_timeout(80)
 
     assert page.locator(".modal-overlay").count() == 0
-    rrf = page.evaluate("""() => {
+    protection = page.evaluate("""() => {
       const pb = window.__lastModel.preventativeBarriers[0];
-      return window.__lastModel.getNode(pb.nodeId).riskReductionFactor;
+      return window.__lastModel.getNode(pb.nodeId).protection;
     }""")
-    assert rrf == {"value": "20"}
+    assert protection == {"measure": "rrf", "value": "20"}
+
+
+def test_properties_modal_saves_barrier_pfd_measure_in_quantitative_mode(page):
+    _set_quantitative_mode(page)
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      const cause = m.addCause({x: 150, y: 200});
+      m.addPreventativeControl(cause.id);
+    }""")
+    page.wait_for_timeout(80)
+
+    _open_properties_modal(page, ".node.preventative-barrier")
+    page.locator(".barrier-protection-field select").select_option("pfdavg")
+    page.locator(".barrier-protection-detail input[type=checkbox]").uncheck()
+    page.locator(".barrier-protection-detail input[type=text]").fill("0.01")
+    page.get_by_role("button", name="Save", exact=True).click()
+    page.wait_for_timeout(80)
+
+    assert page.locator(".modal-overlay").count() == 0
+    protection = page.evaluate("""() => {
+      const pb = window.__lastModel.preventativeBarriers[0];
+      return window.__lastModel.getNode(pb.nodeId).protection;
+    }""")
+    assert protection == {"measure": "pfdavg", "value": "0.01"}
+
+
+def test_properties_modal_saves_rate_based_standby_barrier(page):
+    _set_quantitative_mode(page)
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      const cause = m.addCause({x: 150, y: 200});
+      m.addPreventativeControl(cause.id);
+    }""")
+    page.wait_for_timeout(80)
+
+    _open_properties_modal(page, ".node.preventative-barrier")
+    page.locator(".barrier-protection-field select").select_option("rateStandby")
+    page.locator(".barrier-protection-detail .modal-field:has-text('Standby') input[type=checkbox]").uncheck()
+    page.locator(".barrier-protection-detail .modal-field:has-text('Standby') input[type=text]").fill("1E-5")
+    page.locator(".barrier-protection-detail .modal-field:has-text('Rate unit') select").select_option("perHour")
+    page.get_by_role("button", name="Save", exact=True).click()
+    page.wait_for_timeout(80)
+
+    assert page.locator(".modal-overlay").count() == 0
+    protection = page.evaluate("""() => {
+      const pb = window.__lastModel.preventativeBarriers[0];
+      return window.__lastModel.getNode(pb.nodeId).protection;
+    }""")
+    assert protection == {"measure": "rateStandby", "value": "1E-5", "rateUnit": "perHour"}
 
 
 def test_properties_modal_marking_frequency_unknown_saves_unknown_quantity(page):
@@ -443,6 +495,35 @@ def test_properties_modal_shows_excluded_threat_count_note(page):
     assert "excluded" in computed.text_content().lower()
 
 
+def test_properties_modal_shows_demand_rate_for_a_barrier(page):
+    """barrier_measures_proposal.md's UI ask: the demand rate reaching a
+    barrier, read-only, via BowtieModel.computeDemandRateAt."""
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.setMode('quantitative');
+      const c = m.addCause({x: 150, y: 200});
+      m.renameNode(c.nodeId, { frequency: { value: '1E-3' } });
+      m.addPreventativeControl(c.id);
+    }""")
+    page.wait_for_timeout(80)
+
+    _open_properties_modal(page, ".node.preventative-barrier")
+    computed = page.locator(".modal-section:has-text('Computed')")
+    assert computed.count() == 1
+    assert "Demand rate" in computed.text_content()
+    assert "0.001" in computed.text_content()
+
+
+def test_properties_modal_shows_no_computed_section_for_a_barrier_with_no_incoming_line(page):
+    _set_quantitative_mode(page)
+    page.evaluate("() => { window.__lastModel.addPreventativeControl(window.__lastModel.addCause({}).id); "
+                  + "window.__lastModel.getNode(window.__lastModel.causes[0].nodeId).frequency = { unknown: true }; }")
+    page.wait_for_timeout(80)
+
+    _open_properties_modal(page, ".node.preventative-barrier")
+    assert page.locator(".modal-section:has-text('Computed')").count() == 0
+
+
 def test_properties_modal_shows_no_computed_section_for_outcome_without_severity(page):
     _set_quantitative_mode(page)
     page.evaluate("() => { window.__lastModel.addOutcome({x: 1200, y: 200}); }")
@@ -523,8 +604,8 @@ def test_risk_reduction_factor_rejects_a_value_below_one(page):
     page.wait_for_timeout(80)
 
     _open_properties_modal(page, ".node.preventative-barrier")
-    page.locator(".modal-field:has-text('Risk Reduction Factor') input[type=checkbox]").uncheck()
-    page.locator(".modal-field:has-text('Risk Reduction Factor') input[type=text]").fill("0.1")
+    page.locator(".barrier-protection-detail input[type=checkbox]").uncheck()
+    page.locator(".barrier-protection-detail input[type=text]").fill("0.1")
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_timeout(80)
 
@@ -532,6 +613,6 @@ def test_risk_reduction_factor_rejects_a_value_below_one(page):
     assert "1 or greater" in page.locator(".modal-field-error").text_content()
     stored = page.evaluate("""() => {
       const pb = window.__lastModel.preventativeBarriers[0];
-      return window.__lastModel.getNode(pb.nodeId).riskReductionFactor;
+      return window.__lastModel.getNode(pb.nodeId).protection;
     }""")
     assert stored is None

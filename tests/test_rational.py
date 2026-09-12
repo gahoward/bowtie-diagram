@@ -175,6 +175,47 @@ def test_band_for_value_still_accepts_a_plain_decimal(page):
     assert result == "incredible"
 
 
+# --- clampTo: the `limit` composition rule (barrier_measures_proposal.md) --
+
+def test_clamp_to_a_decimal_picks_the_smaller_value(page):
+    result = _ev(page, """
+      const high = Bowtie.Rational.fromDecimal(Bowtie.Decimal.parse('1'));
+      const low = Bowtie.Rational.fromDecimal(Bowtie.Decimal.parse('0.01'));
+      return {
+        clamped: high.clampTo(Bowtie.Decimal.parse('0.5')).toExactDecimal().toDecimalString(),
+        untouched: low.clampTo(Bowtie.Decimal.parse('0.5')).toExactDecimal().toDecimalString(),
+      };
+    """)
+    assert result == {"clamped": "0.5", "untouched": "0.01"}
+
+
+def test_clamp_to_is_exact_at_the_boundary(page):
+    """f_in == the clamp operand, exactly -- must not tip either way from
+    a rounding step (there is none: this compares by cross-multiplication,
+    like every other Rational comparison)."""
+    result = _ev(page, """
+      const f = Bowtie.Rational.fromDecimal(Bowtie.Decimal.parse('1E-3')).divideBy(Bowtie.Decimal.parse('10'));
+      return f.clampTo(Bowtie.Decimal.parse('1E-4')).compare(f);
+    """)
+    assert result == 0
+
+
+def test_clamp_to_accepts_a_rational_operand_and_discards_a_large_denominator(page):
+    """An MTBF-derived limiting rate arrives as a Rational (see
+    BarrierMeasures.js's lambdaDangerousOf), never as a computed Decimal
+    reciprocal -- clampTo must accept one directly, and when the clamp
+    actually bites, the result should just BE that operand (whatever
+    denominator it carried), not something rebuilt from a rounded number."""
+    result = _ev(page, """
+      const big = Bowtie.Rational.fromDecimal(Bowtie.Decimal.parse('1'))
+        .divideBy(Bowtie.Decimal.parse('7')).divideBy(Bowtie.Decimal.parse('11')).divideBy(Bowtie.Decimal.parse('13'));
+      const f = Bowtie.Rational.fromDecimal(Bowtie.Decimal.parse('1'));
+      const clamped = f.clampTo(big);
+      return clamped.compare(big);
+    """)
+    assert result == 0
+
+
 # --- Display ---------------------------------------------------------------
 
 def test_scaling_the_numerator_for_year_display_is_exact(page):
