@@ -209,16 +209,34 @@
     span.textContent = 'Barrier measure';
     wrap.appendChild(span);
 
+    // Grouped by `group` (BarrierMeasures.js) rather than one flat list of
+    // nine similar-sounding entries: "probability" measures are all
+    // entered as a single dimensionless number (whatever an engineer's own
+    // source document happens to call it), "rate" measures are all entered
+    // as a raw failure rate + duty that this module itself works out an
+    // operand from.
+    const GROUP_LABELS = { probability: 'Probability-based (single number)', rate: 'Rate-based (failure rate + duty)' };
     const measureSelect = document.createElement('select');
-    measures.forEach((m) => {
-      const o = document.createElement('option');
-      o.value = m.id;
-      o.textContent = m.label;
-      measureSelect.appendChild(o);
+    ['probability', 'rate'].forEach((group) => {
+      const optgroup = document.createElement('optgroup');
+      optgroup.label = GROUP_LABELS[group];
+      measures.filter((m) => m.group === group).forEach((m) => {
+        const o = document.createElement('option');
+        o.value = m.id;
+        o.textContent = m.label;
+        optgroup.appendChild(o);
+      });
+      measureSelect.appendChild(optgroup);
     });
     const initialMeasureId = (currentProtection && !currentProtection.unknown && currentProtection.measure) || 'rrf';
     measureSelect.value = initialMeasureId;
     wrap.appendChild(measureSelect);
+
+    const hint = document.createElement('p');
+    hint.className = 'modal-field-hint';
+    hint.textContent = 'RRF, PFD_avg, raw probability, unavailability, and a SIL band all apply the same way -- '
+      + "pick whichever name matches the barrier's own source document.";
+    wrap.appendChild(hint);
 
     const detail = document.createElement('div');
     detail.className = 'barrier-protection-detail';
