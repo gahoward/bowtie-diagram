@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.2.2 - 2026-09-12
+## v1.0.0 - 2026-09-12
 
 - Reworked Quantitative mode's barrier treatment (`barrier_measures_
   proposal.md`, `bowtie-diagram-docs`): a barrier's `protection` (renamed
@@ -34,6 +34,24 @@
   boundary. The Properties modal now also shows a barrier's own computed
   demand rate read-only, the number that decides which of the two regimes
   applies.
+- Fixed a click-focus regression: clicking a Cause or Outcome dimmed
+  every barrier on its own side, including the one actually on its path.
+  `FocusController` compared `Line.originId`/`.stops` (internal placement
+  ids) directly against each node's `data-id`, which the earlier node-
+  library rework had made the visible NODE id instead — `FocusController`
+  itself was never updated for that. Fixed by resolving each placement id
+  to its owning node's id before comparing; added the click-focus dimming
+  test coverage that would have caught this (only hover was covered
+  before).
+- Fixed a `PFD_avg` label typo (the pseudo-subscript "g" wasn't a real
+  Unicode subscript glyph) and rationalised the barrier measure picker
+  into two groups — probability-based (RRF, PFD_avg, raw probability,
+  unavailability, SIL) and rate-based (PFH, and the three rate forms) —
+  with a hint noting the probability-based measures all apply identically,
+  so a user picks whichever name matches their own source document.
+- First release tagged 1.0.0: the app, its quantitative-mode calculation
+  pipeline (Simple/Qualitative/Quantitative, barrier measures, risk
+  matrices), and its test suite are considered stable.
 
 ## v0.2.1 - 2026-09-07
 
