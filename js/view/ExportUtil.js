@@ -80,6 +80,11 @@
   // http(s)://, where the API is entirely absent) or the browser refuses
   // the call for some other reason. `err.name === 'AbortError'` means the
   // user cancelled the dialog — not a failure, just do nothing further.
+  //
+  // Returns whether a file actually got saved (false only for that
+  // cancelled-dialog case) so callers that care whether the export really
+  // happened — see ImportExportController's `onExported` — can tell it
+  // apart from a completed save.
   async function saveBlob(blob, filename, pickerType) {
     if (window.showSaveFilePicker) {
       try {
@@ -87,13 +92,14 @@
         const writable = await handle.createWritable();
         await writable.write(blob);
         await writable.close();
-        return;
+        return true;
       } catch (err) {
-        if (err && err.name === 'AbortError') return;
+        if (err && err.name === 'AbortError') return false;
         // fall through to the legacy path below
       }
     }
     downloadBlob(blob, filename);
+    return true;
   }
 
   function exportSvg(svgRoot, bounds, filename) {
@@ -147,7 +153,7 @@
   // it directly for a plain RiskMatrixDefinition object instead.
   function exportJsonObject(obj, filename) {
     const json = JSON.stringify(obj, null, 2);
-    saveBlob(
+    return saveBlob(
       new Blob([json], { type: 'application/json' }),
       filename,
       { description: 'JSON File', accept: { 'application/json': ['.json'] } },
@@ -155,7 +161,7 @@
   }
 
   function exportJson(model, filename) {
-    exportJsonObject(model.toJSON(), filename);
+    return exportJsonObject(model.toJSON(), filename);
   }
 
   // Mirrors saveBlob for the import side: a real native "Open" dialog via

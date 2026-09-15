@@ -19,11 +19,16 @@
     // UndoController resets its undo/redo history to match "importing a
     // file resets both stacks" rather than treating the whole imported
     // document as one giant undo step.
-    constructor(model, svgRoot, getContentBounds, els, onImported) {
+    // `onExported`, if given, fires after a JSON export that actually
+    // completed (not one the user cancelled out of a native Save dialog) —
+    // this is how UnsavedChangesController knows the document was just
+    // saved and the close-confirmation prompt can stand down again.
+    constructor(model, svgRoot, getContentBounds, els, onImported, onExported) {
       this.model = model;
       this.svgRoot = svgRoot;
       this.getContentBounds = getContentBounds;
       this.onImported = onImported;
+      this.onExported = onExported;
 
       els.exportPngBtn.addEventListener('click', () => {
         Bowtie.ExportUtil.exportPng(this.svgRoot, this.getContentBounds(), 'bowtie-diagram.png');
@@ -31,8 +36,9 @@
       els.exportSvgBtn.addEventListener('click', () => {
         Bowtie.ExportUtil.exportSvg(this.svgRoot, this.getContentBounds(), 'bowtie-diagram.svg');
       });
-      els.exportJsonBtn.addEventListener('click', () => {
-        Bowtie.ExportUtil.exportJson(this.model, 'bowtie-diagram.json');
+      els.exportJsonBtn.addEventListener('click', async () => {
+        const saved = await Bowtie.ExportUtil.exportJson(this.model, 'bowtie-diagram.json');
+        if (saved && this.onExported) this.onExported();
       });
       // Prefers the real native "Open" dialog (File System Access API);
       // `pickJsonFileText` resolves `{ supported: false }` both when that

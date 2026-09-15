@@ -5,15 +5,17 @@ so this is literally just `index.html` and its `js`/`css` next to it), and a
 `page` fixture hands each test a fresh browser tab that has already been
 through the "New Bowtie" welcome flow, ready to drive.
 
-The `window.__lastModel` / `window.__lastView` / `window.__lastUndo` capture
-trick (see INIT_SCRIPT) lets tests reach into `BowtieModel`/`CanvasView`/
-`UndoController` directly via `page.evaluate`, without the app needing to
-expose them itself — it wraps each with a subclass that stashes `this` on
-`window` the moment `main.js` constructs one, then gets out of the way. Note
-that `window.__lastModel` is the RAW model — mutating it directly bypasses
-UndoController's snapshotting, same as calling `rawModel` methods in the app
-itself would. Tests that need the same auto-snapshotting behavior the UI
-gets should call mutating methods through `window.__lastUndo.model` instead.
+The `window.__lastModel` / `window.__lastView` / `window.__lastUndo` /
+`window.__lastUnsavedChanges` / `window.__lastImportExport` capture trick
+(see INIT_SCRIPT) lets tests reach into `BowtieModel`/`CanvasView`/
+`UndoController`/`UnsavedChangesController`/`ImportExportController`
+directly via `page.evaluate`, without the app needing to expose them itself — it wraps each with a subclass that stashes
+`this` on `window` the moment `main.js` constructs one, then gets out of the
+way. Note that `window.__lastModel` is the RAW model — mutating it directly
+bypasses UndoController's snapshotting, same as calling `rawModel` methods in
+the app itself would. Tests that need the same auto-snapshotting behavior the
+UI gets should call mutating methods through `window.__lastUndo.model`
+instead.
 """
 import functools
 import http.server
@@ -48,6 +50,22 @@ window.Bowtie = new Proxy({}, {
       const Orig = value;
       class Wrapped extends Orig {
         constructor(...a) { super(...a); window.__lastUndo = this; }
+      }
+      target[prop] = Wrapped;
+      return true;
+    }
+    if (prop === 'UnsavedChangesController') {
+      const Orig = value;
+      class Wrapped extends Orig {
+        constructor(...a) { super(...a); window.__lastUnsavedChanges = this; }
+      }
+      target[prop] = Wrapped;
+      return true;
+    }
+    if (prop === 'ImportExportController') {
+      const Orig = value;
+      class Wrapped extends Orig {
+        constructor(...a) { super(...a); window.__lastImportExport = this; }
       }
       target[prop] = Wrapped;
       return true;

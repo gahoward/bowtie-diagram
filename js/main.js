@@ -4,6 +4,12 @@
     const rawModel = new Bowtie.BowtieModel();
     const view = new Bowtie.CanvasView(svgRoot);
 
+    // Constructed on the raw model (not the undo-tracking proxy below) so
+    // it sees every mutation regardless of which layer made it — undo/redo
+    // included, since those are still changes since the document was last
+    // saved.
+    const unsavedChanges = new Bowtie.UnsavedChangesController(rawModel);
+
     // Every other controller (and the view, via `renderAll` below) is
     // constructed with `undo.model` — a Proxy around `rawModel` that
     // snapshots onto the undo stack immediately before any call to a
@@ -165,7 +171,11 @@
         importJsonBtn: document.getElementById('btn-import-json'),
         importFileInput: document.getElementById('import-file-input'),
       },
-      () => undo.reset(), // importing a file resets both the undo and redo history
+      () => {
+        undo.reset(); // importing a file resets both the undo and redo history
+        unsavedChanges.markClean(); // ...and starts a new "since last save" clock
+      },
+      () => unsavedChanges.markClean(),
     );
 
     document.getElementById('btn-reset-view').addEventListener('click', () => {
@@ -212,8 +222,13 @@
       // step's four model changes (setName, renamePage, then two
       // renameElement calls) — resetting synchronously here would run
       // before the rest, which would then repopulate the stack right after
-      // this clears it.
-      setTimeout(() => undo.reset(), 0);
+      // this clears it. Same deferral applies to marking the document
+      // clean -- a fresh "New Bowtie" shouldn't warn about unsaved changes
+      // before the user has actually changed anything themselves.
+      setTimeout(() => {
+        undo.reset();
+        unsavedChanges.markClean();
+      }, 0);
     });
   });
 })(window.Bowtie = window.Bowtie || {});
