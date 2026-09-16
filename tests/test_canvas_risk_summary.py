@@ -264,6 +264,72 @@ def test_risk_class_badge_has_a_title_tooltip_naming_the_full_label(page):
       () => Array.from(document.getElementById('nodes-layer').querySelectorAll('.risk-class-badge title'))
         .map((t) => t.textContent)
     """)
-    assert len(titles) == 1
-    assert titles[0].startswith("A - Intolerable")
-    assert "Immediate action required" in titles[0]
+    # Quantitative mode renders a pre-mitigation -> post-mitigation PAIR
+    # (see the tests below); with no barriers both halves land on A.
+    assert len(titles) == 2
+    assert titles[0].startswith("Pre-mitigation (no barriers): A - Intolerable")
+    assert titles[1].startswith("Post-mitigation (with barriers): A - Intolerable")
+    assert all("Immediate action required" in t for t in titles)
+
+
+# --- Pre-mitigation -> post-mitigation badge pair (Quantitative mode) ------
+
+def _badge_letters(page, phase):
+    return page.evaluate(f"""
+      () => Array.from(document.getElementById('nodes-layer')
+        .querySelectorAll('.risk-class-badge-{phase} text'))
+        .map((t) => t.textContent)
+    """)
+
+
+def test_outcome_shows_pre_and_post_mitigation_badges_in_quantitative_mode(page):
+    # Catastrophic outcome, frequent cause: A before any barrier. A huge
+    # mitigative RRF drops the residual likelihood into the bottom band,
+    # which the Leaflet 5 matrix maps to C for a catastrophic severity.
+    _setup_and_emit(page, """
+      const m = window.__lastModel;
+      m.setMode('quantitative');
+      m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
+      const o = m.addOutcome({x: 1200, y: 200});
+      m.getNode(o.nodeId).severityClassId = 'catastrophic';
+      const c = m.addCause({x: 150, y: 200});
+      m.getNode(c.nodeId).frequency = { value: '1' };
+      const mb = m.addMitigativeControl(o.id);
+      m.getNode(mb.nodeId).protection = { measure: 'rrf', value: '1E12' };
+    """)
+    assert _badge_letters(page, "pre") == ["A"]
+    assert _badge_letters(page, "post") == ["C"]
+    # The pre-mitigation ring is dashed (inline, so exports keep it); the
+    # post-mitigation one is solid.
+    dashed = page.evaluate("""
+      () => [
+        document.querySelector('#nodes-layer .risk-class-badge-pre circle').getAttribute('stroke-dasharray'),
+        document.querySelector('#nodes-layer .risk-class-badge-post circle').getAttribute('stroke-dasharray'),
+      ]
+    """)
+    assert dashed[0] is not None
+    assert dashed[1] is None
+    assert page.locator("#nodes-layer .risk-class-badge-arrow").count() == 1
+    texts = _info_texts(page)
+    assert any(t.startswith("Pre-mitigation: 1/hr") for t in texts)
+    assert any(t.startswith("Likelihood: 1e-12/hr") for t in texts)
+
+
+def test_outcome_shows_a_single_unphased_badge_in_qualitative_mode(page):
+    # A manual likelihood pick has no barrier arithmetic to strip out, so
+    # there is no "pre-mitigation" half -- one badge, plain tooltip.
+    _setup_and_emit(page, """
+      const m = window.__lastModel;
+      m.setMode('qualitative');
+      m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
+      const o = m.addOutcome({x: 1200, y: 200});
+      const node = m.getNode(o.nodeId);
+      node.severityClassId = 'catastrophic';
+      node.likelihoodClassId = 'frequent';
+    """)
+    assert page.locator("#nodes-layer .risk-class-badge").count() == 1
+    assert page.locator("#nodes-layer .risk-class-badge-pre").count() == 0
+    assert page.locator("#nodes-layer .risk-class-badge-arrow").count() == 0
+    title = page.evaluate("() => document.querySelector('#nodes-layer .risk-class-badge title').textContent")
+    assert title.startswith("A - Intolerable")
+    assert not any("Pre-mitigation" in t for t in _info_texts(page))

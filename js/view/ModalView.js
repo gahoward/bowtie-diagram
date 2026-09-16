@@ -20,7 +20,13 @@
   // rename-bowtie dialog, and the attach-existing-node pickers.
   // `size: 'wide'` widens the dialog for content-heavy modals (the
   // Properties/Project Settings modals) that don't fit the default
-  // 420px-ish width meant for a single name field or a short list.
+  // 420px-ish width meant for a single name field or a short list;
+  // `'xwide'` is for the one genuinely tabular modal (Risk Summary).
+  const DIALOG_CLASSES = {
+    wide: 'modal-dialog modal-dialog-wide',
+    xwide: 'modal-dialog modal-dialog-xwide',
+  };
+
   function openModal({
     title, bodyEl, actions, dismissible = true, size = 'normal',
   }) {
@@ -28,7 +34,7 @@
     overlay.className = 'modal-overlay';
 
     const dialog = document.createElement('div');
-    dialog.className = size === 'wide' ? 'modal-dialog modal-dialog-wide' : 'modal-dialog';
+    dialog.className = DIALOG_CLASSES[size] || 'modal-dialog';
 
     const titleEl = document.createElement('h2');
     titleEl.className = 'modal-title';

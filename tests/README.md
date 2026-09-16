@@ -203,7 +203,24 @@ step for the app itself, so tests run directly against `index.html` as-is.
   emphasized` style — larger and darker than a Qualitative-mode class
   label's quieter default) and finding 02 (the risk-class badge's own SVG
   `<title>` names the full label and review period, not just the bare
-  letter on the circle).
+  letter on the circle). Also covers the Quantitative-mode "pre → post"
+  badge pair (dashed pre-mitigation ring, inline so exports keep it) and
+  the "Pre-mitigation" likelihood line, and that Qualitative mode keeps a
+  single unphased badge.
+- **`test_risk_summary.py`** — pre- vs post-mitigation risk
+  (quantitative_mode_proposal.md's inherent/residual pair): model-level
+  `assessConsequence` (both sides of the bowtie stripped, no pre half in
+  Qualitative mode, nulls until determinable) and `computeRiskSummary`'s
+  worst-first ranking across pages and its pre-mitigation tie-break; then
+  the View › "Risk Summary…" modal — menu placement, the mode/matrix empty
+  states, the ranked table's cells, the Page column appearing only on a
+  multi-page document, Qualitative dashes, the excluded-cause footnote,
+  and in-place refresh while open.
+- **`test_unsaved_changes.py`** — the `beforeunload` guard: a fresh
+  document is clean, any edit (undo included) marks it dirty, a completed
+  JSON export or an import clears it, a cancelled native Save dialog does
+  not, and the synthetic `beforeunload` event is only `preventDefault`ed
+  while dirty.
 - **`test_properties_modal.py`** — the shared Properties modal
   (double-click or the context menu's "Properties" item on any of the 5
   node types), driven through the real modal rather than by calling model
@@ -212,7 +229,9 @@ step for the app itself, so tests run directly against `index.html` as-is.
   was invisible to every model-level test that called `renameNode`
   directly instead. Also covers barrier metadata (design review
   finding 10, phase 1): type/owner/effectiveness, barriers only, rendered
-  and saved independent of the document's risk mode.
+  and saved independent of the document's risk mode. The Outcome's
+  Computed section shows the pre-/post-mitigation risk-class chip and
+  likelihood pair in Quantitative mode, a single chip in Qualitative.
 - **`test_project_settings.py`** — the single "Project Settings" modal:
   analysis name, identifier display mode, the risk analysis mode/matrix
   picker, and the events/hour ↔ events/year display-unit preference. Also

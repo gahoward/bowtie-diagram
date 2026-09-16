@@ -475,7 +475,28 @@ def test_properties_modal_shows_risk_class_and_computed_likelihood_for_an_outcom
     text = computed.text_content()
     assert "Risk class" in text
     assert "0.001" in text
+    # Quantitative mode shows the pre-mitigation (inherent) and post-
+    # mitigation (residual) pair, for both the class and the likelihood.
+    assert page.locator(".modal-risk-chip").count() == 2
+    assert "pre-mitigation, inherent" in text
+    assert "post-mitigation, residual" in text
+
+
+def test_properties_modal_shows_a_single_risk_class_in_qualitative_mode(page):
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.setMode('qualitative');
+      m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
+      const o = m.addOutcome({x: 1200, y: 200});
+      m.renameNode(o.nodeId, { name: 'O1', severityClassId: 'catastrophic', likelihoodClassId: 'frequent' });
+    }""")
+    page.wait_for_timeout(100)
+    _open_properties_modal(page, ".node.outcome")
+
+    computed = page.locator(".modal-section:has-text('Computed')")
+    assert computed.count() == 1
     assert page.locator(".modal-risk-chip").count() == 1
+    assert "pre-mitigation" not in computed.text_content().lower()
 
 
 def test_properties_modal_shows_excluded_threat_count_note(page):

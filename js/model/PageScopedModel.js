@@ -132,6 +132,13 @@
       return this.realModel.getConsequenceRiskClass(outcomeId, opts);
     }
 
+    // The pre-/post-mitigation pair CanvasView's badges and PropertiesModal
+    // (both constructed with this facade) render -- id-scoped, so a
+    // straight passthrough like the two above.
+    assessConsequence(outcomeId) {
+      return this.realModel.assessConsequence(outcomeId);
+    }
+
     // barrier_measures_proposal.md's demand-rate readout -- PropertiesModal
     // (constructed with this facade) shows it in a barrier's Properties.
     computeDemandRateAt(barrierId) {

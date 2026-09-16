@@ -696,6 +696,18 @@
       return this._quantitative.getConsequenceRiskClass(outcomeId, opts);
     }
 
+    // The pre-/post-mitigation pair behind the canvas badges, the
+    // Properties modal and the Risk Summary table -- see
+    // Quantitative.assessConsequence / computeRiskSummary. Same delegation
+    // reasoning as the three methods above.
+    assessConsequence(outcomeId) {
+      return this._quantitative.assessConsequence(outcomeId);
+    }
+
+    computeRiskSummary() {
+      return this._quantitative.computeRiskSummary();
+    }
+
     // barrier_measures_proposal.md's demand-rate readout -- see
     // Quantitative.computeDemandRateAt. Same delegation reasoning as the
     // three methods above.

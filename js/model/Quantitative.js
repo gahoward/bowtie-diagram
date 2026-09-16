@@ -156,18 +156,141 @@
       if (!outcome) return null;
       const node = model.getNode(outcome.nodeId);
       if (!node.severityClassId) return null;
-
-      let likelihoodClassId = null;
-      if (model.mode === 'qualitative') {
-        likelihoodClassId = node.likelihoodClassId || null;
-      } else if (model.mode === 'quantitative') {
-        const computed = this.computeConsequenceLikelihood(outcomeId, opts);
-        if (computed.value !== null) {
-          likelihoodClassId = Bowtie.RiskMatrix.bandForValue(model.riskMatrix, computed.value).id;
-        }
-      }
+      const likelihoodClassId = this._consequenceLikelihoodClassId(outcomeId, node, opts);
       if (!likelihoodClassId) return null;
       return Bowtie.RiskMatrix.cellRiskClassId(model.riskMatrix, likelihoodClassId, node.severityClassId);
+    }
+
+    // The likelihood-axis half of getConsequenceRiskClass, mode-aware the
+    // same way (manual pick in Qualitative mode, banded computed value in
+    // Quantitative mode). Note `opts` (includeBarriers) only means anything
+    // in Quantitative mode -- a Qualitative pick has no barrier arithmetic
+    // behind it to strip out, which is why assessConsequence below reports
+    // no pre-mitigation picture at all in that mode rather than echoing the
+    // manual pick twice.
+    _consequenceLikelihoodClassId(outcomeId, node, opts) {
+      const model = this.model;
+      if (model.mode === 'qualitative') return node.likelihoodClassId || null;
+      if (model.mode !== 'quantitative') return null;
+      const computed = this.computeConsequenceLikelihood(outcomeId, opts);
+      if (computed.value === null) return null;
+      return Bowtie.RiskMatrix.bandForValue(model.riskMatrix, computed.value).id;
+    }
+
+    // One Outcome's full before/after picture -- quantitative_mode_
+    // proposal.md's "computed twice, inherent and residual" ALARP pair,
+    // resolved to matrix classes:
+    //
+    //   { severity, post: Assessment, pre: Assessment | null }
+    //   Assessment = { likelihood: { value, excludedThreatCount } | null,
+    //                  likelihoodClass, riskClass }
+    //
+    // `post` is the residual picture every existing badge already shows
+    // (with barriers). `pre` is the same calculation with every barrier
+    // removed (`includeBarriers: false` all the way down) -- Quantitative
+    // mode only; in Qualitative mode there is no calculation to remove
+    // barriers from, so `pre` is null and callers show nothing for it.
+    // Every class is the resolved matrix object (or null), so callers
+    // never need a second lookup. Returns null outside the two risk modes
+    // or without an active matrix, matching getConsequenceRiskClass.
+    assessConsequence(outcomeId) {
+      const model = this.model;
+      if (model.mode === 'simple' || !model.riskMatrix) return null;
+      const outcome = model.outcomes.find((o) => o.id === outcomeId);
+      if (!outcome) return null;
+      const node = model.getNode(outcome.nodeId);
+      const matrix = model.riskMatrix;
+      const severity = Bowtie.RiskMatrix.severityClass(matrix, node.severityClassId);
+
+      const assess = (includeBarriers) => {
+        const likelihood = model.mode === 'quantitative'
+          ? this.computeConsequenceLikelihood(outcomeId, { includeBarriers })
+          : null;
+        const likelihoodClassId = this._consequenceLikelihoodClassId(outcomeId, node, { includeBarriers });
+        const riskClassId = severity && likelihoodClassId
+          ? Bowtie.RiskMatrix.cellRiskClassId(matrix, likelihoodClassId, severity.id)
+          : null;
+        return {
+          likelihood: likelihood && likelihood.value !== null ? likelihood : null,
+          likelihoodClass: Bowtie.RiskMatrix.likelihoodClass(matrix, likelihoodClassId),
+          riskClass: Bowtie.RiskMatrix.riskClass(matrix, riskClassId),
+        };
+      };
+
+      return {
+        severity,
+        post: assess(true),
+        pre: model.mode === 'quantitative' ? assess(false) : null,
+      };
+    }
+
+    // Every Outcome placement in the document (all pages), each with its
+    // assessConsequence picture, ranked worst-first. Rows carry the
+    // display id/name/page a table needs so the summary UI stays a pure
+    // renderer of this. Same null-return rule as assessConsequence.
+    //
+    // Ranking (each key a tie-break for the one before it):
+    //   1. post-mitigation risk class -- the residual risk is what's
+    //      actually being carried today, so it leads;
+    //   2. pre-mitigation risk class -- of two outcomes carrying the same
+    //      residual class, the one relying on more barrier credit to get
+    //      there is the more fragile;
+    //   3. severity (worst first); 4. post-mitigation likelihood (highest
+    //   first); 5. display id, so the order is stable.
+    // Risk classes rank by their position in `matrix.riskClasses` -- the
+    // shipped presets (and quantitative_mode_proposal.md) list them most
+    // severe first (A - Intolerable ... D - Broadly Acceptable), and the
+    // validator doesn't impose any other ordering, so array order is the
+    // only severity order a matrix carries. An outcome whose class can't
+    // be determined yet sorts after every one whose class can.
+    computeRiskSummary() {
+      const model = this.model;
+      if (model.mode === 'simple' || !model.riskMatrix) return null;
+      const matrix = model.riskMatrix;
+      const riskRank = (riskClass) => {
+        if (!riskClass) return Infinity;
+        const idx = matrix.riskClasses.findIndex((r) => r.id === riskClass.id);
+        return idx === -1 ? Infinity : idx;
+      };
+      const severityRank = (severity) => (severity ? -severity.ordinal : Infinity);
+      // Plain subtraction is NaN for two equal infinities (an "undetermined"
+      // rank on both sides), which would silently read as "equal" only by
+      // accident of NaN being falsy -- made explicit instead.
+      const compareRank = (a, b) => (a === b ? 0 : a - b);
+      const compareLikelihood = (a, b) => {
+        if (a.likelihood && b.likelihood) return b.likelihood.value.compare(a.likelihood.value);
+        const ao = a.likelihoodClass ? a.likelihoodClass.ordinal : -Infinity;
+        const bo = b.likelihoodClass ? b.likelihoodClass.ordinal : -Infinity;
+        return compareRank(bo, ao);
+      };
+
+      const rows = model.outcomes.map((outcome) => {
+        const node = model.getNode(outcome.nodeId);
+        const page = model.getPage(outcome.pageId);
+        return {
+          outcomeId: outcome.id,
+          nodeId: node.id,
+          displayId: model.displayIdentifierFor(node),
+          name: node.name,
+          pageId: page.id,
+          pageName: page.name,
+          ...this.assessConsequence(outcome.id),
+        };
+      });
+
+      rows.sort((a, b) => {
+        const byPost = compareRank(riskRank(a.post.riskClass), riskRank(b.post.riskClass));
+        if (byPost) return byPost;
+        const byPre = compareRank(riskRank(a.pre && a.pre.riskClass), riskRank(b.pre && b.pre.riskClass));
+        if (byPre) return byPre;
+        const bySeverity = compareRank(severityRank(a.severity), severityRank(b.severity));
+        if (bySeverity) return bySeverity;
+        const byLikelihood = compareLikelihood(a.post, b.post);
+        if (byLikelihood) return byLikelihood;
+        return a.displayId.localeCompare(b.displayId);
+      });
+      rows.forEach((row, i) => { row.rank = i + 1; });
+      return rows;
     }
 
     // The running frequency at the point a demand reaches `barrierId` on

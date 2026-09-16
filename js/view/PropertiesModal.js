@@ -127,39 +127,50 @@
     container.appendChild(note);
   }
 
+  function makeRiskClassRow(label, riskClass) {
+    const row = document.createElement('div');
+    row.className = 'modal-computed-row';
+    const l = document.createElement('span');
+    l.className = 'modal-computed-label';
+    l.textContent = label;
+    row.appendChild(l);
+    row.appendChild(makeRiskClassChip(riskClass));
+    return row;
+  }
+
   // The Computed section for an Outcome: risk class chip (either risk
-  // mode) plus, in Quantitative mode, the computed residual likelihood and
-  // any excluded-threat note (quantitative_mode_proposal.md "Canvas
-  // badges"/"Computed values are never stored").
+  // mode) plus, in Quantitative mode, the pre-mitigation (inherent, no
+  // barriers) and post-mitigation (residual) pair of both the class and
+  // the computed likelihood, and any excluded-threat note
+  // (quantitative_mode_proposal.md "Canvas badges"/"Computed values are
+  // never stored"). Qualitative mode has no pre-mitigation half -- see
+  // Quantitative.assessConsequence -- so it keeps the single unlabelled
+  // "Risk class" row.
   function buildOutcomeComputedSection(model, el, displayUnit) {
-    if (model.mode === 'simple' || !model.riskMatrix) return null;
+    const assessment = model.assessConsequence(el.id);
+    if (!assessment) return null;
     const section = makeSection('Computed');
     let any = false;
+    const { pre, post } = assessment;
 
-    const riskClassId = model.getConsequenceRiskClass(el.id);
-    if (riskClassId) {
-      const riskClass = Bowtie.RiskMatrix.riskClass(model.riskMatrix, riskClassId);
-      if (riskClass) {
-        const row = document.createElement('div');
-        row.className = 'modal-computed-row';
-        const l = document.createElement('span');
-        l.className = 'modal-computed-label';
-        l.textContent = 'Risk class';
-        row.appendChild(l);
-        row.appendChild(makeRiskClassChip(riskClass));
-        section.appendChild(row);
-        any = true;
-      }
+    if (pre && pre.riskClass) {
+      section.appendChild(makeRiskClassRow('Risk class (pre-mitigation, inherent)', pre.riskClass));
+      any = true;
+    }
+    if (post.riskClass) {
+      section.appendChild(makeRiskClassRow(pre ? 'Risk class (post-mitigation, residual)' : 'Risk class', post.riskClass));
+      any = true;
     }
 
     if (model.mode === 'quantitative') {
-      const residual = model.computeConsequenceLikelihood(el.id);
-      const text = formatLikelihood(residual.value, displayUnit);
-      if (text) {
-        section.appendChild(makeComputedRow('Likelihood (residual)', text));
-        appendExcludedNote(section, residual.excludedThreatCount);
-        any = true;
+      const inherentText = pre.likelihood ? formatLikelihood(pre.likelihood.value, displayUnit) : null;
+      const residualText = post.likelihood ? formatLikelihood(post.likelihood.value, displayUnit) : null;
+      if (inherentText) section.appendChild(makeComputedRow('Likelihood (pre-mitigation, inherent)', inherentText));
+      if (residualText) {
+        section.appendChild(makeComputedRow('Likelihood (post-mitigation, residual)', residualText));
+        appendExcludedNote(section, post.likelihood.excludedThreatCount);
       }
+      if (inherentText || residualText) any = true;
     }
 
     return any ? section : null;

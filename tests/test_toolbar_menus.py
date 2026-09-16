@@ -13,7 +13,7 @@ def test_each_toolbar_menu_opens_with_its_expected_items(page):
     cases = {
         "file": ["Import from JSON", "Export to JSON", "Export to SVG", "Export to PNG"],
         "add": ["Add Cause", "Add Outcome"],
-        "view": ["Auto-arrange", "Reset view"],
+        "view": ["Auto-arrange", "Reset view", "Risk Summary"],
         "settings": ["Visual Settings", "Node Library"],
     }
     for name, expected_labels in cases.items():

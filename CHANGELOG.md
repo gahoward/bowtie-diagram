@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+- Every Outcome now shows its pre-mitigation risk class alongside the
+  post-mitigation one (quantitative_mode_proposal.md's inherent/residual
+  ALARP pair): the pre-mitigation figure is the same calculation with
+  every barrier -- preventative and mitigative -- removed. On the canvas
+  this is a "pre → post" badge pair (dashed ring for pre-mitigation) plus
+  a "Pre-mitigation" likelihood line; the Outcome's Properties modal shows
+  both classes and both likelihoods. Quantitative mode only -- a
+  Qualitative likelihood is a manual pick with no barrier arithmetic to
+  remove, so it keeps its single badge. Model API: `assessConsequence`.
+- Added View > "Risk Summary…": every Outcome in the document, across all
+  pages, ranked worst-first by post-mitigation risk class (then pre-
+  mitigation class, severity, likelihood), with its severity and the pre-
+  and post-mitigation likelihood and risk class side by side. Model API:
+  `computeRiskSummary`.
+- The browser now asks for confirmation before the tab or window closes
+  with unsaved changes (edits since the last JSON export/import).
+
 ## v1.0.0 - 2026-09-12
 
 - Reworked Quantitative mode's barrier treatment (`barrier_measures_

@@ -25,14 +25,26 @@
     // action required"). A native SVG <title> is the cheapest way to surface
     // that on hover without adding any new UI; see ProjectSettingsController
     // for the persistent legend this pairs with.
-    _renderRiskBadge(cx, cy, riskClass) {
+    //
+    // `phase` ('pre' | 'post' | null) is set only when the badge is one
+    // half of a pre-mitigation -> post-mitigation pair (Quantitative mode,
+    // see render below): it names which half in the tooltip and gives the
+    // pre-mitigation badge a dashed ring, so the two read as "before" and
+    // "after" rather than two unexplained letters. A lone badge (Qualitative
+    // mode's single manual pick) keeps the plain tooltip.
+    _renderRiskBadge(cx, cy, riskClass, { phase = null } = {}) {
       const svgNs = 'http://www.w3.org/2000/svg';
+      const PHASE_LABELS = {
+        pre: 'Pre-mitigation (no barriers)',
+        post: 'Post-mitigation (with barriers)',
+      };
       const g = document.createElementNS(svgNs, 'g');
-      g.setAttribute('class', 'risk-class-badge');
+      g.setAttribute('class', phase ? `risk-class-badge risk-class-badge-${phase}` : 'risk-class-badge');
       const title = document.createElementNS(svgNs, 'title');
-      title.textContent = riskClass.reviewPeriod
+      const classText = riskClass.reviewPeriod
         ? `${riskClass.label} — ${riskClass.reviewPeriod}`
         : riskClass.label;
+      title.textContent = phase ? `${PHASE_LABELS[phase]}: ${classText}` : classText;
       g.appendChild(title);
       const circle = document.createElementNS(svgNs, 'circle');
       circle.setAttribute('cx', cx);
@@ -41,6 +53,8 @@
       circle.setAttribute('fill', riskClass.colour || '#888');
       circle.setAttribute('stroke', '#ffffff');
       circle.setAttribute('stroke-width', '1.5');
+      // Inline (not a CSS rule) so an SVG/PNG export keeps the distinction.
+      if (phase === 'pre') circle.setAttribute('stroke-dasharray', '2.5 2');
       g.appendChild(circle);
       const text = document.createElementNS(svgNs, 'text');
       text.setAttribute('x', cx);
@@ -53,6 +67,22 @@
       text.textContent = riskClass.id;
       g.appendChild(text);
       return g;
+    }
+
+    // The "->" between a pre-mitigation and post-mitigation badge pair.
+    _renderBadgeArrow(cx, cy) {
+      const svgNs = 'http://www.w3.org/2000/svg';
+      const text = document.createElementNS(svgNs, 'text');
+      text.setAttribute('class', 'risk-class-badge-arrow');
+      text.setAttribute('x', cx);
+      text.setAttribute('y', cy);
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('dominant-baseline', 'central');
+      text.setAttribute('font-size', '12');
+      text.setAttribute('font-weight', 'bold');
+      text.setAttribute('fill', '#4b5563');
+      text.textContent = '→';
+      return text;
     }
 
     // "At a glance" text under a node -- one or more short lines (severity/
@@ -261,18 +291,31 @@
 
         // Risk-class badge (quantitative_mode_proposal.md "Canvas badges"):
         // a small colour-coded chip at the consequence's own risk class,
-        // mode-aware (getConsequenceRiskClass picks manual vs. computed
+        // mode-aware (assessConsequence picks manual vs. computed
         // likelihood per BowtieModel's own mode dispatch) -- silent
         // (nothing rendered) whenever there's no active matrix or the
         // class can't yet be determined, exactly like every other
         // "nothing computed" case in this feature.
+        //
+        // In Quantitative mode this is a PAIR -- "pre-mitigation ->
+        // post-mitigation", the proposal's inherent/residual ALARP picture
+        // -- with the post-mitigation badge keeping the original top-right
+        // spot and the pre-mitigation one (dashed ring) to its left. The
+        // pre-mitigation class needs exactly the same inputs as the post-
+        // mitigation one minus the barriers, so it's never determinable
+        // when the post-mitigation class isn't.
         if (model.mode !== 'simple' && model.riskMatrix) {
-          const riskClassId = model.getConsequenceRiskClass(outcome.id);
-          if (riskClassId) {
-            const riskClass = Bowtie.RiskMatrix.riskClass(model.riskMatrix, riskClassId);
-            if (riskClass) {
-              nodeGroups.push(this._renderRiskBadge(outcome.x + result.bounds.w / 2, outcome.y - result.bounds.h / 2, riskClass));
-            }
+          const assessment = model.assessConsequence(outcome.id);
+          const postClass = assessment ? assessment.post.riskClass : null;
+          const preClass = assessment && assessment.pre ? assessment.pre.riskClass : null;
+          const badgeX = outcome.x + result.bounds.w / 2;
+          const badgeY = outcome.y - result.bounds.h / 2;
+          if (postClass && preClass) {
+            nodeGroups.push(this._renderRiskBadge(badgeX - 46, badgeY, preClass, { phase: 'pre' }));
+            nodeGroups.push(this._renderBadgeArrow(badgeX - 23, badgeY));
+            nodeGroups.push(this._renderRiskBadge(badgeX, badgeY, postClass, { phase: 'post' }));
+          } else if (postClass) {
+            nodeGroups.push(this._renderRiskBadge(badgeX, badgeY, postClass));
           }
         }
 
@@ -299,6 +342,11 @@
             // (see computeConsequenceLikelihood), so it carries the same
             // 'max'-vs-'sum' dependency.
             if (text) infoLines.push(`Likelihood: ${text} (${model.tleAggregation})`);
+            // The same figure with every barrier removed -- the "before"
+            // half of the badge pair above, as an actual number.
+            const inherent = model.computeConsequenceLikelihood(outcome.id, { includeBarriers: false });
+            const inherentText = this._formatLikelihood(inherent.value, displayUnit);
+            if (inherentText) infoLines.push(`Pre-mitigation: ${inherentText}`);
           }
           if (infoLines.length > 0) {
             const emphasized = model.mode === 'quantitative';

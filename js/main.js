@@ -187,10 +187,16 @@
     const EXPORT_BUTTON_IDS = ['btn-export-png', 'btn-export-svg', 'btn-export-json'];
     const warnings = new Bowtie.WarningsController(model, document.getElementById('btn-warnings'), EXPORT_BUTTON_IDS);
 
+    // Document-wide (every page's outcomes), so constructed with `model`
+    // rather than `pageScopedModel`, like WarningsController above.
+    new Bowtie.RiskSummaryController(
+      model, document.getElementById('btn-risk-summary'), () => projectSettings.getDisplayUnit(),
+    );
+
     renderAll();
 
     const TOOLBAR_BUTTON_IDS = [
-      'btn-add-cause', 'btn-add-outcome', 'btn-auto-arrange', 'btn-reset-view', 'btn-manage-ids', 'btn-settings',
+      'btn-add-cause', 'btn-add-outcome', 'btn-auto-arrange', 'btn-reset-view', 'btn-risk-summary', 'btn-manage-ids', 'btn-settings',
       'btn-project-settings', 'btn-export-png', 'btn-export-svg', 'btn-export-json', 'btn-import-json',
       'menu-trigger-file', 'menu-trigger-add', 'menu-trigger-view', 'menu-trigger-settings',
     ];
