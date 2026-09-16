@@ -22,7 +22,13 @@ def _fresh_page(browser, base_url):
 
 
 def _open_wizard(pg):
-    pg.get_by_role("button", name="New Bowtie Wizard", exact=True).click()
+    pg.get_by_role("button", name="Start a new bowtie", exact=True).click()
+
+
+def _open_more_options(pg):
+    """Page name/description live under the names step's collapsed "More
+    options" disclosure (landing_page_proposal.md)."""
+    pg.locator(".welcome-more summary").click()
 
 
 def _fill_field(pg, label, value):
@@ -54,10 +60,12 @@ def test_wizard_create_produces_one_correctly_named_described_page(browser, base
     try:
         _open_wizard(pg)
         _fill_field(pg, "Analysis title", "My Analysis")
+        _fill_field(pg, "Top-level event", "The TLE")
+        _fill_field(pg, "Hazard", "The Hazard")
+        _open_more_options(pg)
         _fill_field(pg, "Page name", "First Failure")
         _fill_field(pg, "Page description", "A description")
-        _fill_field(pg, "Top-level event name", "The TLE")
-        _fill_field(pg, "Hazard name", "The Hazard")
+        pg.get_by_role("button", name="Next", exact=True).click()
         pg.get_by_role("button", name="Create", exact=True).click()
         pg.wait_for_timeout(150)
 
@@ -71,22 +79,46 @@ def test_wizard_create_produces_one_correctly_named_described_page(browser, base
         pg.close()
 
 
-def test_wizard_create_disabled_until_all_required_fields_are_non_blank(browser, base_url):
+def test_wizard_page_name_defaults_to_the_tle_name_when_left_blank(browser, base_url):
     pg = _fresh_page(browser, base_url)
     try:
         _open_wizard(pg)
-        create_btn = pg.get_by_role("button", name="Create", exact=True)
-        assert create_btn.is_enabled(), "defaults pre-fill every required field"
+        _fill_field(pg, "Analysis title", "My Analysis")
+        _fill_field(pg, "Top-level event", "Loss of containment")
+        _fill_field(pg, "Hazard", "The Hazard")
+        pg.get_by_role("button", name="Next", exact=True).click()
+        pg.get_by_role("button", name="Create", exact=True).click()
+        pg.wait_for_timeout(150)
 
-        for label in ["Analysis title", "Page name", "Top-level event name", "Hazard name"]:
-            _fill_field(pg, label, "   ")  # whitespace-only must count as blank
-            assert create_btn.is_disabled(), f"Create must disable once {label} is blank"
+        pages = pg.evaluate("() => window.__lastModel.pages.map((p) => p.name)")
+        assert pages == ["Loss of containment"]
+    finally:
+        assert pg.errors == []
+        pg.close()
+
+
+def test_wizard_next_disabled_until_all_required_fields_are_non_blank(browser, base_url):
+    pg = _fresh_page(browser, base_url)
+    try:
+        _open_wizard(pg)
+        next_btn = pg.get_by_role("button", name="Next", exact=True)
+        assert next_btn.is_disabled(), "fields start empty -- a placeholder must never pass as a name"
+
+        for label in ["Analysis title", "Top-level event", "Hazard"]:
             _fill_field(pg, label, "Something")
-            assert create_btn.is_enabled(), f"Create must re-enable once {label} is filled back in"
+        assert next_btn.is_enabled()
 
-        # Page description may stay blank.
+        for label in ["Analysis title", "Top-level event", "Hazard"]:
+            _fill_field(pg, label, "   ")  # whitespace-only must count as blank
+            assert next_btn.is_disabled(), f"Next must disable once {label} is blank"
+            _fill_field(pg, label, "Something")
+            assert next_btn.is_enabled(), f"Next must re-enable once {label} is filled back in"
+
+        # Page name and description (More options) may stay blank.
+        _open_more_options(pg)
+        _fill_field(pg, "Page name", "")
         _fill_field(pg, "Page description", "")
-        assert create_btn.is_enabled()
+        assert next_btn.is_enabled()
     finally:
         assert pg.errors == []
         pg.close()
@@ -645,7 +677,7 @@ def test_export_then_reimport_via_ui_round_trips_multiple_pages(page):
 def test_load_demo_shows_both_of_its_pages(browser, base_url):
     pg = _fresh_page(browser, base_url)
     try:
-        pg.get_by_role("button", name="Load Demo", exact=True).click()
+        pg.get_by_role("button", name="Explore the demo", exact=True).click()
         pg.wait_for_timeout(250)
 
         assert pg.locator(".page-tab").count() == 2

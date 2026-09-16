@@ -282,14 +282,21 @@ step for the app itself, so tests run directly against `index.html` as-is.
   wishlist fix where choosing "Add Cause"/"Add Outcome" from a right-click
   on the WRONG side of the TLE falls back to the toolbar's own default
   placement instead of landing on the wrong side.
-- **`test_welcome.py`** — the first-load welcome modal's three side-by-side
-  ways to start (New Bowtie Wizard / Upload a .json file / drag-and-drop),
-  driven directly via the `browser`/`base_url` fixtures rather than `page`
-  (which already drives past this modal). Confirms the drop zone reuses the
-  same validated import path as the upload button (via a synthesized
-  `change` event on the shared hidden `<input>`), not a second one. Also
-  covers the "Load Demo" button (stacked in the wizard column, not a fourth
-  column) and its Ctrl+Alt+D shortcut (demo_json_proposal.md) — including
+- **`test_welcome.py`** — the first-load flow (landing_page_proposal.md):
+  the start screen (one primary "Start a new bowtie", the demo's
+  Simple/Qualitative/Quantitative chooser, a single Open zone where Browse
+  and drag-and-drop are the same box and the whole start body accepts a
+  drop, a dot-grid overlay, no developer-shortcut/internal-id leaks in the
+  copy) and the two-step wizard (empty fields with Next disabled until
+  title/TLE/hazard are non-blank, the live preview, Enter to advance, Back
+  keeping everything typed, the mode cards with the matrix picker hidden
+  for Simple, and Create setting mode + an embedded preset copy that isn't
+  undo-able). Driven directly via the `browser`/`base_url` fixtures rather
+  than `page` (which already drives past this flow via
+  `conftest.complete_new_bowtie_wizard`). Confirms the drop zone reuses the
+  same validated import path as Browse (via a synthesized `change` event
+  on the shared hidden `<input>`), not a second one. Also covers "Explore
+  the demo" and its Ctrl+Alt+D shortcut (demo_json_proposal.md) — including
   that the shortcut does nothing once the modal has closed, and that
   loading the demo routes through `ImportExportController.loadDocument`'s
   same shape/version validation a real import gets (a deliberately staled

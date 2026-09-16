@@ -105,6 +105,27 @@ def browser():
         b.close()
 
 
+def complete_new_bowtie_wizard(
+    pg, title="Untitled Bowtie", tle="Top-Level Event", hazard="Hazard", page_name="Untitled Page",
+):
+    """Drives the welcome flow's "Start a new bowtie" wizard through both
+    steps (names, then risk mode -- left at its Simple default). The wizard
+    deliberately starts with EMPTY fields (landing_page_proposal.md: a
+    placeholder must never become a name), so this types the names a fresh
+    BowtieModel used to pre-fill -- every test that asserts "Untitled Page"
+    / "Top-Level Event" / "Hazard" keeps working unchanged. `page_name=None`
+    leaves More options closed, so the page takes the TLE's name."""
+    pg.get_by_role("button", name="Start a new bowtie", exact=True).click()
+    pg.locator(".modal-field:has-text('Analysis title') input").fill(title)
+    pg.locator(".modal-field:has-text('Top-level event') input").fill(tle)
+    pg.locator(".modal-field:has-text('Hazard') input").fill(hazard)
+    if page_name is not None:
+        pg.locator(".welcome-more summary").click()
+        pg.locator(".modal-field:has-text('Page name') input").fill(page_name)
+    pg.get_by_role("button", name="Next", exact=True).click()
+    pg.get_by_role("button", name="Create", exact=True).click()
+
+
 @pytest.fixture
 def page(browser, base_url):
     pg = browser.new_page(viewport={"width": 1600, "height": 1000})
@@ -112,8 +133,7 @@ def page(browser, base_url):
     pg.on("pageerror", lambda exc: pg.errors.append(str(exc)))
     pg.add_init_script(INIT_SCRIPT)
     pg.goto(f"{base_url}/index.html")
-    pg.get_by_role("button", name="New Bowtie Wizard", exact=True).click()
-    pg.get_by_role("button", name="Create", exact=True).click()
+    complete_new_bowtie_wizard(pg)
     pg.wait_for_timeout(150)
     yield pg
     assert pg.errors == [], f"uncaught page error(s) during test: {pg.errors}"

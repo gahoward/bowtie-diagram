@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Reworked the first-load screen and New Bowtie wizard
+  (landing_page_proposal.md). The start screen now leads with a labelled
+  picture of a bowtie and one primary "Start a new bowtie"; the worked
+  demo sits behind a Simple/Qualitative/Quantitative chooser that explains
+  each mode; and "browse for a file" and "drag and drop" are one Open
+  zone (the whole screen accepts a drop). The wizard is two steps: the
+  names (analysis title, top-level event, hazard — empty by design with
+  example placeholders, so a placeholder can never become a name, with a
+  live preview of where the names land; page name/description and
+  identifier display moved under "More options", page name defaulting to
+  the top-level event), then the risk mode and matrix preset, previously
+  only reachable in Project Settings after the fact.
 - Every Outcome now shows its pre-mitigation risk class alongside the
   post-mitigation one (quantitative_mode_proposal.md's inherent/residual
   ALARP pair): the pre-mitigation figure is the same calculation with

@@ -15,6 +15,7 @@ without having built dist/ first should not see a failure here.
 import pathlib
 
 import pytest
+from conftest import complete_new_bowtie_wizard
 
 DIST_HTML = pathlib.Path(__file__).resolve().parent.parent / "dist" / "bowtie-diagram.html"
 
@@ -34,8 +35,7 @@ def dist_page(browser):
     page.errors = []
     page.on("pageerror", lambda exc: page.errors.append(str(exc)))
     page.goto(DIST_HTML.resolve().as_uri())
-    page.get_by_role("button", name="New Bowtie Wizard", exact=True).click()
-    page.get_by_role("button", name="Create", exact=True).click()
+    complete_new_bowtie_wizard(page)
     page.wait_for_timeout(150)
     yield page
     assert page.errors == [], f"uncaught page error(s) on the built dist file: {page.errors}"
