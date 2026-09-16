@@ -375,6 +375,8 @@
               pageId: page.id, pageName: page.name,
               message: `${node.id} (${node.name}) on page "${page.name}" has a frequency-limiting measure `
                 + "whose own rate isn't below the demand reaching it, so it isn't reducing risk at all.",
+              detail: "Frequency-limiting measure whose own rate isn't below the demand reaching it — "
+                + "it isn't reducing risk at all.",
             });
           }
         } else if (Bowtie.BarrierMeasures.isLowDemand(node.protection) && before.compareToDecimal(highDemandFloor) > 0) {
@@ -384,6 +386,7 @@
             pageId: page.id, pageName: page.name,
             message: `${node.id} (${node.name}) on page "${page.name}" uses a low-demand measure, but the `
               + 'demand rate reaching it is above ~1/year (IEC 61511\'s low/high-demand boundary) -- consider PFH instead.',
+            detail: 'Low-demand measure, but the demand reaching it is above ~1/year (IEC 61511) — consider PFH.',
           });
         }
       };

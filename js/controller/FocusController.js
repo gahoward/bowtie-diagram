@@ -85,6 +85,25 @@
       this._apply();
     }
 
+    // Programmatic focus on one placement (the Warnings modal's "Show"):
+    // a Cause/Outcome focuses its own Line, a barrier every Line through
+    // it -- the same effect as clicking the node, without the click. A
+    // placement with no Line at all (an orphaned barrier -- exactly what
+    // the blocking warnings are about) clears focus instead, since there
+    // is nothing to dim against.
+    focusPlacement(placementId) {
+      const placement = this.model.findById(placementId);
+      if (!placement) return;
+      let lineIds = [];
+      if (placement.type === 'cause' || placement.type === 'outcome') {
+        const line = this.model._lineFor(placementId);
+        if (line) lineIds = [line.id];
+      } else {
+        lineIds = this.model.linesThrough(placementId).map((l) => l.id);
+      }
+      this._setFocus(lineIds.length > 0 ? new Set(lineIds) : null);
+    }
+
     _apply() {
       const nodes = this.svgRoot.querySelectorAll('.node');
       const lines = this.svgRoot.querySelectorAll('.connection');

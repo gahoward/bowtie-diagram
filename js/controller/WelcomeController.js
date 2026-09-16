@@ -1,22 +1,8 @@
 (function (Bowtie) {
-  // The three document modes, with the two lengths of explanation the
-  // welcome flow uses: a four-word gloss under the start screen's demo
-  // chooser, and a full sentence on the wizard's mode cards. Same order
-  // and ids as ProjectSettingsController's MODE_LABELS.
-  const MODES = [
-    {
-      id: 'simple', label: 'Simple', gloss: 'no risk fields',
-      description: 'Just the diagram. No likelihood, severity or risk fields.',
-    },
-    {
-      id: 'qualitative', label: 'Qualitative', gloss: 'pick likelihood & severity',
-      description: 'Pick a likelihood and severity class per cause/outcome; the matrix gives the risk class.',
-    },
-    {
-      id: 'quantitative', label: 'Quantitative', gloss: 'compute from frequencies',
-      description: 'Enter cause frequencies and barrier measures (RRF, PFD, PFH…); likelihood and risk class are computed.',
-    },
-  ];
+  // The three document modes with their four-word gloss (the demo
+  // chooser) and full sentence (the mode cards) -- shared with Project
+  // Settings via RiskModeCards.js so the two screens teach the same thing.
+  const MODES = Bowtie.RISK_MODES;
 
   function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -353,29 +339,15 @@
       const matrixField = el('label', 'modal-field welcome-matrix-field');
       const syncMatrixField = () => { matrixField.hidden = this._draft.mode === 'simple'; };
 
-      const cards = el('div', 'welcome-mode-cards');
-      const cardEls = MODES.map((mode) => {
-        const card = el('label', 'welcome-mode-card');
-        card.dataset.mode = mode.id;
-        const titleRow = el('span', 'welcome-mode-card-title');
-        const radio = document.createElement('input');
-        radio.type = 'radio';
-        radio.name = 'welcome-mode';
-        radio.value = mode.id;
-        radio.checked = this._draft.mode === mode.id;
-        radio.addEventListener('change', () => {
-          if (!radio.checked) return;
-          this._draft.mode = mode.id;
-          cardEls.forEach((c) => c.classList.toggle('selected', c === card));
+      const cards = Bowtie.buildRiskModeCards({
+        selected: this._draft.mode,
+        name: 'welcome-mode',
+        onSelect: (mode) => {
+          this._draft.mode = mode;
           syncMatrixField();
-        });
-        titleRow.append(radio, el('span', null, mode.label));
-        card.append(titleRow, el('span', 'welcome-mode-card-description', mode.description));
-        card.classList.toggle('selected', this._draft.mode === mode.id);
-        cards.appendChild(card);
-        return card;
+        },
       });
-      body.appendChild(cards);
+      body.appendChild(cards.el);
 
       matrixField.appendChild(el('span', null, 'Risk matrix'));
       const select = document.createElement('select');

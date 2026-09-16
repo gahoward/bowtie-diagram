@@ -27,10 +27,15 @@
           // since deletePage cascades to remove it too.
           const page = model.getPage(pb.pageId);
           const node = model.getNode(pb.nodeId);
+          // `message` is the full, self-contained sentence (what a log or
+          // an export note wants); `detail` is the same finding without
+          // the who/where, for a UI that already shows those as their own
+          // columns (WarningsController's rows).
           warnings.push({
             id: pb.id, type: 'orphaned-preventative-control', severity: 'blocking',
             pageId: page.id, pageName: page.name,
             message: `${node.id} (${node.name}) on page "${page.name}" is not connected to any Cause.`,
+            detail: 'Not connected to any Cause — nothing flows through it.',
           });
         }
       });
@@ -43,6 +48,7 @@
             id: mb.id, type: 'orphaned-mitigative-control', severity: 'blocking',
             pageId: page.id, pageName: page.name,
             message: `${node.id} (${node.name}) on page "${page.name}" is not connected to any Outcome.`,
+            detail: 'Not connected to any Outcome — nothing flows through it.',
           });
         }
       });

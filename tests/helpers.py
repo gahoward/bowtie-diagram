@@ -86,6 +86,6 @@ def create_via_modal(page, name):
     Assumes the modal is already open (e.g. right after clicking "Add
     Cause"/"Add Preventative Barrier"/etc.)."""
     dialog = page.locator(".modal-dialog", has=page.locator(".create-or-choose-modal"))
-    dialog.locator(".create-or-choose-section .modal-field:has-text('Name*') input").fill(name)
+    dialog.locator(".create-or-choose-section .modal-field:has-text('Name') input").first.fill(name)
     dialog.get_by_role("button", name="Create", exact=False).click()
     page.wait_for_timeout(80)

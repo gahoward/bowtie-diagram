@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- Reworked the Settings menu and the modals behind it
+  (ui_fitness_proposal.md). Settings now holds exactly two items:
+  "Project Settings…" (everything saved with the document — name,
+  identifier display, risk mode as the wizard's cards, matrix with an
+  inline summary and legend, TLE aggregation, quantitative defaults — as
+  General / Risk analysis / Quantitative tabs, nothing scrolling) and
+  "Preferences…" (everything per browser — display unit, line
+  annotations, auto-arrange spacing and pull-closer — applied immediately
+  and remembered in localStorage; replaces Visual Settings). "Node
+  Library…" moved to the Add menu and became a wide, tabbed manager with a
+  real table, Edit opening the shared Properties modal and retired
+  identifiers under a disclosure. The toolbar title now opens Project
+  Settings with the name focused instead of its own Rename dialog.
+- Warnings are one row each (id, name, page, a **Show** that switches to
+  the page and focuses the node) in Blocking / Advisory groups.
+- Properties: the risk-class chip no longer prints its letter twice, the
+  barrier value field is labelled "Value" under the measure it belongs
+  to, and barrier type/owner/effectiveness have their own section.
+- Context menus group create / inspect / destroy with separators and colour
+  the destructive items; page-tab edit/delete affordances show on the
+  active tab and on hover; "Jump to page" appears only once the tab strip
+  overflows; the Add-node modal lists "Choose existing" first, keeps
+  Create in the footer and disables it until a name is typed.
 - Reworked the first-load screen and New Bowtie wizard
   (landing_page_proposal.md). The start screen now leads with a labelled
   picture of a bowtie and one primary "Start a new bowtie"; the worked

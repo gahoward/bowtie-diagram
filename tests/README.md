@@ -149,24 +149,28 @@ step for the app itself, so tests run directly against `index.html` as-is.
 - **`test_node_library_controller.py`** — design review finding 05:
   `NodeLibraryController` had no controller-level coverage before this file
   (an entire control was once removed from the modal in a session and the
-  model-level-only suite stayed green) — edit-in-place saving through
-  `renameNode`, delete cascading across pages and retiring the node's id,
-  adding straight to the library creating a node with zero placements, and
-  the "placed on which page(s)" text reflecting placements as they're added.
-  Also covers UI-review findings 01 (every edit form starts collapsed, not
-  just the one under test that already clicked Edit) and 04 (a node's
-  right-click menu's "Delete from Library…" item opens this modal
-  pre-expanded to that exact node, and the focus doesn't leak into a later,
-  unrelated open).
+  model-level-only suite stayed green). Now Add › Node Library…
+  (ui_fitness_proposal.md S4): one tab per type with a count, Edit
+  opening the shared Properties modal (for a placed node and for a
+  library-only node with no placement) and saving through `renameNode`,
+  delete cascading across pages and retiring the node's id under the
+  collapsed Retired disclosure, adding straight to the library creating a
+  node with zero placements, the "placed on" cell reflecting placements as
+  they're added, and UI-review finding 04 (a node's right-click "Delete
+  from Library…" opens this modal on that node's tab with its row
+  highlighted, and the highlight doesn't leak into a later, unrelated
+  open).
 - **`test_warnings_controller.py`** — design review finding 05:
   `WarningsController` had no controller-level coverage before this file,
   including the rule `getWarnings().length` enforces — export disabled
   entirely while any warning is active. Orphans a barrier (`Connect
   Directly to TLE` truncating a Line past it, per `DESIGN_NOTES.md`),
-  confirms the badge/count/export-disable and the warning text itself, then
-  resolves it and confirms all three re-enable. Also covers UI-review
-  finding 06: the badge's `title` attribute names every page a warning is
-  on, not just a bare count.
+  confirms the badge/count/export-disable and the warning row itself (id,
+  Blocking group, the short `detail`), then resolves it and confirms all
+  three re-enable. Also covers UI-review finding 06 (the badge's `title`
+  attribute names every page a warning is on, not just a bare count) and
+  the row's **Show** (closes the modal, switches to the warning's page,
+  pulses the node).
 - **`test_import_export.py`** — schema round-trip and the version-mismatch
   guard (there is no migration path for older schema versions; an
   incompatible file is rejected outright). The round-trip test (design
@@ -233,18 +237,27 @@ step for the app itself, so tests run directly against `index.html` as-is.
   and saved independent of the document's risk mode. The Outcome's
   Computed section shows the pre-/post-mitigation risk-class chip and
   likelihood pair in Quantitative mode, a single chip in Qualitative.
-- **`test_project_settings.py`** — the single "Project Settings" modal:
-  analysis name, identifier display mode, the risk analysis mode/matrix
-  picker, and the events/hour ↔ events/year display-unit preference. Also
-  covers the TLE aggregation toggle (design review finding 11, Quantitative
-  mode only): changing it calls `setTleAggregation` and the canvas TLE
-  badge names whichever policy produced its figure. And UI-review
-  finding 02's risk-class legend: appears once a matrix is selected (not
-  before), lists every class with its full label, and clears again if the
-  matrix is cleared. Structural review finding 09: committing a rename via
-  Tab (not a click, so focus has already moved on to the next field by the
-  time the 'change' event's model update triggers a modal body rebuild)
-  must not drop focus to `<body>`.
+- **`test_project_settings.py`** — Settings › Project Settings…, the modal
+  for everything saved with the document (ui_fitness_proposal.md S2):
+  the Settings menu holding only Project Settings / Preferences; General
+  and Risk analysis tabs plus a Quantitative tab that appears only in
+  that mode (the active tab surviving the rebuild); name (blank rejected
+  and reverted); identifier display living here and not in the Node
+  Library; the wizard's mode cards with the matrix picker hidden in
+  Simple mode; the matrix summary + legend (UI-review finding 02)
+  appearing once a matrix is selected and clearing with it; the TLE
+  aggregation toggle (design review finding 11) and quantitative defaults
+  on the Quantitative tab; preset selection embedding a full copy; and
+  matrix import/export. Structural review finding 09: committing a rename
+  via Tab (not a click, so focus has already moved on to the next field
+  by the time the 'change' event's model update triggers a modal body
+  rebuild) must not drop focus to `<body>`. The toolbar title opening this
+  modal with Name focused is in `test_multi_page.py`.
+- **`test_preferences.py`** — Settings › Preferences… (S3): the Display /
+  Auto-arrange groups and the "not saved in the file" subtitle, the
+  display unit and line-annotation toggles applying immediately (no Done
+  needed, Escape doesn't lose them), persistence across a reload via
+  localStorage, and a corrupt or out-of-range stored value being ignored.
 - **`test_modal_view.py`** — the shared `ModalView.openModal` component
   every dialog in the app is built on (driven here through the Node Library
   and Warnings modals, any caller would do). Structural review finding 03:
@@ -350,7 +363,7 @@ step for the app itself, so tests run directly against `index.html` as-is.
   still renders synchronously with no added delay, and `MinimapView`'s own
   expensive clone step settles a mutation burst into exactly one reclone via
   its trailing debounce.
-- **`test_tight_spacing.py`** — Settings' Loose/Tight auto-arrange spacing:
+- **`test_tight_spacing.py`** — Preferences' Loose/Tight auto-arrange column spacing:
   tight mode measurably closer columns, still no horizontal label overlap,
   still clears the Hazard (a real bug caught live — see `DESIGN_NOTES.md`'s
   Auto-arrange horizontal-spacing section), and the per-side-depth fix

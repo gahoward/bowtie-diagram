@@ -393,8 +393,8 @@ def test_properties_modal_saves_rate_based_standby_barrier(page):
 
     _open_properties_modal(page, ".node.preventative-barrier")
     page.locator(".barrier-protection-field select").select_option("rateStandby")
-    page.locator(".barrier-protection-detail .modal-field:has-text('Standby') input[type=checkbox]").uncheck()
-    page.locator(".barrier-protection-detail .modal-field:has-text('Standby') input[type=text]").fill("1E-5")
+    page.locator(".barrier-protection-detail .modal-field:has-text('Value') input[type=checkbox]").uncheck()
+    page.locator(".barrier-protection-detail .modal-field:has-text('Value') input[type=text]").fill("1E-5")
     page.locator(".barrier-protection-detail .modal-field:has-text('Rate unit') select").select_option("perHour")
     page.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_timeout(80)

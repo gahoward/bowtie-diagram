@@ -234,8 +234,7 @@
 
     const hint = document.createElement('p');
     hint.className = 'modal-field-hint';
-    hint.textContent = 'RRF, PFD_avg, raw probability, unavailability, and a SIL band all apply the same way -- '
-      + "pick whichever name matches the barrier's own source document.";
+    hint.textContent = "Pick whichever measure the barrier's own source document uses.";
     wrap.appendChild(hint);
 
     const detail = document.createElement('div');
@@ -250,8 +249,11 @@
       const row = measureById[measureId];
       const preserved = protection && !protection.unknown && protection.measure === measureId ? protection : null;
 
+      // Labelled "Value" rather than repeating the measure's own full
+      // label from the select just above it; the measure name still leads
+      // the validation message (`row.label` in readValue below).
       const valueHandle = makeQuantityField(
-        row.label, preserved, detail,
+        'Value', preserved, detail,
         row.uiValueKind === 'select' ? { selectOptions: row.uiOptions } : {},
       );
 

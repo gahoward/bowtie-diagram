@@ -1,4 +1,4 @@
-"""Settings -> Visual Settings -> "Auto-arrange spacing" (Loose/Tight).
+"""Settings -> Preferences -> Auto-arrange "Column spacing" (Loose/Tight).
 Tight mode brings columns closer together horizontally while still
 respecting the same overlap-avoidance guarantees auto-arrange already
 enforces vertically -- COL_SPACING_TIGHT is derived from real barrier/Cause/
@@ -9,9 +9,9 @@ from helpers import auto_arrange
 
 def _set_arrange_spacing(page, value):
     page.click("#menu-trigger-settings")
-    page.click("#btn-settings")
+    page.click("#btn-preferences")
     page.locator(".modal-checkbox-row", has_text=value).click()
-    page.get_by_role("button", name="Close", exact=True).click()
+    page.get_by_role("button", name="Done", exact=True).click()
     page.wait_for_timeout(80)
 
 
@@ -27,11 +27,11 @@ def _build_simple_chain(page):
 
 def test_settings_modal_offers_loose_and_tight_options(page):
     page.click("#menu-trigger-settings")
-    page.click("#btn-settings")
+    page.click("#btn-preferences")
     texts = page.locator(".modal-checkbox-row").all_text_contents()
     assert any("Loose" in t for t in texts)
     assert any("Tight" in t for t in texts)
-    page.get_by_role("button", name="Close", exact=True).click()
+    page.get_by_role("button", name="Done", exact=True).click()
 
 
 def test_tight_mode_produces_closer_columns_than_loose(page):

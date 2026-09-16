@@ -50,8 +50,8 @@
 
     const renderAll = () => {
       view.render(pageScopedModel, {
-        showAnnotations: settings.showAnnotations,
-        displayUnit: projectSettings.getDisplayUnit(),
+        showAnnotations: preferences.showAnnotations,
+        displayUnit: preferences.getDisplayUnit(),
       });
       minimap.render(view.connectionsLayer, view.nodesLayer, view.getContentBounds());
     };
@@ -89,7 +89,10 @@
       panZoom.fitToBounds(view.getContentBounds());
     });
 
-    const settings = new Bowtie.SettingsController(document.getElementById('btn-settings'), renderAll);
+    // Per-browser preferences (display unit, annotations, auto-arrange
+    // knobs) -- everything that is NOT saved with the document; see
+    // PreferencesController vs ProjectSettingsController.
+    const preferences = new Bowtie.PreferencesController(document.getElementById('btn-preferences'), renderAll);
     // Constructed here (before renderAll's first real call, and before
     // ContextMenuController below needs its getDisplayUnit) even though the
     // toolbar button it's wired to lives further down the settings
@@ -97,7 +100,7 @@
     // const pattern already used for AutoArrangeController's
     // arrangeSpacing/pullChainsCloser callbacks below.
     const projectSettings = new Bowtie.ProjectSettingsController(
-      model, document.getElementById('btn-project-settings'), renderAll,
+      model, document.getElementById('btn-project-settings'),
       document.getElementById('import-risk-matrix-input'),
     );
 
@@ -105,6 +108,9 @@
       addCauseBtn: document.getElementById('btn-add-cause'),
       addOutcomeBtn: document.getElementById('btn-add-outcome'),
       nameEl: document.getElementById('bowtie-name'),
+      // One place to rename the analysis: the title opens Project
+      // Settings › General with Name focused, rather than its own dialog.
+      onRename: () => projectSettings.open({ tab: 'general', focusName: true }),
     });
 
     // File/Add/View/Settings dropdowns (toolbar.md) — the buttons inside
@@ -149,17 +155,17 @@
       svgRoot,
       document.getElementById('btn-auto-arrange'),
       () => panZoom.fitToBounds(view.getContentBounds()),
-      () => settings.arrangeSpacing,
-      () => settings.pullChainsCloser,
+      () => preferences.arrangeSpacing,
+      () => preferences.pullChainsCloser,
     );
     new Bowtie.ContextMenuController(
-      pageScopedModel, svgRoot, () => autoArrange.arrange(), () => projectSettings.getDisplayUnit(),
+      pageScopedModel, svgRoot, () => autoArrange.arrange(), () => preferences.getDisplayUnit(),
       // `nodeLibrary` is constructed further down (design review finding
       // 04's "Delete from Library…" item needs it) -- same closure-over-a-
       // later-const pattern as `settings`/`projectSettings` above.
       (nodeId) => nodeLibrary.openForNode(nodeId),
     );
-    new Bowtie.FocusController(pageScopedModel, svgRoot);
+    const focus = new Bowtie.FocusController(pageScopedModel, svgRoot);
     const importExport = new Bowtie.ImportExportController(
       model,
       svgRoot,
@@ -182,21 +188,41 @@
       panZoom.fitToBounds(view.getContentBounds());
     });
 
-    const nodeLibrary = new Bowtie.NodeLibraryController(model, document.getElementById('btn-manage-ids'));
+    // Edit in the library opens the same Properties modal the canvas
+    // double-click does (ui_fitness_proposal.md S4) -- against the full
+    // `model`, since a library node may have no placement on the active
+    // page, or none at all.
+    const nodeLibrary = new Bowtie.NodeLibraryController(model, document.getElementById('btn-manage-ids'), {
+      openProperties: (el) => Bowtie.openPropertiesModal({ model, el, displayUnit: preferences.getDisplayUnit() }),
+    });
 
     const EXPORT_BUTTON_IDS = ['btn-export-png', 'btn-export-svg', 'btn-export-json'];
-    const warnings = new Bowtie.WarningsController(model, document.getElementById('btn-warnings'), EXPORT_BUTTON_IDS);
+    const warnings = new Bowtie.WarningsController(model, document.getElementById('btn-warnings'), EXPORT_BUTTON_IDS, {
+      // "Show" on a warning row: switch to its page (which re-renders
+      // synchronously via pageTabs.onChange above), focus the node's
+      // lines, and flash the node itself so the eye lands on it.
+      onShow: (warning) => {
+        pageTabs.select(warning.pageId);
+        focus.focusPlacement(warning.id);
+        const placement = model.findById(warning.id);
+        const nodeEl = placement && svgRoot.querySelector(`#nodes-layer .node[data-id="${placement.nodeId}"]`);
+        if (nodeEl) {
+          nodeEl.classList.add('located');
+          setTimeout(() => nodeEl.classList.remove('located'), 1600);
+        }
+      },
+    });
 
     // Document-wide (every page's outcomes), so constructed with `model`
     // rather than `pageScopedModel`, like WarningsController above.
     new Bowtie.RiskSummaryController(
-      model, document.getElementById('btn-risk-summary'), () => projectSettings.getDisplayUnit(),
+      model, document.getElementById('btn-risk-summary'), () => preferences.getDisplayUnit(),
     );
 
     renderAll();
 
     const TOOLBAR_BUTTON_IDS = [
-      'btn-add-cause', 'btn-add-outcome', 'btn-auto-arrange', 'btn-reset-view', 'btn-risk-summary', 'btn-manage-ids', 'btn-settings',
+      'btn-add-cause', 'btn-add-outcome', 'btn-auto-arrange', 'btn-reset-view', 'btn-risk-summary', 'btn-manage-ids', 'btn-preferences',
       'btn-project-settings', 'btn-export-png', 'btn-export-svg', 'btn-export-json', 'btn-import-json',
       'menu-trigger-file', 'menu-trigger-add', 'menu-trigger-view', 'menu-trigger-settings',
     ];

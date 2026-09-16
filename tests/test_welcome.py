@@ -319,7 +319,7 @@ def test_back_from_the_mode_step_keeps_everything_typed(browser, base_url):
         pg.locator(".welcome-more summary").click()
         _fill(pg, "Page name", "Kept page")
         pg.get_by_role("button", name="Next", exact=True).click()
-        pg.locator(".welcome-mode-card[data-mode=quantitative]").click()
+        pg.locator(".mode-card[data-mode=quantitative]").click()
         pg.get_by_role("button", name="Back", exact=True).click()
 
         assert pg.locator(".modal-field:has-text('Analysis title') input").input_value() == "Kept title"
@@ -328,7 +328,7 @@ def test_back_from_the_mode_step_keeps_everything_typed(browser, base_url):
         assert pg.locator(".welcome-more").evaluate("(el) => el.open") is True
         assert pg.locator(".modal-field:has-text('Page name') input").input_value() == "Kept page"
         pg.get_by_role("button", name="Next", exact=True).click()
-        assert "selected" in pg.locator(".welcome-mode-card[data-mode=quantitative]").get_attribute("class")
+        assert "selected" in pg.locator(".mode-card[data-mode=quantitative]").get_attribute("class")
         # And Back from the names step returns to the start screen.
         pg.get_by_role("button", name="Back", exact=True).click()
         pg.get_by_role("button", name="Back", exact=True).click()
@@ -353,7 +353,7 @@ def test_mode_step_defaults_to_simple_with_the_matrix_picker_hidden(browser, bas
     try:
         _go_to_mode_step(pg)
         assert pg.get_by_text("Step 2 of 2").count() == 1
-        cards = pg.locator(".welcome-mode-card")
+        cards = pg.locator(".mode-card")
         assert cards.count() == 3
         assert "selected" in cards.nth(0).get_attribute("class")
         assert pg.locator("input[name=welcome-mode][value=simple]").is_checked()
@@ -374,7 +374,7 @@ def test_choosing_a_risk_mode_sets_mode_and_embeds_the_chosen_matrix_preset(brow
     pg = _fresh_page(browser, base_url)
     try:
         _go_to_mode_step(pg)
-        pg.locator(".welcome-mode-card[data-mode=qualitative]").click()
+        pg.locator(".mode-card[data-mode=qualitative]").click()
         field = pg.locator(".welcome-matrix-field")
         assert field.is_visible()
         assert field.locator("select").input_value() == "leaflet5"

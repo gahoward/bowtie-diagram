@@ -22,10 +22,19 @@
       menu.style.left = `${x}px`;
       menu.style.top = `${y}px`;
 
+      // `{ separator: true }` draws a rule between groups (create /
+      // inspect / destroy -- see ContextMenuController._buildNodeItems);
+      // `danger: true` colours a destructive item.
       items.forEach((item) => {
+        if (item.separator) {
+          const rule = document.createElement('div');
+          rule.className = 'context-menu-separator';
+          menu.appendChild(rule);
+          return;
+        }
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'context-menu-item';
+        btn.className = item.danger ? 'context-menu-item context-menu-item-danger' : 'context-menu-item';
         btn.textContent = item.label;
         btn.addEventListener('click', () => {
           item.action();

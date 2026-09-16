@@ -211,19 +211,22 @@
         items.push({ label: 'Add Mitigative Barrier', action: () => this._addMitigativeControlFrom(el) });
         items.push(...this._buildShuntItems(el.id));
       }
+      // Three groups, separated: create/rearrange (above), inspect, destroy.
+      if (items.length > 0) items.push({ separator: true });
       items.push({ label: 'Properties', action: () => this.flows.rename(el) });
       if (el.type !== 'topLevelEvent' && el.type !== 'hazard') {
+        items.push({ separator: true });
         // "Remove from Page" (node_library_proposal.md, decided): this only
         // ever called deleteElement and always will — the label just stops
         // implying it destroys the node, which may still be placed on other
         // pages, or sit in the library with no placement at all.
-        items.push({ label: 'Remove from Page', action: () => this.model.deleteElement(el.id) });
+        items.push({ label: 'Remove from Page', danger: true, action: () => this.model.deleteElement(el.id) });
         // The actual delete-the-node action lives in Node Library (it can
         // affect every page the node is placed on, so it needs the
         // cross-page confirmation that modal already shows) — this just
-        // opens straight to it, pre-expanded to this exact node, rather
-        // than leaving "how do I really delete this" undiscoverable.
-        items.push({ label: 'Delete from Library…', action: () => this.openNodeLibraryFor(el.nodeId) });
+        // opens straight to it, on this exact node's row, rather than
+        // leaving "how do I really delete this" undiscoverable.
+        items.push({ label: 'Delete from Library…', danger: true, action: () => this.openNodeLibraryFor(el.nodeId) });
       }
       return items;
     }

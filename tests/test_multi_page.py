@@ -124,14 +124,23 @@ def test_wizard_next_disabled_until_all_required_fields_are_non_blank(browser, b
         pg.close()
 
 
-def test_toolbar_rename_modal_and_button_say_analysis_not_bowtie(page):
-    # The button's accessible name is its own text (the analysis title,
-    # e.g. "Untitled Bowtie"), not its `title` attribute -- check that
-    # attribute directly instead of via get_by_role.
+def test_toolbar_title_opens_project_settings_with_the_name_focused(page):
+    """ui_fitness_proposal.md S1: one place to rename the analysis -- the
+    title button opens Project Settings › General with Name focused rather
+    than its own Rename dialog. The button's accessible name is its own
+    text (the analysis title, e.g. "Untitled Bowtie"), not its `title`
+    attribute -- check that attribute directly instead of via get_by_role."""
     assert page.locator("#bowtie-name").get_attribute("title") == "Rename this analysis"
     page.locator("#bowtie-name").click()
-    assert page.get_by_text("Rename Analysis", exact=True).count() == 1
-    assert page.get_by_text("Analysis title", exact=True).count() == 1
+    page.wait_for_timeout(80)
+    assert page.locator(".modal-title").text_content() == "Project Settings"
+    assert page.locator(".settings-tab[aria-selected=true]").text_content() == "General"
+    assert page.evaluate("() => document.activeElement.name") == "analysis-name"
+    page.keyboard.type("Renamed From Title")
+    page.keyboard.press("Enter")
+    page.wait_for_timeout(80)
+    assert page.evaluate("() => window.__lastModel.name") == "Renamed From Title"
+    assert page.locator("#bowtie-name").text_content() == "Renamed From Title"
 
 
 # --- "+ Add page" / edit / delete ---------------------------------------
@@ -318,6 +327,20 @@ def test_dragging_a_node_never_moves_another_pages_elements(page):
 
 
 # --- Many pages: scrollable strip + "Jump to page ▾" -------------------
+
+def test_jump_to_page_only_appears_once_the_tab_strip_overflows(page):
+    """ui_fitness_proposal.md: with every tab visible, "Jump to page"
+    only duplicates them -- it earns its place once the strip overflows."""
+    assert page.locator(".page-jump").is_hidden()
+    _add_second_page(page)
+    assert page.locator(".page-jump").is_hidden()
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      for (let i = 3; i <= 14; i += 1) m.addPage({ name: `A Somewhat Long Page Name ${i}` });
+    }""")
+    page.wait_for_timeout(100)
+    assert page.locator(".page-jump").is_visible()
+
 
 def test_many_pages_tab_strip_scrollable_and_jump_dropdown_reaches_all(page):
     page.evaluate("""() => {
@@ -756,7 +779,7 @@ def test_node_library_retired_row_shows_no_page_info(page):
     }""")
     page.wait_for_timeout(100)
 
-    page.click("#menu-trigger-settings")
+    page.click("#menu-trigger-add")
     page.click("#btn-manage-ids")
     page.wait_for_timeout(100)
     row = page.locator(".id-manager-row").first
@@ -783,7 +806,7 @@ def test_node_library_reassign_dropdown_lists_live_nodes_without_page_info(page)
     }""")
     page.wait_for_timeout(100)
 
-    page.click("#menu-trigger-settings")
+    page.click("#menu-trigger-add")
     page.click("#btn-manage-ids")
     page.wait_for_timeout(100)
 

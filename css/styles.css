@@ -131,15 +131,93 @@ html, body {
   font-size: 11px;
 }
 
-.warning-list {
-  margin: 0;
-  padding-left: 20px;
-  font-size: 13px;
-  color: #374151;
+/* The Warnings modal (WarningsController): two labelled groups of rows --
+   id · name · page · Show, then the finding on its own line. */
+.warnings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.warning-list li {
-  margin-bottom: 6px;
+.warning-group-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.warning-group-head:first-child {
+  margin-top: 0;
+}
+
+.warning-group-blocking .warning-group-label {
+  color: #b91c1c;
+}
+
+.warning-group-advisory .warning-group-label {
+  color: #b45309;
+}
+
+.warning-group-count {
+  color: #6b7280;
+}
+
+.warning-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.warning-row {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto auto;
+  gap: 4px 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.warning-row-icon {
+  font-weight: 700;
+  color: #b45309;
+}
+
+.warning-row-blocking .warning-row-icon {
+  color: #b91c1c;
+}
+
+.warning-row-id {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.warning-row-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.warning-row-page {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  font-size: 11px;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.warning-row-detail {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 12.5px;
+  color: #374151;
 }
 
 #toolbar button {
@@ -388,6 +466,34 @@ html, body {
 
 .context-menu-item:hover {
   background: #eef2ff;
+}
+
+.context-menu-separator {
+  margin: 4px 6px;
+  border-top: 1px solid var(--border);
+}
+
+.context-menu-item-danger {
+  color: #b91c1c;
+}
+
+.context-menu-item-danger:hover {
+  background: #fef2f2;
+}
+
+/* The Warnings modal's "Show": a short pulse on the node it just took
+   the user to, so the eye lands on it after the page switch. */
+.node.located .shape {
+  animation: node-located 1.6s ease-out;
+}
+
+@keyframes node-located {
+  0%, 60% { stroke: #1d4ed8; stroke-width: 4; filter: drop-shadow(0 0 6px rgba(29, 78, 216, 0.6)); }
+  100% { filter: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .node.located .shape { animation: none; stroke: #1d4ed8; stroke-width: 4; }
 }
 
 .node.dimmed .shape,
@@ -768,13 +874,15 @@ html, body {
   color: #6b7280;
 }
 
-.welcome-mode-cards {
+/* The Simple / Qualitative / Quantitative cards (RiskModeCards.js), shared
+   by the welcome wizard's step 2 and Project Settings › Risk analysis. */
+.mode-cards {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 12px;
 }
 
-.welcome-mode-card {
+.mode-card {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -782,22 +890,23 @@ html, body {
   border: 1px solid var(--border);
   border-radius: 8px;
   font-size: 12.5px;
+  font-weight: 400;
   line-height: 1.4;
   color: #6b7280;
   cursor: pointer;
 }
 
-.welcome-mode-card:hover {
+.mode-card:hover {
   background: #f9fafb;
 }
 
-.welcome-mode-card.selected {
+.mode-card.selected {
   border-color: #1d4ed8;
   box-shadow: inset 0 0 0 1px #1d4ed8;
   background: #f5f8ff;
 }
 
-.welcome-mode-card-title {
+.mode-card-title {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -810,6 +919,145 @@ html, body {
   max-width: 520px;
 }
 
+/* Project Settings / Preferences (ui_fitness_proposal.md S2/S3): a tab
+   strip, then rows of label · control · one-line helper. Each row keeps
+   .modal-field so a label and its control share one element. */
+.settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.settings-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-tab {
+  margin-bottom: -1px;
+  padding: 7px 12px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  background: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+}
+
+.settings-tab:hover {
+  color: #111827;
+}
+
+.settings-tab[aria-selected="true"] {
+  color: #111827;
+  background: white;
+  border-color: var(--border);
+  border-bottom: 1px solid white;
+}
+
+.settings-panel,
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-row {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 4px 16px;
+  align-items: start;
+}
+
+.settings-row-label {
+  padding-top: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.settings-row > input,
+.settings-row > select {
+  width: 100%;
+}
+
+.settings-row-help {
+  grid-column: 2;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  color: #6b7280;
+  line-height: 1.4;
+}
+
+.settings-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
+}
+
+.settings-options .modal-checkbox-row {
+  padding: 6px 0;
+  font-weight: 400;
+}
+
+.settings-row > .modal-checkbox-row {
+  padding: 6px 0;
+  font-weight: 400;
+  align-items: flex-start;
+}
+
+.settings-row > .modal-checkbox-row input {
+  margin-top: 3px;
+}
+
+.settings-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-button-row {
+  display: flex;
+  gap: 6px;
+}
+
+.modal-btn-small {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
+.risk-matrix-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  font-size: 12px;
+  font-weight: 400;
+  color: #374151;
+}
+
+.risk-matrix-summary .risk-class-legend {
+  margin-top: 0;
+}
+
+@media (max-width: 720px) {
+  .settings-row {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-row-help {
+    grid-column: 1;
+  }
+
+  .settings-row-label {
+    padding-top: 0;
+  }
+}
+
 /* .modal-field's own display: flex would otherwise beat the UA's
    [hidden] { display: none } while Simple mode has no matrix to pick. */
 .welcome-matrix-field[hidden] {
@@ -819,7 +1067,7 @@ html, body {
 @media (max-width: 720px) {
   .welcome-start,
   .welcome-names,
-  .welcome-mode-cards {
+  .mode-cards {
     grid-template-columns: 1fr;
   }
 }
@@ -1163,21 +1411,6 @@ html, body {
   color: #4b5563;
 }
 
-.id-manager {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  max-height: 60vh;
-  overflow-y: auto;
-}
-
-.id-manager-section h3 {
-  margin: 0 0 6px;
-  font-size: 13px;
-  font-weight: 700;
-  color: #111827;
-}
-
 .id-manager-empty {
   margin: 0;
   font-size: 12px;
@@ -1233,91 +1466,106 @@ html, body {
   border-radius: 6px;
 }
 
-.node-library-subsection {
+/* Add > Node Library (NodeLibraryController, ui_fitness_proposal.md S4):
+   tabs per type (reusing .settings-tabs), an add row, a real table, and
+   the retired-identifier controls under a disclosure. */
+.node-library {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-bottom: 10px;
+  gap: 12px;
 }
 
-.node-library-subsection h4 {
-  margin: 0;
+.node-library-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.node-library-table-wrap {
+  overflow-x: auto;
+}
+
+.node-library-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  color: #111827;
+}
+
+.node-library-table th,
+.node-library-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.node-library-table thead th {
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #9ca3af;
+  color: #6b7280;
+  background: #f9fafb;
 }
 
-.node-library-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.node-library-row.focused td {
+  background: #eef2ff;
 }
 
-.node-library-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 12px;
-}
-
-.node-library-row .id-manager-id {
-  min-width: 40px;
+.node-library-table .id-manager-id {
+  white-space: nowrap;
 }
 
 .node-library-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
   font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .node-library-pages {
-  flex: 2;
-  min-width: 0;
-  overflow: hidden;
-  color: #9ca3af;
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: #6b7280;
+  font-size: 12px;
 }
 
-.node-library-edit-form {
+.node-library-tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.node-library-actions {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.node-library-actions .modal-btn + .modal-btn {
+  margin-left: 4px;
+}
+
+.node-library-retired {
+  font-size: 13px;
+}
+
+.node-library-retired summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #374151;
+}
+
+.node-library-retired-body {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin: -2px 0 4px;
-  padding: 10px;
-  background: #f9fafb;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-}
-
-/* Design review finding 01 -- `.node-library-edit-form`'s own `display: flex`
-   above beats the browser's `[hidden] { display: none }` default at equal
-   specificity (the author stylesheet loads after the UA one), so the
-   `editForm.hidden` toggle NodeLibraryController's Edit button flips had no
-   visible effect: every row's edit form rendered open, always, regardless of
-   whether Edit was ever clicked. Every other class in this file that gets
-   toggled via `.hidden = true/false` already carries this same override
-   (`.warning-badge[hidden]`, `.menu-dropdown[hidden]`, `.attach-list-item
-   [hidden]`, `.page-jump-dropdown[hidden]`) -- this one was simply missed.
-   See DESIGN_NOTES.md's own "CSS [hidden] vs. a class's own display rule"
-   gotcha, which documents exactly this failure mode. */
-.node-library-edit-form[hidden] {
-  display: none;
+  gap: 6px;
+  margin-top: 8px;
+  padding-left: 12px;
+  border-left: 2px solid var(--border);
 }
 
 .node-library-add-row {
   display: flex;
   gap: 6px;
-  margin-top: 4px;
 }
 
 .node-library-add-row input {
@@ -1391,6 +1639,21 @@ html, body {
   font-size: 13px;
   color: #6b7280;
   cursor: pointer;
+  /* Quiet chrome: the edit/delete affordances only show on the active
+     tab, on hover, or when focused from the keyboard -- five pages
+     otherwise reads as a row of icons. Opacity (not display) keeps them
+     in the tab order and clickable. */
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.page-tab.active .page-tab-edit,
+.page-tab.active .page-tab-close,
+.page-tab:hover .page-tab-edit,
+.page-tab:hover .page-tab-close,
+.page-tab-edit:focus-visible,
+.page-tab-close:focus-visible {
+  opacity: 1;
 }
 
 .page-tab-edit:hover,
@@ -1419,6 +1682,10 @@ html, body {
 .page-jump {
   position: relative;
   flex-shrink: 0;
+}
+
+.page-jump[hidden] {
+  display: none;
 }
 
 .page-jump-trigger {

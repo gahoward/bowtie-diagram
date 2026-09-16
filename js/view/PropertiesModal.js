@@ -92,7 +92,9 @@
     swatch.className = 'modal-risk-chip-swatch';
     swatch.style.background = riskClass.colour || '#888';
     const label = document.createElement('span');
-    label.textContent = `${riskClass.id} — ${riskClass.label}`;
+    // Every shipped preset's label already leads with the letter ("A -
+    // Intolerable"), so the label alone is the whole chip text.
+    label.textContent = riskClass.label;
     chip.appendChild(swatch);
     chip.appendChild(label);
     return chip;
@@ -253,18 +255,24 @@
       hint.textContent = `Internal id: ${node.id}`;
       identitySection.appendChild(hint);
     }
+    body.appendChild(identitySection);
+
+    // Barrier metadata (design review finding 10, phase 1) is descriptive
+    // -- who owns it, what kind, how good -- not identity, so it gets its
+    // own section rather than padding out Identity.
     let barrierTypeField = null;
     let ownerField = null;
     let effectivenessField = null;
     if (isBarrier) {
+      const barrierSection = makeSection('Barrier');
       barrierTypeField = makeSelectField('Barrier type', BARRIER_TYPES, node.barrierType);
-      identitySection.appendChild(barrierTypeField.wrap);
+      barrierSection.appendChild(barrierTypeField.wrap);
       ownerField = makeTextField('Owner', node.owner);
-      identitySection.appendChild(ownerField.wrap);
+      barrierSection.appendChild(ownerField.wrap);
       effectivenessField = makeSelectField('Effectiveness', EFFECTIVENESS_LEVELS, node.effectiveness);
-      identitySection.appendChild(effectivenessField.wrap);
+      barrierSection.appendChild(effectivenessField.wrap);
+      body.appendChild(barrierSection);
     }
-    body.appendChild(identitySection);
 
     let riskFields = null;
     if (isNode && model.mode !== 'simple') {

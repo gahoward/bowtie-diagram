@@ -1,62 +1,87 @@
-"""UI-level coverage for NodeLibraryController (design review finding 05).
-Before this file, nothing drove the modal itself: editing a node in place,
-deleting one with its cascading confirmation, adding straight to the
-library, and the "placed on which pages" display were all untested at the
-controller level -- an entire control was once removed from this modal in
-a session and the full (model-level-only) suite stayed green. These are
-exactly the paths where the facade bugs test_properties_modal.py guards
-against would have surfaced: driven through the real modal, not by calling
-model methods directly.
+"""UI-level coverage for NodeLibraryController (design review finding 05,
+reworked per ui_fitness_proposal.md S4): Add › Node Library… is a wide,
+tabbed manager -- one tab per node type with a count, an add-to-library
+row, a table of every live node (id, name, pages placed on) with Edit
+(opens the shared Properties modal) and Delete (with its cascading
+confirmation), and the retired-identifier controls under a collapsed
+disclosure. Driven through the real modal, not by calling model methods
+directly -- exactly the paths where facade bugs surface.
 """
 from helpers import click_menu_item
 
 
 def _open_node_library(page):
-    page.click("#menu-trigger-settings")
+    page.click("#menu-trigger-add")
     page.click("#btn-manage-ids")
     page.wait_for_timeout(100)
 
 
-def test_edit_forms_are_collapsed_by_default(page):
-    """Design review finding 01: `.node-library-edit-form` used to set
-    `display: flex` with no `[hidden]` override, so the browser's default
-    `[hidden] { display: none }` lost the cascade and every row's edit form
-    rendered open on load, whether Edit had ever been clicked or not."""
+def _row(page, name):
+    return page.locator(".node-library-row", has_text=name)
+
+
+def test_library_is_tabbed_per_type_with_counts(page):
     page.evaluate("""() => {
       const m = window.__lastModel;
       m.addCause({ x: 150, y: 200, name: 'Gas Release' });
       m.addCause({ x: 150, y: 400, name: 'Flange Leak' });
+      m.addOutcome({ x: 1200, y: 200, name: 'Fire' });
     }""")
     page.wait_for_timeout(80)
     _open_node_library(page)
 
-    forms = page.locator(".node-library-edit-form")
-    assert forms.count() == 2
-    for i in range(forms.count()):
-        assert not forms.nth(i).is_visible()
+    assert page.locator(".modal-dialog-xwide").count() == 1
+    tabs = page.locator(".node-library .settings-tab")
+    assert tabs.all_text_contents() == ["Causes (2)", "Outcomes (1)", "Preventative (0)", "Mitigative (0)"]
+    assert page.locator(".node-library-row").count() == 2
+    assert page.locator(".node-library-name").all_text_contents() == ["Gas Release", "Flange Leak"]
+
+    tabs.nth(1).click()
+    page.wait_for_timeout(80)
+    assert page.locator(".node-library-name").all_text_contents() == ["Fire"]
+    tabs.nth(2).click()
+    page.wait_for_timeout(80)
+    assert page.locator(".node-library-row").count() == 0
+    assert "No preventative yet" in page.locator(".node-library-panel").text_content()
 
 
-def test_edit_in_place_saves_through_rename_node(page):
+def test_edit_opens_the_shared_properties_modal_and_saves_through_rename_node(page):
     page.evaluate("() => { window.__lastModel.addCause({x: 150, y: 200, name: 'Gas Release'}); }")
     page.wait_for_timeout(80)
     _open_node_library(page)
 
-    container = page.locator(".node-library-list > div", has_text="Gas Release")
-    container.get_by_role("button", name="Edit", exact=True).click()
-    form = container.locator(".node-library-edit-form")
-    assert form.is_visible()
-    form.locator(".modal-field:has-text('Name') input").fill("Gas Release (Revised)")
-    form.get_by_role("button", name="Save", exact=True).click()
+    _row(page, "Gas Release").get_by_role("button", name="Edit", exact=True).click()
+    page.wait_for_timeout(80)
+    props = page.locator(".modal-overlay").last
+    assert props.locator(".modal-title").text_content() == "C_1 — Cause"
+    props.locator(".modal-section:has-text('Identity') input[type=text]").fill("Gas Release (Revised)")
+    props.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_timeout(80)
 
-    container = page.locator(".node-library-list > div", has_text="Gas Release (Revised)")
-    assert container.locator(".node-library-name").text_content() == "Gas Release (Revised)"
-
-    node_name = page.evaluate("""() => {
-      const m = window.__lastModel;
-      return m.getNode(m.causes[0].nodeId).name;
-    }""")
+    assert page.locator(".modal-overlay").count() == 1, "back to the library, which re-rendered"
+    assert _row(page, "Gas Release (Revised)").locator(".node-library-name").text_content() == "Gas Release (Revised)"
+    node_name = page.evaluate("() => { const m = window.__lastModel; return m.getNode(m.causes[0].nodeId).name; }")
     assert node_name == "Gas Release (Revised)"
+
+
+def test_edit_works_for_a_node_with_no_placement(page):
+    page.evaluate("() => { window.__lastModel.addNode('outcome', { name: 'Staged Outcome' }); }")
+    page.wait_for_timeout(80)
+    _open_node_library(page)
+    page.locator(".node-library .settings-tab[data-type=outcome]").click()
+    page.wait_for_timeout(80)
+
+    row = _row(page, "Staged Outcome")
+    assert row.locator(".node-library-tag").text_content() == "Not placed yet"
+    row.get_by_role("button", name="Edit", exact=True).click()
+    page.wait_for_timeout(80)
+    props = page.locator(".modal-overlay").last
+    assert props.locator(".modal-title").text_content() == "O_1 — Outcome"
+    assert props.locator(".modal-section:has-text('Computed')").count() == 0, "nothing computed without a placement"
+    props.locator(".modal-section:has-text('Identity') input[type=text]").fill("Staged (Renamed)")
+    props.get_by_role("button", name="Save", exact=True).click()
+    page.wait_for_timeout(80)
+    assert page.evaluate("() => window.__lastModel.library.outcome[0].name") == "Staged (Renamed)"
 
 
 def test_delete_cascades_across_pages_and_retires_the_id(page):
@@ -72,13 +97,13 @@ def test_delete_cascades_across_pages_and_retires_the_id(page):
     page.wait_for_timeout(80)
     _open_node_library(page)
 
-    container = page.locator(".node-library-list > div", has_text="Shared Threat")
-    pages_text = container.locator(".node-library-pages").text_content()
-    assert "Page A" in pages_text and "Page B" in pages_text
+    row = _row(page, "Shared Threat")
+    assert row.locator(".node-library-pages").text_content() == "Page A, Page B"
 
-    container.get_by_role("button", name="Delete", exact=True).click()
+    row.get_by_role("button", name="Delete", exact=True).click()
     confirm_overlay = page.locator(".modal-overlay").last
     assert confirm_overlay.locator(".modal-title").text_content() == "Delete Node"
+    assert "2 placement(s) across 2 page(s)" in confirm_overlay.text_content()
     confirm_overlay.get_by_role("button", name="Delete", exact=True).click()
     page.wait_for_timeout(80)
 
@@ -89,17 +114,21 @@ def test_delete_cascades_across_pages_and_retires_the_id(page):
       return entry ? {{ id: entry.id, reEnabled: entry.reEnabled }} : null;
     }}""")
     assert retired_entry == {"id": node_id, "reEnabled": False}
+    # ...and the retired disclosure now counts it, still collapsed.
+    retired = page.locator(".node-library-retired")
+    assert retired.locator("summary").text_content() == "Retired identifiers (1)"
+    assert retired.evaluate("(el) => el.open") is False
 
 
 def test_add_to_library_creates_a_node_with_zero_placements(page):
     _open_node_library(page)
-    section = page.locator(".id-manager-section", has_text="Causes")
-    section.locator(".node-library-add-row input").fill("Staged Threat")
-    section.locator(".node-library-add-row").get_by_role("button", name="Add to Library").click()
+    page.locator(".node-library-add-row input").fill("Staged Threat")
+    page.locator(".node-library-add-row input").press("Enter")
     page.wait_for_timeout(80)
 
-    row = section.locator(".node-library-row", has_text="Staged Threat")
-    assert "Not placed on any page yet" in row.locator(".node-library-pages").text_content()
+    row = _row(page, "Staged Threat")
+    assert row.locator(".node-library-tag").text_content() == "Not placed yet"
+    assert page.locator(".node-library .settings-tab[data-type=cause]").text_content() == "Causes (1)"
 
     placements = page.evaluate("""() => {
       const m = window.__lastModel;
@@ -118,8 +147,7 @@ def test_library_row_page_list_reflects_placements_as_they_are_added(page):
     page.wait_for_timeout(80)
     _open_node_library(page)
 
-    row = page.locator(".node-library-row", has_text="Reused Threat")
-    assert row.locator(".node-library-pages").text_content() == "Placed on: Page A"
+    assert _row(page, "Reused Threat").locator(".node-library-pages").text_content() == "Page A"
 
     page.evaluate("""() => {
       const m = window.__lastModel;
@@ -129,9 +157,7 @@ def test_library_row_page_list_reflects_placements_as_they_are_added(page):
     }""")
     page.wait_for_timeout(80)
 
-    row = page.locator(".node-library-row", has_text="Reused Threat")
-    text = row.locator(".node-library-pages").text_content()
-    assert "Page A" in text and "Page B" in text
+    assert _row(page, "Reused Threat").locator(".node-library-pages").text_content() == "Page A, Page B"
 
 
 def test_delete_from_library_context_menu_item_opens_straight_to_the_node(page):
@@ -139,21 +165,27 @@ def test_delete_from_library_context_menu_item_opens_straight_to_the_node(page):
     option used to be "Remove from Page", which reads like delete but only
     ever un-places it from the current page -- nothing pointed at where a
     real delete actually lives. "Delete from Library…" closes that gap by
-    opening this exact modal pre-expanded to this exact node."""
-    page.evaluate("() => { window.__lastModel.addCause({ x: 150, y: 200, name: 'Gas Release' }); }")
+    opening this exact modal on the right tab with this exact row
+    highlighted."""
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.addCause({ x: 150, y: 200, name: 'Gas Release' });
+      const o = m.addOutcome({ x: 1200, y: 200, name: 'Fire' });
+      m.addMitigativeControl(o.id);
+    }""")
     page.wait_for_timeout(80)
 
-    node = page.locator('#bowtie-canvas .node.cause[data-id="C_1"]')
-    node.click(button="right")
+    page.locator('#bowtie-canvas .node.mitigative-barrier[data-id="MB_1"]').click(button="right")
     assert "Delete from Library…" in page.locator(".context-menu-item").all_text_contents()
     click_menu_item(page, "Delete from Library")
     page.wait_for_timeout(100)
 
     assert page.locator(".modal-title").text_content() == "Node Library"
-    container = page.locator(".node-library-list > div", has_text="Gas Release")
-    form = container.locator(".node-library-edit-form")
-    assert form.is_visible(), "the node the menu item was invoked on must open pre-expanded"
-    assert form.locator(".modal-field:has-text('Name') input").input_value() == "Gas Release"
+    assert page.locator(".node-library .settings-tab[aria-selected=true]").text_content() == "Mitigative (1)"
+    focused = page.locator(".node-library-row.focused")
+    assert focused.count() == 1
+    assert focused.locator(".id-manager-id").text_content() == "MB_1"
+    assert focused.get_by_role("button", name="Delete", exact=True).is_visible()
 
 
 def test_focused_node_does_not_leak_into_a_later_ordinary_open(page):
@@ -163,8 +195,9 @@ def test_focused_node_does_not_leak_into_a_later_ordinary_open(page):
     page.locator('#bowtie-canvas .node.cause[data-id="C_1"]').click(button="right")
     click_menu_item(page, "Delete from Library")
     page.wait_for_timeout(100)
-    page.get_by_role("button", name="Close", exact=True).click()
+    assert page.locator(".node-library-row.focused").count() == 1
+    page.get_by_role("button", name="Done", exact=True).click()
     page.wait_for_timeout(80)
 
     _open_node_library(page)
-    assert not page.locator(".node-library-edit-form").first.is_visible()
+    assert page.locator(".node-library-row.focused").count() == 0

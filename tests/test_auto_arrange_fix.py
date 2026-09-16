@@ -22,20 +22,19 @@ from helpers import auto_arrange
 
 def _set_arrange_spacing(page, value):
     page.click("#menu-trigger-settings")
-    page.click("#btn-settings")
+    page.click("#btn-preferences")
     page.locator(".modal-checkbox-row", has_text=value).click()
-    page.get_by_role("button", name="Close", exact=True).click()
+    page.get_by_role("button", name="Done", exact=True).click()
     page.wait_for_timeout(80)
 
 
 def _set_pull_chains_closer(page, checked):
     page.click("#menu-trigger-settings")
-    page.click("#btn-settings")
-    row = page.locator(".modal-checkbox-row", has_text="Pull causes/outcomes closer")
-    box = row.locator("input[type=checkbox]")
+    page.click("#btn-preferences")
+    box = page.locator("input[name=pull-chains-closer]")
     if box.is_checked() != checked:
-        row.click()
-    page.get_by_role("button", name="Close", exact=True).click()
+        box.click()
+    page.get_by_role("button", name="Done", exact=True).click()
     page.wait_for_timeout(80)
 
 
@@ -148,10 +147,10 @@ def test_bare_cause_bend_also_clears_the_hazard(page):
 
 def test_settings_modal_offers_the_pull_chains_closer_toggle(page):
     page.click("#menu-trigger-settings")
-    page.click("#btn-settings")
+    page.click("#btn-preferences")
     texts = page.locator(".modal-checkbox-row").all_text_contents()
-    assert any("Pull causes/outcomes closer" in t for t in texts)
-    page.get_by_role("button", name="Close", exact=True).click()
+    assert any("Pull a cause or outcome in toward the top event" in t for t in texts)
+    page.get_by_role("button", name="Done", exact=True).click()
 
 
 def test_pull_chains_closer_off_matches_todays_fixed_column_behavior(page):

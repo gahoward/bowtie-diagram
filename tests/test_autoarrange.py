@@ -738,9 +738,9 @@ def test_mixed_bare_and_barrier_rows_never_overlap_in_either_spacing_mode(page):
     assert loose["boxOverlaps"] == 0
 
     page.click("#menu-trigger-settings")
-    page.click("#btn-settings")
+    page.click("#btn-preferences")
     page.locator(".modal-checkbox-row", has_text="Tight").click()
-    page.get_by_role("button", name="Close", exact=True).click()
+    page.get_by_role("button", name="Done", exact=True).click()
     page.wait_for_timeout(80)
     auto_arrange(page)
     page.wait_for_timeout(150)
