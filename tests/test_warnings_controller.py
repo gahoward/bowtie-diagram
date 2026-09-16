@@ -63,7 +63,7 @@ def test_show_on_a_warning_row_switches_page_and_focuses_the_node(page):
     page.evaluate("""() => {
       const m = window.__lastModel;
       const p2 = m.pages[1].id;
-      const c3 = m.addCause({ x: 150, y: 600, pageId: p2.id, name: 'Lonely' });
+      const c3 = m.addCause({ x: 150, y: 600, pageId: p2, name: 'Lonely' });
       m.addPreventativeControl(c3.id);
       m.connectLineDirectlyToTle(m._lineFor(c3.id).id, null);
     }""")
