@@ -798,6 +798,19 @@ html, body {
   color: #6b7280;
 }
 
+.risk-summary-page {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.risk-summary-page-title {
+  margin: 4px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+
 .risk-summary-table-wrap {
   overflow-x: auto;
 }

@@ -11,11 +11,11 @@
   both classes and both likelihoods. Quantitative mode only -- a
   Qualitative likelihood is a manual pick with no barrier arithmetic to
   remove, so it keeps its single badge. Model API: `assessConsequence`.
-- Added View > "Risk Summary…": every Outcome in the document, across all
-  pages, ranked worst-first by post-mitigation risk class (then pre-
-  mitigation class, severity, likelihood), with its severity and the pre-
-  and post-mitigation likelihood and risk class side by side. Model API:
-  `computeRiskSummary`.
+- Added View > "Risk Summary…": one table per page, each ranking that
+  page's Outcomes worst-first by post-mitigation risk class (then pre-
+  mitigation class, severity, likelihood), with severity and the pre- and
+  post-mitigation likelihood and risk class side by side. Model API:
+  `computeRiskSummary(pageId)`.
 - The browser now asks for confirmation before the tab or window closes
   with unsaved changes (edits since the last JSON export/import).
 

@@ -165,6 +165,17 @@ def test_risk_summary_ranks_every_outcome_worst_first_across_pages(page):
     assert rows[1]["page"] == "Second"
 
 
+def test_risk_summary_can_be_scoped_to_one_page_with_ranks_restarting(page):
+    _build_ranked_scenario(page)
+    result = page.evaluate("""() => {
+      const m = window.__lastModel;
+      const per = (pageId) => m.computeRiskSummary(pageId).map((r) => [r.rank, r.name, r.pageName]);
+      return { first: per(m.pages[0].id), second: per(m.pages[1].id) };
+    }""")
+    assert result["first"] == [[1, "Worst", "Untitled Page"], [2, "Mitigated", "Untitled Page"], [3, "Unrated", "Untitled Page"]]
+    assert result["second"] == [[1, "Elsewhere", "Second"]]
+
+
 def test_risk_summary_tie_breaks_equal_residual_class_by_pre_mitigation_class(page):
     # Two catastrophic outcomes both residual C: the one that got there
     # from A (relying on a barrier) is more fragile than one that started
@@ -228,42 +239,46 @@ def test_risk_summary_modal_tabulates_ranked_outcomes(page):
     _build_ranked_scenario(page)
     _open_summary(page)
     rows = _table_rows(page)
-    assert [r["rank"] for r in rows] == ["1", "2", "3", "4"]
-    # Multi-page document: rank, outcome, page, severity, then the two
-    # (likelihood, risk class) pairs.
-    assert len(rows[0]["cells"]) == 8
+    # One table per page: page one's three outcomes ranked 1-3, then page
+    # two's single outcome starting again at 1.
+    assert [r["rank"] for r in rows] == ["1", "2", "3", "1"]
+    # rank, outcome, severity, then the two (likelihood, risk class) pairs.
+    assert len(rows[0]["cells"]) == 7
     first = rows[0]["cells"]
     assert first[1].startswith("O_1") and "Worst" in first[1]
-    assert first[3] == "Catastrophic"
-    assert first[4].startswith("1/hr") and "Frequent" in first[4]
-    assert "A - Intolerable" in first[5]
-    assert "A - Intolerable" in first[7]
-    mitigated = rows[2]["cells"]
+    assert first[2] == "Catastrophic"
+    assert first[3].startswith("1/hr") and "Frequent" in first[3]
+    assert "A - Intolerable" in first[4]
+    assert "A - Intolerable" in first[6]
+    mitigated = rows[1]["cells"]
     assert "Mitigated" in mitigated[1]
-    assert "A - Intolerable" in mitigated[5]
-    assert mitigated[6].startswith("1e-12/hr")
-    assert "C - Tolerable" in mitigated[7]
-    unrated = rows[3]["cells"]
-    assert unrated[3] == "—" and unrated[5] == "—" and unrated[7] == "—"
+    assert "A - Intolerable" in mitigated[4]
+    assert mitigated[5].startswith("1e-12/hr")
+    assert "C - Tolerable" in mitigated[6]
+    unrated = rows[2]["cells"]
+    assert unrated[2] == "—" and unrated[4] == "—" and unrated[6] == "—"
+    assert "Elsewhere" in rows[3]["cells"][1]
     # Header groups name the two phases.
-    head = page.locator(".risk-summary-table thead").text_content()
+    head = page.locator(".risk-summary-table thead").first.text_content()
     assert "Pre-mitigation" in head and "Post-mitigation" in head
     page.get_by_role("button", name="Close", exact=True).click()
 
 
-def test_risk_summary_modal_omits_the_page_column_on_a_single_page_document(page):
-    page.evaluate(f"""() => {{
-      const m = window.__lastModel;
-      m.setMode('quantitative');
-      m.setRiskMatrix({LEAFLET5});
-      m.addOutcome({{ name: 'Only' }});
-    }}""")
+def test_risk_summary_modal_has_one_section_per_page_in_page_order(page):
+    _build_ranked_scenario(page)
+    page.evaluate("() => { window.__lastModel.addPage({ name: 'Empty' }); }")
     page.wait_for_timeout(80)
     _open_summary(page)
-    rows = _table_rows(page)
-    assert len(rows) == 1
-    assert len(rows[0]["cells"]) == 7
-    assert "Page" not in page.locator(".risk-summary-table thead").text_content()
+    sections = page.evaluate("""() => Array.from(document.querySelectorAll('.risk-summary-page')).map((s) => ({
+      title: s.querySelector('.risk-summary-page-title').textContent,
+      tables: s.querySelectorAll('.risk-summary-table').length,
+      rows: s.querySelectorAll('tbody tr').length,
+      empty: s.querySelector('.risk-summary-empty') ? s.querySelector('.risk-summary-empty').textContent : null,
+    }))""")
+    assert [s["title"] for s in sections] == ["Untitled Page", "Second", "Empty"]
+    assert [s["rows"] for s in sections] == [3, 1, 0]
+    assert sections[2]["tables"] == 0
+    assert sections[2]["empty"] == "No outcomes on this page."
     page.get_by_role("button", name="Close", exact=True).click()
 
 

@@ -224,10 +224,13 @@
       };
     }
 
-    // Every Outcome placement in the document (all pages), each with its
-    // assessConsequence picture, ranked worst-first. Rows carry the
-    // display id/name/page a table needs so the summary UI stays a pure
-    // renderer of this. Same null-return rule as assessConsequence.
+    // Every Outcome placement on `pageId` (or, with no pageId, in the whole
+    // document), each with its assessConsequence picture, ranked worst-
+    // first with `rank` numbered 1..n over the returned set. Rows carry
+    // the display id/name/page a table needs so the summary UI stays a
+    // pure renderer of this -- RiskSummaryController calls it once per
+    // page, in document page order, for its page-by-page tables. Same
+    // null-return rule as assessConsequence.
     //
     // Ranking (each key a tie-break for the one before it):
     //   1. post-mitigation risk class -- the residual risk is what's
@@ -243,9 +246,10 @@
     // validator doesn't impose any other ordering, so array order is the
     // only severity order a matrix carries. An outcome whose class can't
     // be determined yet sorts after every one whose class can.
-    computeRiskSummary() {
+    computeRiskSummary(pageId = null) {
       const model = this.model;
       if (model.mode === 'simple' || !model.riskMatrix) return null;
+      const outcomes = pageId === null ? model.outcomes : model.outcomesForPage(pageId);
       const matrix = model.riskMatrix;
       const riskRank = (riskClass) => {
         if (!riskClass) return Infinity;
@@ -264,7 +268,7 @@
         return compareRank(bo, ao);
       };
 
-      const rows = model.outcomes.map((outcome) => {
+      const rows = outcomes.map((outcome) => {
         const node = model.getNode(outcome.nodeId);
         const page = model.getPage(outcome.pageId);
         return {

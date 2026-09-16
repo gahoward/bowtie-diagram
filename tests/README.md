@@ -211,10 +211,11 @@ step for the app itself, so tests run directly against `index.html` as-is.
   (quantitative_mode_proposal.md's inherent/residual pair): model-level
   `assessConsequence` (both sides of the bowtie stripped, no pre half in
   Qualitative mode, nulls until determinable) and `computeRiskSummary`'s
-  worst-first ranking across pages and its pre-mitigation tie-break; then
-  the View › "Risk Summary…" modal — menu placement, the mode/matrix empty
-  states, the ranked table's cells, the Page column appearing only on a
-  multi-page document, Qualitative dashes, the excluded-cause footnote,
+  worst-first ranking (document-wide or scoped to one page, ranks
+  restarting per page) and its pre-mitigation tie-break; then the View ›
+  "Risk Summary…" modal — menu placement, the mode/matrix empty states,
+  the ranked table's cells, one section per page in page order (with an
+  empty-page message), Qualitative dashes, the excluded-cause footnote,
   and in-place refresh while open.
 - **`test_unsaved_changes.py`** — the `beforeunload` guard: a fresh
   document is clean, any edit (undo included) marks it dirty, a completed

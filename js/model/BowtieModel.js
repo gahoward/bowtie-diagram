@@ -704,8 +704,8 @@
       return this._quantitative.assessConsequence(outcomeId);
     }
 
-    computeRiskSummary() {
-      return this._quantitative.computeRiskSummary();
+    computeRiskSummary(pageId = null) {
+      return this._quantitative.computeRiskSummary(pageId);
     }
 
     // barrier_measures_proposal.md's demand-rate readout -- see

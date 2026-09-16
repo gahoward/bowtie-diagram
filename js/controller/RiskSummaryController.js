@@ -17,14 +17,17 @@
     return node;
   }
 
-  // View > "Risk Summary…": every Outcome in the document ranked worst-
-  // first, with its pre-mitigation (every barrier removed) and post-
-  // mitigation (residual) likelihood and risk class side by side -- the
-  // ALARP before/after picture quantitative_mode_proposal.md asks for,
-  // as one table rather than one badge pair per node. A pure renderer of
-  // BowtieModel.computeRiskSummary (ranking and every figure live there),
-  // re-rendered in place on every model change while open, the same way
-  // WarningsController keeps its list live.
+  // View > "Risk Summary…": one table per page, in document page order,
+  // each ranking that page's Outcomes worst-first with their pre-
+  // mitigation (every barrier removed) and post-mitigation (residual)
+  // likelihood and risk class side by side -- the ALARP before/after
+  // picture quantitative_mode_proposal.md asks for, as a table rather
+  // than one badge pair per node. Page by page (rather than one document-
+  // wide ranking) because each page is its own bowtie with its own TLE
+  // likelihood, so ranks only compare like with like within a page. A
+  // pure renderer of BowtieModel.computeRiskSummary (ranking and every
+  // figure live there), re-rendered in place on every model change while
+  // open, the same way WarningsController keeps its list live.
   class RiskSummaryController {
     constructor(model, button, getDisplayUnit) {
       this.model = model;
@@ -64,15 +67,14 @@
           'No risk matrix selected — pick one in Project Settings.'));
         return wrap;
       }
-      const rows = model.computeRiskSummary();
-      if (rows.length === 0) {
+      if (model.outcomes.length === 0) {
         wrap.appendChild(el('p', 'risk-summary-empty', 'No outcomes yet.'));
         return wrap;
       }
 
       const quantitative = model.mode === 'quantitative';
       wrap.appendChild(el('p', 'risk-summary-intro',
-        'Every outcome in the document, ranked worst-first by post-mitigation risk class, then '
+        "Each page's outcomes, ranked worst-first by post-mitigation risk class, then "
         + 'pre-mitigation class, severity and likelihood. '
         + (quantitative
           ? 'Pre-mitigation figures are the same calculation with every barrier removed; severity is a '
@@ -80,20 +82,30 @@
           : 'Pre-mitigation figures need Quantitative mode — a Qualitative likelihood is picked by hand, '
             + 'with no barrier arithmetic to remove.')));
 
-      const multiPage = model.pages.length > 1;
-      const table = el('table', 'risk-summary-table');
-      table.appendChild(this._buildHead(multiPage));
-      const tbody = document.createElement('tbody');
       let anyExcluded = false;
-      rows.forEach((row) => {
-        const tr = this._buildRow(row, multiPage);
-        tbody.appendChild(tr);
-        if (row.post.likelihood && row.post.likelihood.excludedThreatCount) anyExcluded = true;
+      model.pages.forEach((page) => {
+        const section = el('section', 'risk-summary-page');
+        section.dataset.pageId = page.id;
+        section.appendChild(el('h3', 'risk-summary-page-title', page.name));
+        const rows = model.computeRiskSummary(page.id);
+        if (rows.length === 0) {
+          section.appendChild(el('p', 'risk-summary-empty', 'No outcomes on this page.'));
+          wrap.appendChild(section);
+          return;
+        }
+        const table = el('table', 'risk-summary-table');
+        table.appendChild(this._buildHead());
+        const tbody = document.createElement('tbody');
+        rows.forEach((row) => {
+          tbody.appendChild(this._buildRow(row));
+          if (row.post.likelihood && row.post.likelihood.excludedThreatCount) anyExcluded = true;
+        });
+        table.appendChild(tbody);
+        const tableWrap = el('div', 'risk-summary-table-wrap');
+        tableWrap.appendChild(table);
+        section.appendChild(tableWrap);
+        wrap.appendChild(section);
       });
-      table.appendChild(tbody);
-      const tableWrap = el('div', 'risk-summary-table-wrap');
-      tableWrap.appendChild(table);
-      wrap.appendChild(tableWrap);
 
       if (anyExcluded) {
         wrap.appendChild(el('p', 'risk-summary-note',
@@ -102,7 +114,7 @@
       return wrap;
     }
 
-    _buildHead(multiPage) {
+    _buildHead() {
       const thead = document.createElement('thead');
       const top = document.createElement('tr');
       const bottom = document.createElement('tr');
@@ -113,7 +125,6 @@
       };
       rowSpan('#');
       rowSpan('Outcome');
-      if (multiPage) rowSpan('Page');
       rowSpan('Severity');
       ['Pre-mitigation', 'Post-mitigation'].forEach((label) => {
         const th = el('th', 'risk-summary-group', label);
@@ -127,7 +138,7 @@
       return thead;
     }
 
-    _buildRow(row, multiPage) {
+    _buildRow(row) {
       const tr = document.createElement('tr');
       tr.dataset.outcomeId = row.outcomeId;
       tr.dataset.rank = String(row.rank);
@@ -139,7 +150,6 @@
         outcomeCell.appendChild(el('span', 'risk-summary-sub', row.name));
       }
       tr.appendChild(outcomeCell);
-      if (multiPage) tr.appendChild(el('td', null, row.pageName));
       tr.appendChild(el('td', null, row.severity ? row.severity.label : '—'));
 
       [row.pre, row.post].forEach((assessment) => {
