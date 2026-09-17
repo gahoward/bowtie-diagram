@@ -1,9 +1,13 @@
 (function (Bowtie) {
   class CanvasView {
+    // The live canvas names its two layers by id; an off-screen render
+    // surface (ExportUtil.renderPageToSvg, for exporting a page that
+    // isn't the active one) uses classes instead, so the document never
+    // carries duplicate ids.
     constructor(svgRoot) {
       this.svgRoot = svgRoot;
-      this.connectionsLayer = svgRoot.querySelector('#connections-layer');
-      this.nodesLayer = svgRoot.querySelector('#nodes-layer');
+      this.connectionsLayer = svgRoot.querySelector('#connections-layer, .connections-layer');
+      this.nodesLayer = svgRoot.querySelector('#nodes-layer, .nodes-layer');
       this.boundsById = {};
       this._contentBounds = null;
     }

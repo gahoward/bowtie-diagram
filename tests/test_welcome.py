@@ -104,6 +104,34 @@ def test_explore_the_demo_populates_the_editor_and_dismisses_the_modal(browser, 
         pg.close()
 
 
+def test_every_demo_variant_loads_with_no_warnings(browser, base_url):
+    """proposals/06: the demo is the first thing a new user sees, so it
+    must not open with the warnings badge lit. The Quantitative variant's
+    cause frequencies are per-year magnitudes (~0.01-0.1/yr) precisely so
+    its low-demand barrier measures sit on the correct side of IEC
+    61511's ~1/year boundary. `C_4 Unknown` stays: the excluded-cause
+    rule is a deliberate teaching case and raises no warning."""
+    pg = _fresh_page(browser, base_url)
+    try:
+        for variant in ("simple", "qualitative", "quantitative"):
+            messages = pg.evaluate(
+                """(v) => {
+                  window.__lastImportExport.loadDocument(Bowtie.DEMO_DATA_VARIANTS[v]);
+                  return window.__lastModel.getWarnings().map((w) => w.message);
+                }""",
+                variant,
+            )
+            assert messages == [], f"the {variant} demo must load clean, got: {messages}"
+        # ...and the quantitative variant still spans several risk classes,
+        # so the summary and the pre -> post badges have something to show.
+        classes = pg.evaluate("""() => new Set(window.__lastModel.computeRiskSummary()
+          .map((r) => r.post.riskClass && r.post.riskClass.id).filter(Boolean)).size""")
+        assert classes >= 3, "the demo should show a spread of residual risk classes"
+    finally:
+        assert pg.errors == []
+        pg.close()
+
+
 def test_demo_chooser_picks_which_variant_loads(browser, base_url):
     pg = _fresh_page(browser, base_url)
     try:

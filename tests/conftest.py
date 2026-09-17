@@ -6,7 +6,8 @@ so this is literally just `index.html` and its `js`/`css` next to it), and a
 through the "New Bowtie" welcome flow, ready to drive.
 
 The `window.__lastModel` / `window.__lastView` / `window.__lastUndo` /
-`window.__lastUnsavedChanges` / `window.__lastImportExport` capture trick
+`window.__lastUnsavedChanges` / `window.__lastImportExport` /
+`window.__lastRecovery` / `window.__lastRecentFiles` capture trick
 (see INIT_SCRIPT) lets tests reach into `BowtieModel`/`CanvasView`/
 `UndoController`/`UnsavedChangesController`/`ImportExportController`
 directly via `page.evaluate`, without the app needing to expose them itself — it wraps each with a subclass that stashes
@@ -58,6 +59,24 @@ window.Bowtie = new Proxy({}, {
       const Orig = value;
       class Wrapped extends Orig {
         constructor(...a) { super(...a); window.__lastUnsavedChanges = this; }
+      }
+      target[prop] = Wrapped;
+      return true;
+    }
+    if (prop === 'RecoveryController') {
+      const Orig = value;
+      class Wrapped extends Orig {
+        constructor(...a) { super(...a); window.__lastRecovery = this; }
+      }
+      Wrapped.describeTime = Orig.describeTime;
+      Wrapped.STORAGE_KEY = Orig.STORAGE_KEY;
+      target[prop] = Wrapped;
+      return true;
+    }
+    if (prop === 'RecentFilesController') {
+      const Orig = value;
+      class Wrapped extends Orig {
+        constructor(...a) { super(...a); window.__lastRecentFiles = this; }
       }
       target[prop] = Wrapped;
       return true;

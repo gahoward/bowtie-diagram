@@ -27,7 +27,7 @@
     constructor(button, onChange) {
       this.onChange = onChange;
       Object.assign(this, DEFAULTS, this._load());
-      button.addEventListener('click', () => this._open());
+      button.addEventListener('click', () => this.open());
     }
 
     getDisplayUnit() {
@@ -69,7 +69,8 @@
       this.onChange();
     }
 
-    _open() {
+    // Public: the status strip's unit segment opens this too.
+    open() {
       const body = document.createElement('div');
       body.className = 'settings-body';
       const subtitle = document.createElement('p');

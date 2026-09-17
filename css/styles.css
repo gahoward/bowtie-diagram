@@ -496,6 +496,14 @@ html, body {
   .node.located .shape { animation: none; stroke: #1d4ed8; stroke-width: 4; }
 }
 
+/* The last-clicked node (proposals/03): what Delete removes. Kept
+   quieter than `.located` above -- it persists until the next click,
+   rather than pulsing once. */
+.node.selected .shape {
+  stroke: #1d4ed8;
+  stroke-width: 3;
+}
+
 .node.dimmed .shape,
 .node.dimmed text {
   opacity: 0.25;
@@ -545,6 +553,36 @@ html, body {
   margin: -8px 0 12px;
   font-size: 12px;
   color: #6b7280;
+}
+
+/* View > Keyboard shortcuts…: a key column against a description
+   column, with the keys in the same monospace treatment the rest of
+   the app gives literal values. */
+.shortcut-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 16px;
+  margin: 0;
+  align-items: baseline;
+}
+
+.shortcut-list dt {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: #111827;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  padding: 2px 6px;
+  white-space: nowrap;
+  justify-self: start;
+}
+
+.shortcut-list dd {
+  margin: 0;
+  font-size: 13px;
+  color: #374151;
 }
 
 .modal-title {
@@ -765,6 +803,91 @@ html, body {
   border-color: #1d4ed8;
   background: #eef2ff;
   color: #1d4ed8;
+}
+
+/* Unsaved work from a previous visit (proposals/04): the one card on
+   this screen with a border that draws the eye, since it is the only
+   time-sensitive thing on it. */
+.welcome-recovery {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  background: #fffbeb;
+  text-align: left;
+}
+
+.welcome-recovery-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #92400e;
+}
+
+.welcome-recovery-meta {
+  font-size: 13px;
+  color: #374151;
+}
+
+.welcome-recovery-when {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.welcome-recovery-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.welcome-recovery-actions .welcome-btn {
+  width: auto;
+  flex: 1;
+}
+
+/* "Recently opened" under the Open zone -- only ever rendered where
+   the File System Access API can actually re-open a remembered file. */
+.welcome-recent {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.welcome-recent-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b7280;
+  margin-bottom: 2px;
+}
+
+.welcome-recent-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  font-size: 13px;
+  color: #1f2937;
+  text-align: left;
+  cursor: pointer;
+}
+
+.welcome-recent-item:hover {
+  border-color: var(--border);
+  background: #f9fafb;
+}
+
+.welcome-recent-when {
+  font-size: 12px;
+  color: #6b7280;
+  white-space: nowrap;
 }
 
 .welcome-hint {
@@ -1379,6 +1502,138 @@ html, body {
   color: #b45309;
 }
 
+/* On screen the modal's own title says what this is; the heading below
+   exists for the printed sheet, where that title bar isn't there. */
+.risk-summary-print-heading {
+  display: none;
+}
+
+/* File > Print… (PrintView): a whole-document sheet set, built hidden
+   and shown only to the printer. */
+#print-root {
+  display: none;
+}
+
+.print-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+}
+
+.print-page-title {
+  font-weight: 700;
+  color: #111827;
+}
+
+.print-page-meta,
+.print-page-description {
+  color: #4b5563;
+}
+
+.print-page-description {
+  margin: 6px 0 0;
+  font-size: 11px;
+}
+
+.print-page-figure svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 16cm;
+}
+
+@media print {
+  body.printing-document #app {
+    display: none !important;
+  }
+
+  body.printing-document #print-root {
+    display: block;
+  }
+
+  body.printing-document .print-page {
+    break-after: page;
+  }
+
+  body.printing-document .print-page:last-child {
+    break-after: auto;
+  }
+
+  body.printing-document .risk-summary-table-wrap {
+    overflow: visible;
+  }
+
+  body.printing-document .risk-summary-page {
+    break-inside: avoid;
+  }
+
+  body.printing-document .risk-summary-print-heading {
+    display: block;
+  }
+
+  @page {
+    size: landscape;
+    margin: 12mm;
+  }
+}
+
+/* Print… (RiskSummaryController._print): print the summary alone --
+   the app behind the backdrop, the backdrop itself and the buttons all
+   go, and the dialog becomes a plain document. */
+@media print {
+  body.printing-risk-summary #app,
+  body.printing-risk-summary .modal-actions {
+    display: none !important;
+  }
+
+  body.printing-risk-summary .modal-overlay {
+    position: static;
+    display: block;
+    background: none;
+  }
+
+  body.printing-risk-summary .modal-dialog {
+    width: auto;
+    max-width: none;
+    max-height: none;
+    overflow: visible;
+    padding: 0;
+    box-shadow: none;
+    border-radius: 0;
+  }
+
+  body.printing-risk-summary .modal-title {
+    display: none;
+  }
+
+  body.printing-risk-summary .risk-summary-print-heading {
+    display: block;
+  }
+
+  body.printing-risk-summary .risk-summary-print-heading h2 {
+    margin: 0 0 2px;
+    font-size: 16px;
+  }
+
+  body.printing-risk-summary .risk-summary-print-heading p {
+    margin: 0 0 10px;
+    font-size: 11px;
+    color: #4b5563;
+  }
+
+  body.printing-risk-summary .risk-summary-page {
+    break-inside: avoid;
+  }
+
+  body.printing-risk-summary .risk-summary-table-wrap {
+    overflow: visible;
+  }
+}
+
 .attach-list-item {
   display: flex;
   align-items: baseline;
@@ -1577,13 +1832,77 @@ html, body {
   border-radius: 6px;
 }
 
+/* The bottom bar holds two independently-rendered things side by side:
+   the page tabs (PageTabsView replaces its container's children
+   wholesale, so it needs an element of its own) and the status strip. */
+#bottom-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--toolbar-bg);
+  border-top: 1px solid var(--border);
+}
+
 #page-tabs {
   display: flex;
   align-items: center;
+  flex: 1;
+  min-width: 0;
   gap: 8px;
   padding: 6px 10px;
-  background: var(--toolbar-bg);
-  border-top: 1px solid var(--border);
+}
+
+/* The document's mode/matrix/unit context (StatusStripController) --
+   quiet by default, each segment a button to the setting it names. */
+#status-strip-container {
+  flex-shrink: 0;
+  padding: 6px 12px 6px 0;
+}
+
+.status-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.status-strip > * + *::before {
+  content: "·";
+  margin-right: 8px;
+  color: #9ca3af;
+}
+
+.status-segment {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.status-segment:hover {
+  color: #111827;
+  text-decoration: underline;
+}
+
+.status-chips {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.status-chips .risk-class-legend-swatch {
+  width: 16px;
+  height: 16px;
+  font-size: 9px;
+}
+
+@media (max-width: 900px) {
+  #status-strip-container {
+    display: none;
+  }
 }
 
 .page-tabs-scroll {

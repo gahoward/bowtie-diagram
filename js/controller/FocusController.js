@@ -10,12 +10,21 @@
       this.svgRoot = svgRoot;
       this.focusedLineIds = null; // Set<string> | null
       this.hoveredLineId = null; // string | null
+      // The placement the user last clicked -- what Delete removes, and
+      // (later) the seed of the canvas keyboard focus model. Distinct
+      // from `focusedLineIds`: focus dims a whole side, selection marks
+      // one node, and a barrier click selects without focusing anything.
+      this.selectedId = null; // placement id | null
 
       svgRoot.addEventListener('click', (e) => this._onClick(e));
       svgRoot.addEventListener('pointerover', (e) => this._onPointerOver(e));
       svgRoot.addEventListener('pointerout', (e) => this._onPointerOut(e));
       model.onChange(() => {
         this.hoveredLineId = null;
+        // A selected node can have been deleted (or removed with the very
+        // Delete key that reads this) -- drop a selection that no longer
+        // resolves rather than leaving a dangling id behind.
+        if (this.selectedId && !this.model.findById(this.selectedId)) this.selectedId = null;
         this._apply();
       });
     }
@@ -49,9 +58,31 @@
       });
     }
 
+    getSelectedId() {
+      return this.selectedId;
+    }
+
+    clearSelection() {
+      this.selectedId = null;
+      this._apply();
+    }
+
     _onClick(e) {
       const nodeEl = e.target.closest('.node');
       const lineEl = e.target.closest('.connection');
+
+      // Selection tracks whichever node was clicked (never the TLE or
+      // Hazard -- neither can be removed from a page). `data-id` is the
+      // NODE id; Delete needs the placement on THIS page, so resolve it
+      // through the model rather than assuming the two are the same.
+      this.selectedId = null;
+      if (nodeEl) {
+        const nodeId = nodeEl.getAttribute('data-id');
+        const placement = [...this.model.causes, ...this.model.outcomes,
+          ...this.model.preventativeBarriers, ...this.model.mitigativeBarriers]
+          .find((p) => p.nodeId === nodeId);
+        if (placement) this.selectedId = placement.id;
+      }
 
       let clickedLineIds = null;
       if (nodeEl) {
@@ -107,6 +138,13 @@
     _apply() {
       const nodes = this.svgRoot.querySelectorAll('.node');
       const lines = this.svgRoot.querySelectorAll('.connection');
+
+      // Re-applied after every render, like the dimming below: CanvasView
+      // replaces the whole node layer, so the class has to be put back.
+      const selected = this.selectedId ? this.model.findById(this.selectedId) : null;
+      nodes.forEach((n) => {
+        n.classList.toggle('selected', Boolean(selected) && n.getAttribute('data-id') === selected.nodeId);
+      });
 
       if (!this.focusedLineIds) {
         nodes.forEach((n) => n.classList.remove('dimmed'));

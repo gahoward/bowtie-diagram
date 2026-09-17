@@ -30,6 +30,10 @@
               <div class="menu-separator"></div>
               <button id="btn-export-svg" type="button" class="menu-dropdown-item" disabled>Export to SVG</button>
               <button id="btn-export-png" type="button" class="menu-dropdown-item" disabled>Export to PNG</button>
+              <div class="menu-separator"></div>
+              <button id="btn-export-all-svg" type="button" class="menu-dropdown-item" disabled>Export all pages as SVG…</button>
+              <button id="btn-export-all-png" type="button" class="menu-dropdown-item" disabled>Export all pages as PNG…</button>
+              <button id="btn-print" type="button" class="menu-dropdown-item" disabled>Print…</button>
             </div>
           </div>
           <div class="menu-bar-item">
@@ -47,6 +51,8 @@
               <button id="btn-auto-arrange" type="button" class="menu-dropdown-item" disabled>Auto-arrange</button>
               <button id="btn-reset-view" type="button" class="menu-dropdown-item" disabled>Reset view</button>
               <button id="btn-risk-summary" type="button" class="menu-dropdown-item" disabled>Risk Summary…</button>
+              <div class="menu-separator"></div>
+              <button id="btn-shortcuts" type="button" class="menu-dropdown-item" disabled>Keyboard shortcuts…</button>
             </div>
           </div>
           <div class="menu-bar-item">
@@ -74,7 +80,12 @@
       </svg>
       <div id="minimap-container"></div>
     </div>
-    <div id="page-tabs"></div>
+    <!-- One bottom bar: the page tabs (rebuilt wholesale by PageTabsView,
+         hence its own element) and the document's status strip beside it. -->
+    <div id="bottom-bar">
+      <div id="page-tabs"></div>
+      <div id="status-strip-container"></div>
+    </div>
   </div>
 
   <script src="js/model/Decimal.js"></script>
@@ -105,6 +116,8 @@
   <script src="js/view/ConnectionRenderer.js"></script>
   <script src="js/view/CanvasView.js"></script>
   <script src="js/view/ExportUtil.js"></script>
+  <script src="js/view/TableExport.js"></script>
+  <script src="js/view/PrintView.js"></script>
   <script src="js/view/MinimapView.js"></script>
   <script src="js/view/ModalView.js"></script>
   <script src="js/view/RiskModeCards.js"></script>
@@ -126,13 +139,17 @@
   <script src="js/controller/AutoArrangeController.js"></script>
   <script src="js/controller/ImportExportController.js"></script>
   <script src="js/controller/PanZoomController.js"></script>
+  <script src="js/controller/RecoveryController.js"></script>
+  <script src="js/controller/RecentFilesController.js"></script>
   <script src="js/controller/WelcomeController.js"></script>
   <script src="js/controller/NodeLibraryController.js"></script>
   <script src="js/controller/ProjectSettingsController.js"></script>
   <script src="js/controller/WarningsController.js"></script>
   <script src="js/controller/RiskSummaryController.js"></script>
+  <script src="js/controller/StatusStripController.js"></script>
   <script src="js/controller/PreferencesController.js"></script>
   <script src="js/controller/FocusController.js"></script>
+  <script src="js/controller/ShortcutsController.js"></script>
 
   <script src="js/main.js"></script>
 </body>

@@ -2,6 +2,52 @@
 
 ## Unreleased
 
+- Added View > "Keyboard shortcuts…" and the keys it lists
+  (`proposals/03`): Ctrl/⌘+S export to JSON, +O import, +Shift+E/P the
+  SVG and PNG exports, +P print, +Shift+A auto-arrange, +0 reset view,
+  +Shift+R the Risk Summary, Delete to remove the selected node from the
+  page, Escape to clear the selection, and `?` for the sheet listing all
+  of it. Each key activates the menu item it names, so a disabled action
+  (a blocking warning disables every export) disables its key too, and
+  the menu tooltips now advertise their keys. Clicking a node selects it
+  (a blue outline) -- the seed of the canvas focus model.
+- Unsaved work now survives a crash or a closed tab (`proposals/04`):
+  while the document is dirty its JSON is kept in this browser's
+  localStorage on a 2 s debounce, and the start screen offers it back
+  with the analysis name, its page and node counts and when it was last
+  edited -- Recover loads it through the ordinary import validation and
+  leaves it dirty (it still isn't on disk), Discard drops it. A completed
+  export or import clears it.
+- The start screen also lists "Recently opened" where the browser
+  supports it: the file handles of the last five documents opened or
+  saved through a native dialog, kept in IndexedDB, each re-opening that
+  exact file. Absent the File System Access API (Firefox, Safari,
+  `file://`) the list simply isn't shown.
+- Added File > "Export all pages as SVG…/PNG…" and File > "Print…"
+  (`proposals/02`). Both render every page off-screen, so a multi-page
+  document no longer has to be exported a tab at a time and the live
+  canvas is never disturbed: the all-pages exports write one file per
+  page into a chosen folder (sequential downloads where the File System
+  Access API is absent), and Print lays out one landscape sheet per page
+  followed by the Risk Summary tables. Single-page exports are now named
+  after the analysis rather than a fixed "bowtie-diagram".
+- The Risk Summary gained Copy as table, Export CSV… and Print…
+  (`proposals/01`) -- the CSV carries one row per outcome with its page,
+  rank, severity, pre- and post-mitigation likelihood (with unit) and
+  risk class, plus any causes excluded from the figures.
+- Added a status strip beside the page tabs (`proposals/07`): the
+  document's mode, its risk matrix and that matrix's class letters, the
+  display unit and how the top event combines its causes -- each
+  segment opening the setting it names.
+- Risk classes now carry an explicit `rank` (`proposals/05`), so "worse
+  than" no longer depends on the order classes happen to appear in the
+  matrix JSON. Ranks must run 0..n-1 with no gaps, all classes or none;
+  a matrix without them (an older export) is back-filled from array
+  order on load, so no existing document changes meaning.
+- The quantitative demo now loads with no warnings (`proposals/06`): its
+  cause frequencies were rebased onto documented LOPA-style figures, and
+  its residual classes span A through D rather than bunching at one.
+
 - Reworked the Settings menu and the modals behind it
   (ui_fitness_proposal.md). Settings now holds exactly two items:
   "Project Settings…" (everything saved with the document — name,

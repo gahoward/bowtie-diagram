@@ -27,6 +27,14 @@
     markClean() {
       this.dirty = false;
     }
+
+    // Recovering a localStorage snapshot (RecoveryController) loads a
+    // document through the ordinary import path, which marks everything
+    // clean -- but a recovered document has still never been written to
+    // disk, so the guard has to come straight back on.
+    markDirty() {
+      this.dirty = true;
+    }
   }
 
   Bowtie.UnsavedChangesController = UnsavedChangesController;

@@ -274,6 +274,15 @@ def test_risk_class_badge_has_a_title_tooltip_naming_the_full_label(page):
 
 # --- Pre-mitigation -> post-mitigation badge pair (Quantitative mode) ------
 
+def _badge_count(page, selector):
+    """Same double-counting trap as `_info_texts`: a bare "#nodes-layer …"
+    CSS selector also matches the minimap's clone of that layer (id and
+    all), so counts have to be scoped through getElementById."""
+    return page.evaluate(
+        f"() => document.getElementById('nodes-layer').querySelectorAll('{selector}').length"
+    )
+
+
 def _badge_letters(page, phase):
     return page.evaluate(f"""
       () => Array.from(document.getElementById('nodes-layer')
@@ -309,7 +318,7 @@ def test_outcome_shows_pre_and_post_mitigation_badges_in_quantitative_mode(page)
     """)
     assert dashed[0] is not None
     assert dashed[1] is None
-    assert page.locator("#nodes-layer .risk-class-badge-arrow").count() == 1
+    assert _badge_count(page, ".risk-class-badge-arrow") == 1
     texts = _info_texts(page)
     assert any(t.startswith("Pre-mitigation: 1/hr") for t in texts)
     assert any(t.startswith("Likelihood: 1e-12/hr") for t in texts)
@@ -327,9 +336,9 @@ def test_outcome_shows_a_single_unphased_badge_in_qualitative_mode(page):
       node.severityClassId = 'catastrophic';
       node.likelihoodClassId = 'frequent';
     """)
-    assert page.locator("#nodes-layer .risk-class-badge").count() == 1
-    assert page.locator("#nodes-layer .risk-class-badge-pre").count() == 0
-    assert page.locator("#nodes-layer .risk-class-badge-arrow").count() == 0
+    assert _badge_count(page, ".risk-class-badge") == 1
+    assert _badge_count(page, ".risk-class-badge-pre") == 0
+    assert _badge_count(page, ".risk-class-badge-arrow") == 0
     title = page.evaluate("() => document.querySelector('#nodes-layer .risk-class-badge title').textContent")
     assert title.startswith("A - Intolerable")
     assert not any("Pre-mitigation" in t for t in _info_texts(page))

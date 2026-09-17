@@ -240,21 +240,18 @@
     //      there is the more fragile;
     //   3. severity (worst first); 4. post-mitigation likelihood (highest
     //   first); 5. display id, so the order is stable.
-    // Risk classes rank by their position in `matrix.riskClasses` -- the
-    // shipped presets (and quantitative_mode_proposal.md) list them most
-    // severe first (A - Intolerable ... D - Broadly Acceptable), and the
-    // validator doesn't impose any other ordering, so array order is the
-    // only severity order a matrix carries. An outcome whose class can't
-    // be determined yet sorts after every one whose class can.
+    // Risk classes rank by their own `rank` field (0 = worst; see
+    // RiskMatrixValidator.withRiskClassRanks, which back-fills it from
+    // array order for a matrix authored before the field existed). An
+    // outcome whose class can't be determined yet sorts after every one
+    // whose class can.
     computeRiskSummary(pageId = null) {
       const model = this.model;
       if (model.mode === 'simple' || !model.riskMatrix) return null;
       const outcomes = pageId === null ? model.outcomes : model.outcomesForPage(pageId);
-      const matrix = model.riskMatrix;
       const riskRank = (riskClass) => {
-        if (!riskClass) return Infinity;
-        const idx = matrix.riskClasses.findIndex((r) => r.id === riskClass.id);
-        return idx === -1 ? Infinity : idx;
+        if (!riskClass || riskClass.rank === undefined || riskClass.rank === null) return Infinity;
+        return riskClass.rank;
       };
       const severityRank = (severity) => (severity ? -severity.ordinal : Infinity);
       // Plain subtraction is NaN for two equal infinities (an "undetermined"

@@ -201,6 +201,31 @@ def test_risk_summary_tie_breaks_equal_residual_class_by_pre_mitigation_class(pa
     assert rows == [["Fragile", "A", "C"], ["Inherently low", "C", "C"]]
 
 
+def test_ranking_follows_explicit_risk_class_rank_not_array_order(page):
+    """proposals/05: a matrix that lists its risk classes least-severe-
+    first (legal -- the validator imposes no array order) must still rank
+    the intolerable outcome first."""
+    rows = page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.setMode('quantitative');
+      // Leaflet 5 with riskClasses reversed and explicit ranks restoring
+      // the real severity order.
+      const matrix = JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5));
+      matrix.riskClasses = matrix.riskClasses.slice().reverse();
+      m.setRiskMatrix(matrix);
+      const c = m.addCause({});
+      m.getNode(c.nodeId).frequency = { value: '1' };
+      const worst = m.addOutcome({ name: 'Worst' });
+      m.getNode(worst.nodeId).severityClassId = 'catastrophic';
+      const mild = m.addOutcome({ name: 'Mild' });
+      m.getNode(mild.nodeId).severityClassId = 'negligible';
+      return m.computeRiskSummary().map((r) => [r.name, r.post.riskClass.id, r.post.riskClass.rank]);
+    }""")
+    assert rows[0][0] == "Worst" and rows[0][1] == "A"
+    assert rows[-1][0] == "Mild"
+    assert rows[0][2] < rows[-1][2], "rank, not array position, decides"
+
+
 def test_risk_summary_is_null_in_simple_mode(page):
     assert page.evaluate("() => window.__lastModel.computeRiskSummary()") is None
 
@@ -321,6 +346,133 @@ def test_risk_summary_modal_flags_excluded_unknown_causes(page):
     cells = _table_rows(page)[0]["cells"]
     assert cells[3].startswith("1/hr*")
     assert "excluded" in page.locator(".risk-summary-note").text_content()
+    page.get_by_role("button", name="Close", exact=True).click()
+
+
+# --- Export: CSV, clipboard, print (proposals/01) ---------------------------
+
+def test_export_actions_are_offered_only_when_there_is_a_table(page):
+    _open_summary(page)
+    labels = page.locator(".modal-actions button").all_text_contents()
+    assert labels == ["Close"], "Simple mode has nothing to export"
+    page.get_by_role("button", name="Close", exact=True).click()
+
+    _build_ranked_scenario(page)
+    _open_summary(page)
+    labels = page.locator(".modal-actions button").all_text_contents()
+    assert labels == ["Copy as table", "Export CSV…", "Print…", "Close"]
+    page.get_by_role("button", name="Close", exact=True).click()
+
+
+def test_export_csv_writes_every_page_with_one_row_per_outcome(page):
+    _build_ranked_scenario(page)
+    page.evaluate("""() => {
+      window.__written = null;
+      window.__suggested = null;
+      window.__firstBytes = null;
+      window.showSaveFilePicker = async (opts) => {
+        window.__suggested = opts.suggestedName;
+        return { createWritable: async () => ({
+          write: async (blob) => {
+            window.__written = await blob.text();
+            // Blob.text() UTF-8-decodes, which strips a leading BOM, so
+            // check for it in the raw bytes instead.
+            const bytes = new Uint8Array(await blob.arrayBuffer());
+            window.__firstBytes = [bytes[0], bytes[1], bytes[2]];
+          },
+          close: async () => {},
+        }) };
+      };
+    }""")
+    _open_summary(page)
+    page.get_by_role("button", name="Export CSV…", exact=True).click()
+    page.wait_for_timeout(150)
+
+    assert page.evaluate("() => window.__firstBytes") == [0xEF, 0xBB, 0xBF], \
+        "a UTF-8 BOM, so Excel reads the file as UTF-8"
+    written = page.evaluate("() => window.__written")
+    lines = written.split("\r\n")
+    assert lines[0].split(",") == [
+        "page", "rank", "id", "name", "severity",
+        "pre_likelihood", "pre_likelihood_unit", "pre_likelihood_class", "pre_risk_class",
+        "post_likelihood", "post_likelihood_unit", "post_likelihood_class", "post_risk_class",
+        "excluded_causes",
+    ]
+    assert len(lines) == 5, "header + four outcomes across both pages"
+    worst = lines[1].split(",")
+    assert worst[0] == "Untitled Page" and worst[1] == "1" and worst[2] == "O_1"
+    assert worst[4] == "catastrophic", "class ids, not labels"
+    assert worst[5] == "1" and worst[6] == "events/hour", "value and unit in separate columns"
+    assert worst[7] == "frequent" and worst[8] == "A", "pre-mitigation band and class, as ids"
+    assert worst[11] == "frequent" and worst[12] == "A", "post-mitigation band and class"
+    assert lines[2].split(",")[0] == "Untitled Page", "page one's rows, then page two's"
+    assert lines[4].split(",")[0] == "Second"
+    # The unrated outcome's class columns are empty, not a dash.
+    unrated = [line for line in lines if ",Unrated," in line][0].split(",")
+    assert unrated[4] == "" and unrated[8] == "" and unrated[12] == ""
+    assert "risk summary.csv" in page.evaluate("() => window.__suggested")
+    page.get_by_role("button", name="Close", exact=True).click()
+
+
+def test_export_csv_follows_the_display_unit_preference(page):
+    _build_ranked_scenario(page)
+    page.click("#menu-trigger-settings")
+    page.click("#btn-preferences")
+    page.locator("input[name=display-unit][value=year]").check()
+    page.get_by_role("button", name="Done", exact=True).click()
+    page.wait_for_timeout(80)
+
+    page.evaluate("""() => {
+      window.__written = null;
+      window.showSaveFilePicker = async () => ({ createWritable: async () => ({
+        write: async (blob) => { window.__written = await blob.text(); },
+        close: async () => {},
+      }) });
+    }""")
+    _open_summary(page)
+    page.get_by_role("button", name="Export CSV…", exact=True).click()
+    page.wait_for_timeout(150)
+    lines = page.evaluate("() => window.__written").split("\r\n")
+    assert "events/year" in lines[1]
+    assert lines[1].split(",")[5] == "8760", "1/hour shown as 8760/year"
+    page.get_by_role("button", name="Close", exact=True).click()
+
+
+def test_copy_as_table_puts_tsv_on_the_clipboard(page):
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    _build_ranked_scenario(page)
+    _open_summary(page)
+    page.get_by_role("button", name="Copy as table", exact=True).click()
+    page.wait_for_timeout(200)
+
+    text = page.evaluate("() => navigator.clipboard.readText()")
+    lines = text.split("\r\n")
+    assert lines[0].split("\t")[:3] == ["page", "rank", "id"]
+    assert len(lines) == 5
+    # The button confirms, then goes back to its label.
+    assert page.locator(".modal-actions button", has_text="Copied").count() == 1
+    page.wait_for_timeout(1600)
+    assert page.locator(".modal-actions button", has_text="Copy as table").count() == 1
+    page.get_by_role("button", name="Close", exact=True).click()
+
+
+def test_print_swaps_the_print_class_on_and_off_again(page):
+    _build_ranked_scenario(page)
+    page.evaluate("""() => {
+      window.__printed = 0;
+      window.print = () => { window.__printed += 1; };
+    }""")
+    _open_summary(page)
+    assert page.locator(".risk-summary-print-heading").count() == 1, "a heading for the printed sheet"
+    page.get_by_role("button", name="Print…", exact=True).click()
+    page.wait_for_timeout(100)
+
+    assert page.evaluate("() => window.__printed") == 1
+    assert page.evaluate("() => document.body.classList.contains('printing-risk-summary')") is True
+    assert page.locator(".modal-overlay").count() == 1, "the modal stays open"
+    page.evaluate("() => window.dispatchEvent(new Event('afterprint'))")
+    page.wait_for_timeout(50)
+    assert page.evaluate("() => document.body.classList.contains('printing-risk-summary')") is False
     page.get_by_role("button", name="Close", exact=True).click()
 
 

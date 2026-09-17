@@ -110,28 +110,32 @@
         "label": "A - Intolerable",
         "colour": "#d32f2f",
         "description": "Risk shall be reduced regardless of cost unless the cost is grossly disproportionate to the benefit gained.",
-        "reviewPeriod": "Immediate action required"
+        "reviewPeriod": "Immediate action required",
+        "rank": 0
       },
       {
         "id": "B",
         "label": "B - Undesirable",
         "colour": "#f57c00",
         "description": "Risk shall be reduced as far as reasonably practicable (ALARP).",
-        "reviewPeriod": "Reduce as soon as reasonably practicable"
+        "reviewPeriod": "Reduce as soon as reasonably practicable",
+        "rank": 1
       },
       {
         "id": "C",
         "label": "C - Tolerable",
         "colour": "#fbc02d",
         "description": "Risk is tolerable provided it has been reduced ALARP and is periodically reviewed.",
-        "reviewPeriod": "Periodic review"
+        "reviewPeriod": "Periodic review",
+        "rank": 2
       },
       {
         "id": "D",
         "label": "D - Broadly Acceptable",
         "colour": "#388e3c",
         "description": "Risk is broadly acceptable; no further action required beyond routine monitoring.",
-        "reviewPeriod": "Routine monitoring"
+        "reviewPeriod": "Routine monitoring",
+        "rank": 3
       }
     ],
     "cells": [

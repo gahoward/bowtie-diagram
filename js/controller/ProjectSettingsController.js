@@ -280,7 +280,7 @@
       wrap.appendChild(el('span', 'risk-matrix-shape',
         `${matrix.severityClasses.length} severity × ${matrix.likelihoodClasses.length} likelihood classes →`));
       const legend = el('div', 'risk-class-legend');
-      (matrix.riskClasses || []).forEach((riskClass) => {
+      Bowtie.riskClassesByRank(matrix).forEach((riskClass) => {
         const item = el('div', 'risk-class-legend-item');
         const swatch = el('span', 'risk-class-legend-swatch', riskClass.id);
         swatch.style.background = riskClass.colour || '#888';

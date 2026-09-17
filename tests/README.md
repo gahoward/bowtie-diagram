@@ -225,7 +225,55 @@ step for the app itself, so tests run directly against `index.html` as-is.
   document is clean, any edit (undo included) marks it dirty, a completed
   JSON export or an import clears it, a cancelled native Save dialog does
   not, and the synthetic `beforeunload` event is only `preventDefault`ed
-  while dirty.
+  while dirty. What happens to the work itself when the user leaves
+  anyway is `test_recovery.py` below.
+- **`test_recovery.py`** — `RecoveryController` (proposals/04): an edit
+  writes a `localStorage` snapshot only after the debounce (never on the
+  change itself), a clean document is never snapshotted, a completed
+  export clears it; then the start screen's card — its name, page/node
+  counts and "last edited today" — with Recover restoring the causes and
+  leaving the document dirty (and re-snapshotted), Discard removing both
+  the card and the key, a corrupt stored value ignored without a page
+  error, and a snapshot from an older schema failing through the same
+  "Unsupported File Version" dialog a stale export gets. Driven from a
+  fresh page like `test_welcome.py`, since the card lives on the start
+  screen.
+- **`test_recent_files.py`** — `RecentFilesController` (proposals/04):
+  remembering a handle lists it on the next visit, the same file twice
+  is one entry, only the newest five are kept (pruned in IndexedDB, not
+  merely unlisted), an export through a mocked native Save dialog
+  remembers the file, clicking an entry loads that document, an entry
+  that cannot be read drops out of the list, and without
+  `showOpenFilePicker` nothing is rendered at all. The fake handles are
+  classes rather than object literals — structured clone copies own data
+  properties and drops the prototype, so an instance with only `name`
+  stores cleanly where a literal carrying functions would throw
+  `DataCloneError`.
+- **`test_shortcuts.py`** — `ShortcutsController` (proposals/03): Ctrl+S
+  exports and clears the unsaved flag, but not from inside a Properties
+  text field, not while a blocking warning has disabled export, and not
+  while a modal is open; clicking a node selects it and Delete removes it
+  undoably; a barrier click selects without focusing and Escape clears
+  it; the TLE and Hazard are never selectable (neither can be removed
+  from a page); `?` and the View menu item open the same sheet; every
+  `buttonId` in the table resolves to a real menu button, so a renamed or
+  removed menu item can't leave a shortcut pointing at nothing.
+- **`test_status_strip.py`** — the bottom bar's status strip
+  (proposals/07): Simple mode shows only the mode, Quantitative adds the
+  matrix, its class chips, the unit and the aggregation, Qualitative
+  shows neither unit nor aggregation, a missing matrix says so, the strip
+  follows the model and the display-unit preference, each segment opens
+  the setting it names, and it lives beside `#page-tabs` rather than
+  inside it (`PageTabsView` would otherwise wipe it when a page is
+  added).
+- **`test_table_export.py`** / **`test_export_all_pages.py`** — the Risk
+  Summary's Copy as table / Export CSV… (proposals/01: quoting,
+  delimiters, the UTF-8 BOM asserted on the raw bytes, and the clipboard
+  fallback) and File › Export all pages / Print… (proposals/02: one
+  correctly-scoped file per page, named after the analysis, the live
+  canvas and active page untouched, no off-screen surface left behind,
+  and Print building one sheet per page plus the summary before tearing
+  itself down).
 - **`test_properties_modal.py`** — the shared Properties modal
   (double-click or the context menu's "Properties" item on any of the 5
   node types), driven through the real modal rather than by calling model

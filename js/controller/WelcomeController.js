@@ -35,11 +35,17 @@
     // entry fails the same friendly way a stale real export would, rather
     // than silently handing the model something it wasn't written to
     // expect.
-    constructor(model, importFileInput, importExport, onDone) {
+    constructor(model, importFileInput, importExport, onDone, { recovery, recent } = {}) {
       this.model = model;
       this.importFileInput = importFileInput;
       this.importExport = importExport;
       this.onDone = onDone;
+      // Both optional (proposals/04): a snapshot of unsaved work from a
+      // previous visit, and the files opened or saved natively before
+      // now. Either can be absent -- no snapshot stored, no File System
+      // Access API -- and the start screen simply shows one fewer thing.
+      this.recovery = recovery || null;
+      this.recent = recent || null;
       this._dismissed = false;
       // Which demo variant "Explore the demo"/Ctrl+Alt+D loads -- one per
       // document mode (quantitative_mode_proposal.md "Modes"), all built
@@ -120,6 +126,8 @@
       const body = el('div', 'welcome-body welcome-start');
 
       const main = el('div', 'welcome-start-main');
+      const recoveryCard = this._buildRecoveryCard();
+      if (recoveryCard) main.appendChild(recoveryCard);
       main.appendChild(el('p', 'welcome-headline', 'Map the causes, barriers and outcomes around one top event.'));
       const illustration = el('div', 'welcome-illustration');
       illustration.appendChild(Bowtie.WelcomeIllustration.full());
@@ -167,6 +175,12 @@
         this.importFileInput.click();
       });
       open.appendChild(dropzone);
+      // Filled in when the IndexedDB read resolves -- the start screen
+      // must not wait on it to paint.
+      const recentList = el('div', 'welcome-recent');
+      recentList.hidden = true;
+      open.appendChild(recentList);
+      this._fillRecentList(recentList);
       open.appendChild(el('p', 'welcome-hint', `Exports made by this editor (schema v${Bowtie.BowtieModel.SCHEMA_VERSION}).`));
 
       body.addEventListener('dragover', (e) => {
@@ -187,6 +201,62 @@
       this.modal.setTitle('Bowtie Diagram Editor');
       this.modal.setBody(body);
       this.modal.setActions([]);
+    }
+
+    // Unsaved work from a previous visit (proposals/04). Deliberately a
+    // card on the start screen rather than a dialog on load: it is
+    // non-blocking, and this screen is already where the user decides
+    // which document to work on.
+    _buildRecoveryCard() {
+      const meta = this.recovery && this.recovery.peek();
+      if (!meta) return null;
+
+      const card = el('div', 'welcome-recovery');
+      card.appendChild(el('div', 'welcome-recovery-title', 'Recover unsaved work'));
+      const pages = `${meta.pages} ${meta.pages === 1 ? 'page' : 'pages'}`;
+      const nodes = `${meta.nodes} ${meta.nodes === 1 ? 'node' : 'nodes'}`;
+      card.appendChild(el('div', 'welcome-recovery-meta', `${meta.name} · ${pages} · ${nodes}`));
+      const when = Bowtie.RecoveryController.describeTime(meta.savedAt);
+      if (when) card.appendChild(el('div', 'welcome-recovery-when', `last edited ${when}`));
+
+      const actions = el('div', 'welcome-recovery-actions');
+      const recoverBtn = button('Recover', 'welcome-btn welcome-btn-primary');
+      recoverBtn.addEventListener('click', () => {
+        // A snapshot that fails validation leaves its own dialog up and
+        // the start screen untouched -- nothing is dismissed here.
+        this.recovery.restore(this.importExport);
+      });
+      const discardBtn = button('Discard', 'welcome-btn');
+      discardBtn.addEventListener('click', () => {
+        this.recovery.clear();
+        card.remove();
+      });
+      actions.append(recoverBtn, discardBtn);
+      card.appendChild(actions);
+      return card;
+    }
+
+    _fillRecentList(container) {
+      if (!this.recent) return;
+      this.recent.list().then((entries) => {
+        // The start screen can have moved on (or been dismissed) while
+        // IndexedDB was reading.
+        if (!entries.length || !container.isConnected) return;
+        container.appendChild(el('div', 'welcome-recent-label', 'Recently opened'));
+        entries.forEach((entry) => {
+          const row = button(entry.name, 'welcome-recent-item');
+          row.appendChild(el('span', 'welcome-recent-when', Bowtie.RecoveryController.describeTime(entry.openedAt)));
+          row.addEventListener('click', async () => {
+            const text = await this.recent.read(entry);
+            // Permission refused, or the file has moved since -- the
+            // entry drops itself in that case, so drop the row too.
+            if (text == null) { row.remove(); return; }
+            this.importExport.importText(text);
+          });
+          container.appendChild(row);
+        });
+        container.hidden = false;
+      });
     }
 
     _stepHeader(question, step) {

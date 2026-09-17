@@ -51,6 +51,69 @@ def test_valid_matrix_authored_in_hours_is_not_converted(page):
     assert min_values["frequent"] == "0.1"
 
 
+# --- riskClasses[].rank (proposals/05) --------------------------------------
+
+def test_unranked_risk_classes_are_back_filled_from_array_order(page):
+    """Every matrix authored before `rank` existed listed its risk classes
+    most-severe-first, and the ranking code read that array order -- so the
+    back-fill is what keeps those matrices meaning exactly what they did."""
+    result = _validate(page, VALID_MATRIX)
+    assert result["ok"] is True
+    assert [(r["id"], r["rank"]) for r in result["matrix"]["riskClasses"]] == [("high", 0), ("low", 1)]
+
+
+def test_explicit_ranks_are_kept_whatever_the_array_order(page):
+    matrix = {**VALID_MATRIX, "riskClasses": [
+        {"id": "low", "label": "Low", "colour": "#388e3c", "rank": 1},
+        {"id": "high", "label": "High", "colour": "#d32f2f", "rank": 0},
+    ]}
+    result = _validate(page, matrix)
+    assert result["ok"] is True
+    assert {r["id"]: r["rank"] for r in result["matrix"]["riskClasses"]} == {"low": 1, "high": 0}
+
+
+def test_rejects_partially_ranked_risk_classes(page):
+    matrix = {**VALID_MATRIX, "riskClasses": [
+        {"id": "high", "label": "High", "rank": 0},
+        {"id": "low", "label": "Low"},
+    ]}
+    result = _validate(page, matrix)
+    assert result["ok"] is False
+    assert "every class has a rank or none" in result["error"]
+
+
+def test_rejects_non_contiguous_ranks(page):
+    for ranks in ([0, 2], [1, 2], [0, 0]):
+        matrix = {**VALID_MATRIX, "riskClasses": [
+            {"id": "high", "label": "High", "rank": ranks[0]},
+            {"id": "low", "label": "Low", "rank": ranks[1]},
+        ]}
+        result = _validate(page, matrix)
+        assert result["ok"] is False, f"ranks {ranks} must be rejected"
+        assert "ranks must be contiguous from 0" in result["error"]
+
+
+def test_risk_classes_by_rank_sorts_however_the_matrix_lists_them(page):
+    order = page.evaluate("""(m) => Bowtie.riskClassesByRank(m).map((r) => r.id)""", {
+        **VALID_MATRIX, "riskClasses": [
+            {"id": "low", "label": "Low", "rank": 1},
+            {"id": "high", "label": "High", "rank": 0},
+        ]})
+    assert order == ["high", "low"]
+
+
+def test_ranks_survive_the_export_reimport_round_trip(page):
+    result = page.evaluate("""(m) => {
+      const validated = Bowtie.validateRiskMatrix(m).matrix;
+      const exported = Bowtie.denormalizeRiskMatrixForExport(validated);
+      const reimported = Bowtie.validateRiskMatrix(exported);
+      return { exported: exported.riskClasses.map((r) => [r.id, r.rank]),
+               reimported: reimported.matrix.riskClasses.map((r) => [r.id, r.rank]) };
+    }""", VALID_MATRIX)
+    assert result["exported"] == [["high", 0], ["low", 1]]
+    assert result["reimported"] == [["high", 0], ["low", 1]]
+
+
 def test_rejects_non_object(page):
     for bad in [None, "a string", 42, [1, 2, 3]]:
         result = _validate(page, bad)

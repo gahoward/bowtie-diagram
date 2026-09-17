@@ -10,6 +10,27 @@
     // saved.
     const unsavedChanges = new Bowtie.UnsavedChangesController(rawModel);
 
+    // Crash insurance (proposals/04): while the document is dirty, the
+    // last `toJSON()` is kept in localStorage on a debounce, and the
+    // start screen offers it back. Constructed on `rawModel` for the same
+    // reason as the guard above -- every mutation, whichever layer made
+    // it. A recovered document is dirty again: it still isn't on disk.
+    // Recovering runs the welcome flow's own "a fresh document starts
+    // clean" deferral too (the load dismisses the welcome modal), and
+    // that deferral runs LAST -- so it has to know not to clear a guard
+    // the recovery just deliberately put back.
+    let recoveredUnsavedWork = false;
+    const recovery = new Bowtie.RecoveryController(rawModel, {
+      isDirty: () => unsavedChanges.dirty,
+      onRecovered: () => {
+        recoveredUnsavedWork = true;
+        unsavedChanges.markDirty();
+      },
+    });
+    // Where the File System Access API exists, the handles of files
+    // opened or saved natively, so the start screen can re-open them.
+    const recentFiles = new Bowtie.RecentFilesController();
+
     // Every other controller (and the view, via `renderAll` below) is
     // constructed with `undo.model` — a Proxy around `rawModel` that
     // snapshots onto the undo stack immediately before any call to a
@@ -48,12 +69,22 @@
     });
     const minimap = new Bowtie.MinimapView(document.getElementById('minimap-container'), panZoom);
 
+    // The render options the live canvas uses -- shared with the
+    // off-screen page renders behind "Export all pages…" and Print…, so
+    // an exported page looks like what's on screen.
+    const renderOpts = () => ({
+      showAnnotations: preferences.showAnnotations,
+      displayUnit: preferences.getDisplayUnit(),
+    });
+
+    let statusStrip = null;
     const renderAll = () => {
-      view.render(pageScopedModel, {
-        showAnnotations: preferences.showAnnotations,
-        displayUnit: preferences.getDisplayUnit(),
-      });
+      view.render(pageScopedModel, renderOpts());
       minimap.render(view.connectionsLayer, view.nodesLayer, view.getContentBounds());
+      // Assigned further down (it needs projectSettings/preferences), and
+      // renderAll runs before that point -- hence the `let` above and
+      // this guard rather than a closure over a later `const`.
+      if (statusStrip) statusStrip.render();
     };
     // Structural review finding 02: renderAll used to run synchronously off
     // every single _emitChange, which is exactly right for an ordinary
@@ -173,6 +204,8 @@
       {
         exportPngBtn: document.getElementById('btn-export-png'),
         exportSvgBtn: document.getElementById('btn-export-svg'),
+        exportAllSvgBtn: document.getElementById('btn-export-all-svg'),
+        exportAllPngBtn: document.getElementById('btn-export-all-png'),
         exportJsonBtn: document.getElementById('btn-export-json'),
         importJsonBtn: document.getElementById('btn-import-json'),
         importFileInput: document.getElementById('import-file-input'),
@@ -180,8 +213,14 @@
       () => {
         undo.reset(); // importing a file resets both the undo and redo history
         unsavedChanges.markClean(); // ...and starts a new "since last save" clock
+        recovery.clear(); // ...and there is nothing left to recover
       },
-      () => unsavedChanges.markClean(),
+      () => {
+        unsavedChanges.markClean();
+        recovery.clear(); // the document is on disk now
+      },
+      () => renderOpts(),
+      (handle) => recentFiles.remember(handle),
     );
 
     document.getElementById('btn-reset-view').addEventListener('click', () => {
@@ -196,7 +235,12 @@
       openProperties: (el) => Bowtie.openPropertiesModal({ model, el, displayUnit: preferences.getDisplayUnit() }),
     });
 
-    const EXPORT_BUTTON_IDS = ['btn-export-png', 'btn-export-svg', 'btn-export-json'];
+    // Every way a diagram leaves the app -- a blocking warning disables
+    // all of them, the all-pages exports and Print included.
+    const EXPORT_BUTTON_IDS = [
+      'btn-export-png', 'btn-export-svg', 'btn-export-json',
+      'btn-export-all-svg', 'btn-export-all-png', 'btn-print',
+    ];
     const warnings = new Bowtie.WarningsController(model, document.getElementById('btn-warnings'), EXPORT_BUTTON_IDS, {
       // "Show" on a warning row: switch to its page (which re-renders
       // synchronously via pageTabs.onChange above), focus the node's
@@ -215,14 +259,55 @@
 
     // Document-wide (every page's outcomes), so constructed with `model`
     // rather than `pageScopedModel`, like WarningsController above.
-    new Bowtie.RiskSummaryController(
+    const riskSummary = new Bowtie.RiskSummaryController(
       model, document.getElementById('btn-risk-summary'), () => preferences.getDisplayUnit(),
     );
+
+    // The document's own context (mode, matrix, unit, aggregation) at the
+    // end of the bottom bar. Constructed with `model` -- all of it is
+    // document-wide -- and re-rendered from renderAll too, since the
+    // display unit lives in Preferences rather than on the model.
+    statusStrip = new Bowtie.StatusStripController(
+      model, document.getElementById('status-strip-container'), {
+        getDisplayUnit: () => preferences.getDisplayUnit(),
+        openProjectSettings: (opts) => projectSettings.open(opts),
+        openPreferences: () => preferences.open(),
+      },
+    );
+
+    // Keys for what the menus already do, plus Delete on the selected
+    // node and `?` for the sheet listing all of it. Constructed after
+    // every menu button exists -- it drives them by id (and reads their
+    // `disabled`), so it can never do more than the menus allow.
+    const shortcuts = new Bowtie.ShortcutsController({
+      onDeleteSelected: () => {
+        const id = focus.getSelectedId();
+        if (!id) return false;
+        pageScopedModel.deleteElement(id);
+        return true;
+      },
+      onClearSelection: () => focus.clearSelection(),
+      helpButton: document.getElementById('btn-shortcuts'),
+    });
+    shortcuts.annotateMenus();
+
+    // File > Print…: every page's diagram, then the Risk Summary tables
+    // (built by the controller above, so the printed tables are the same
+    // ones the modal shows).
+    document.getElementById('btn-print').addEventListener('click', () => {
+      Bowtie.PrintView.printDocument(model, {
+        opts: renderOpts(),
+        displayUnit: preferences.getDisplayUnit(),
+        riskSummaryBody: riskSummary.buildSummaryBody(),
+      });
+    });
 
     renderAll();
 
     const TOOLBAR_BUTTON_IDS = [
-      'btn-add-cause', 'btn-add-outcome', 'btn-auto-arrange', 'btn-reset-view', 'btn-risk-summary', 'btn-manage-ids', 'btn-preferences',
+      'btn-add-cause', 'btn-add-outcome', 'btn-auto-arrange', 'btn-reset-view', 'btn-risk-summary',
+      'btn-shortcuts',
+      'btn-manage-ids', 'btn-preferences', 'btn-export-all-svg', 'btn-export-all-png', 'btn-print',
       'btn-project-settings', 'btn-export-png', 'btn-export-svg', 'btn-export-json', 'btn-import-json',
       'menu-trigger-file', 'menu-trigger-add', 'menu-trigger-view', 'menu-trigger-settings',
     ];
@@ -259,8 +344,8 @@
       // before the user has actually changed anything themselves.
       setTimeout(() => {
         undo.reset();
-        unsavedChanges.markClean();
+        if (!recoveredUnsavedWork) unsavedChanges.markClean();
       }, 0);
-    });
+    }, { recovery, recent: recentFiles });
   });
 })(window.Bowtie = window.Bowtie || {});

@@ -164,7 +164,11 @@
       model.idCounters = { ...model.idCounters, ...(data.idCounters || {}) };
       model.name = data.name || 'Untitled Bowtie';
       model.mode = data.mode || 'simple';
-      model.riskMatrix = data.riskMatrix || null;
+      // withRiskClassRanks (not a full re-validation -- see validate()'s
+      // own note below) back-fills `rank` on a matrix embedded before
+      // that field existed, so ranking code never has to fall back to
+      // array order.
+      model.riskMatrix = Bowtie.withRiskClassRanks(data.riskMatrix || null);
       model.tleAggregation = data.tleAggregation === 'sum' ? 'sum' : 'max';
       model.dangerousFraction = data.dangerousFraction || '1';
       model.proofTestIntervalH = data.proofTestIntervalH || String(Bowtie.HOURS_PER_YEAR);

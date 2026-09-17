@@ -31,18 +31,35 @@
     }
 
     // Ordinals contiguous from 0, one per class, no gaps or duplicates.
+    const contiguousFromZero = (values, label, field) => {
+      const sorted = values.slice().sort((a, b) => a - b);
+      for (let idx = 0; idx < sorted.length; idx += 1) {
+        if (sorted[idx] !== idx) {
+          return `${label} ${field} must be contiguous from 0 (got ${JSON.stringify(sorted)}).`;
+        }
+      }
+      return null;
+    };
     const classGroups = [
       { label: 'severityClasses', classes: severity },
       { label: 'likelihoodClasses', classes: likelihood },
     ];
     for (let g = 0; g < classGroups.length; g += 1) {
       const { label, classes } = classGroups[g];
-      const ordinals = classes.map((c) => c.ordinal).slice().sort((a, b) => a - b);
-      for (let idx = 0; idx < ordinals.length; idx += 1) {
-        if (ordinals[idx] !== idx) {
-          return { ok: false, error: `${label} ordinals must be contiguous from 0 (got ${JSON.stringify(ordinals)}).` };
-        }
-      }
+      const err = contiguousFromZero(classes.map((c) => c.ordinal), label, 'ordinals');
+      if (err) return { ok: false, error: err };
+    }
+
+    // `rank` orders risk classes by severity, 0 = worst. All-or-nothing:
+    // a partially ranked matrix is a mistake, not a default. See
+    // withRiskClassRanks below for the back-fill an unranked matrix gets.
+    const ranked = riskClasses.filter((r) => r.rank !== undefined && r.rank !== null);
+    if (ranked.length > 0 && ranked.length !== riskClasses.length) {
+      return { ok: false, error: 'riskClasses: either every class has a rank or none does.' };
+    }
+    if (ranked.length === riskClasses.length) {
+      const err = contiguousFromZero(riskClasses.map((r) => r.rank), 'riskClasses', 'ranks');
+      if (err) return { ok: false, error: err };
     }
 
     // likelihoodClasses must be sorted most-frequent-first (array order,
@@ -104,7 +121,34 @@
       return { ...cls, minValue: canonical.toDecimalString() };
     });
 
-    return { ok: true, matrix: { ...raw, likelihoodClasses: convertedLikelihood } };
+    return { ok: true, matrix: withRiskClassRanks({ ...raw, likelihoodClasses: convertedLikelihood }) };
+  }
+
+  // `rank` orders risk classes by severity, 0 = worst -- what the Risk
+  // Summary ranks by and what the legend/chips display in. Distinct from
+  // `ordinal` (higher = more severe/frequent) precisely because its
+  // direction is the opposite, which is why it has its own name.
+  //
+  // A matrix that omits it gets rank = array index, so every matrix
+  // authored or embedded in a document before this field existed keeps
+  // exactly its current meaning: the bundled presets and
+  // quantitative_mode_proposal.md have always listed risk classes
+  // most-severe-first, and index order is what the ranking code used to
+  // read directly. Idempotent, and safe on a null/odd matrix (returns it
+  // untouched) since it runs on every load, not only on a validated
+  // import.
+  function withRiskClassRanks(matrix) {
+    if (!matrix || !Array.isArray(matrix.riskClasses)) return matrix;
+    if (matrix.riskClasses.every((r) => r.rank !== undefined && r.rank !== null)) return matrix;
+    return { ...matrix, riskClasses: matrix.riskClasses.map((r, i) => ({ ...r, rank: i })) };
+  }
+
+  // Risk classes most-severe-first, whatever order the matrix lists them
+  // in -- the one place the legend, the summary chips and any future
+  // consumer get their display order from.
+  function riskClassesByRank(matrix) {
+    if (!matrix || !Array.isArray(matrix.riskClasses)) return [];
+    return withRiskClassRanks(matrix).riskClasses.slice().sort((a, b) => a.rank - b.rank);
   }
 
   // The mirror image of validateRiskMatrix's own conversion step, for
@@ -130,4 +174,6 @@
 
   Bowtie.validateRiskMatrix = validateRiskMatrix;
   Bowtie.denormalizeRiskMatrixForExport = denormalizeRiskMatrixForExport;
+  Bowtie.withRiskClassRanks = withRiskClassRanks;
+  Bowtie.riskClassesByRank = riskClassesByRank;
 })(window.Bowtie = window.Bowtie || {});

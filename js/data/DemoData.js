@@ -1608,12 +1608,12 @@
           "id": "C_1",
           "type": "cause",
           "name": "Valve Inadvertently Opened",
-          "description": "",
+          "description": "Typical LOPA initiating event frequency, ~0.1/yr.",
           "identifier": "",
           "likelihoodClassId": null,
           "severityClassId": null,
           "frequency": {
-            "value": "0.001"
+            "value": "1.14E-5"
           },
           "protection": null
         },
@@ -1621,12 +1621,12 @@
           "id": "C_2",
           "type": "cause",
           "name": "Flange Leak",
-          "description": "",
+          "description": "Typical LOPA initiating event frequency, ~0.01/yr.",
           "identifier": "",
           "likelihoodClassId": null,
           "severityClassId": null,
           "frequency": {
-            "value": "0.01"
+            "value": "1.14E-6"
           },
           "protection": null
         },
@@ -1634,12 +1634,12 @@
           "id": "C_3",
           "type": "cause",
           "name": "Corrosion or Erosion",
-          "description": "",
+          "description": "Typical LOPA initiating event frequency, ~0.01/yr.",
           "identifier": "",
           "likelihoodClassId": null,
           "severityClassId": null,
           "frequency": {
-            "value": "0.0001"
+            "value": "1.14E-6"
           },
           "protection": null
         },
@@ -1660,12 +1660,12 @@
           "id": "C_5",
           "type": "cause",
           "name": "Bund Wall Cracking",
-          "description": "",
+          "description": "Typical LOPA initiating event frequency, ~0.05/yr.",
           "identifier": "",
           "likelihoodClassId": null,
           "severityClassId": null,
           "frequency": {
-            "value": "0.00005"
+            "value": "5.7E-6"
           },
           "protection": null
         }

@@ -11,9 +11,10 @@ def _open_menu(page, name):
 
 def test_each_toolbar_menu_opens_with_its_expected_items(page):
     cases = {
-        "file": ["Import from JSON", "Export to JSON", "Export to SVG", "Export to PNG"],
+        "file": ["Import from JSON", "Export to JSON", "Export to SVG", "Export to PNG",
+                 "Export all pages as SVG", "Export all pages as PNG", "Print"],
         "add": ["Add Cause", "Add Outcome", "Node Library"],
-        "view": ["Auto-arrange", "Reset view", "Risk Summary"],
+        "view": ["Auto-arrange", "Reset view", "Risk Summary", "Keyboard shortcuts"],
         "settings": ["Project Settings", "Preferences"],
     }
     for name, expected_labels in cases.items():

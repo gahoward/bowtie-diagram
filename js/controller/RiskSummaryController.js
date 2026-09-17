@@ -2,13 +2,32 @@
   // Same display rule as CanvasView._formatLikelihood / PropertiesModal's
   // formatLikelihood: canonical events/hour shown in the Project Settings
   // display unit, 3 significant figures, never fed back into a calculation.
-  function formatLikelihood(value, displayUnit) {
-    const perYear = displayUnit === 'year';
-    const shown = perYear
+  function likelihoodNumber(value, displayUnit) {
+    const shown = displayUnit === 'year'
       ? value.multiplyNumerator(Bowtie.Decimal.parse(String(Bowtie.HOURS_PER_YEAR)))
       : value;
-    return `${shown.toDisplayNumber(3)}/${perYear ? 'yr' : 'hr'}`;
+    return shown.toDisplayNumber(3);
   }
+
+  function unitSuffix(displayUnit) {
+    return displayUnit === 'year' ? '/yr' : '/hr';
+  }
+
+  function formatLikelihood(value, displayUnit) {
+    return `${likelihoodNumber(value, displayUnit)}${unitSuffix(displayUnit)}`;
+  }
+
+  // The flat shape the CSV/clipboard export writes: one row per outcome
+  // across every page. Ids rather than labels for the classes (the label
+  // is matrix-specific prose; the id is what a spreadsheet filters on),
+  // the likelihood as a bare number with its unit in its own column, so
+  // the figures arrive as numbers rather than as "1.67e-7/hr" text.
+  const EXPORT_COLUMNS = [
+    'page', 'rank', 'id', 'name', 'severity',
+    'pre_likelihood', 'pre_likelihood_unit', 'pre_likelihood_class', 'pre_risk_class',
+    'post_likelihood', 'post_likelihood_unit', 'post_likelihood_class', 'post_risk_class',
+    'excluded_causes',
+  ];
 
   function el(tag, className, text) {
     const node = document.createElement(tag);
@@ -40,18 +59,117 @@
     }
 
     _open() {
+      // The three export actions return false so the modal stays open --
+      // a user exporting a CSV usually wants to keep reading the table.
+      // They're offered only when there is a table to export.
+      const exportable = this._hasRows();
       this.modal = Bowtie.ModalView.openModal({
         title: 'Risk Summary',
         bodyEl: this._buildBody(),
         size: 'xwide',
-        actions: [{ label: 'Close' }],
+        actions: [
+          ...(exportable ? [
+            { label: 'Copy as table', onClick: () => { this._copy(); return false; } },
+            { label: 'Export CSV…', onClick: () => { this._exportCsv(); return false; } },
+            { label: 'Print…', onClick: () => { this._print(); return false; } },
+          ] : []),
+          { label: 'Close', primary: true },
+        ],
       });
+    }
+
+    _hasRows() {
+      return this.model.mode !== 'simple' && Boolean(this.model.riskMatrix) && this.model.outcomes.length > 0;
+    }
+
+    // The same body the modal shows, for File › Print…'s whole-document
+    // sheet (PrintView) -- so the printed tables can never drift from
+    // the on-screen ones. Null when there is nothing to tabulate.
+    buildSummaryBody() {
+      return this._hasRows() ? this._buildBody() : null;
+    }
+
+    // --- Export ----------------------------------------------------------
+
+    _exportTable() {
+      const displayUnit = this.getDisplayUnit();
+      const unit = displayUnit === 'year' ? 'events/year' : 'events/hour';
+      const cell = (assessment, key) => {
+        if (!assessment) return '';
+        if (key === 'likelihood') {
+          return assessment.likelihood ? likelihoodNumber(assessment.likelihood.value, displayUnit) : '';
+        }
+        if (key === 'unit') return assessment.likelihood ? unit : '';
+        if (key === 'likelihoodClass') return assessment.likelihoodClass ? assessment.likelihoodClass.id : '';
+        return assessment.riskClass ? assessment.riskClass.id : '';
+      };
+      const rows = [];
+      this.model.pages.forEach((page) => {
+        this.model.computeRiskSummary(page.id).forEach((row) => {
+          rows.push([
+            page.name, row.rank, row.displayId, row.name, row.severity ? row.severity.id : '',
+            cell(row.pre, 'likelihood'), cell(row.pre, 'unit'), cell(row.pre, 'likelihoodClass'), cell(row.pre, 'riskClass'),
+            cell(row.post, 'likelihood'), cell(row.post, 'unit'), cell(row.post, 'likelihoodClass'), cell(row.post, 'riskClass'),
+            row.post.likelihood ? row.post.likelihood.excludedThreatCount : '',
+          ]);
+        });
+      });
+      return { columns: EXPORT_COLUMNS, rows };
+    }
+
+    async _copy() {
+      const ok = await Bowtie.TableExport.copyText(Bowtie.TableExport.toTsv(this._exportTable()));
+      this._flashAction('Copy as table', ok ? 'Copied' : "Couldn't copy");
+    }
+
+    _exportCsv() {
+      const name = (this.model.name || 'bowtie-diagram').replace(/[\\/:*?"<>|]/g, '-');
+      Bowtie.ExportUtil.exportCsv(Bowtie.TableExport.toCsv(this._exportTable()), `${name} - risk summary.csv`);
+    }
+
+    // Swaps a footer button's label briefly, rather than opening a dialog
+    // on top of this one to say "Copied".
+    _flashAction(label, message) {
+      if (!this.modal) return;
+      const btn = [...this.modal.dialog.querySelectorAll('.modal-actions button')]
+        .find((b) => b.textContent === label);
+      if (!btn) return;
+      btn.textContent = message;
+      btn.disabled = true;
+      setTimeout(() => {
+        btn.textContent = label;
+        btn.disabled = false;
+      }, 1500);
+    }
+
+    // Print the tables, not the app behind them: the class swaps the
+    // print stylesheet onto this modal (see styles.css) and is dropped
+    // again once the print dialog closes, whether it printed or not.
+    _print() {
+      const done = () => {
+        document.body.classList.remove('printing-risk-summary');
+        window.removeEventListener('afterprint', done);
+      };
+      window.addEventListener('afterprint', done);
+      document.body.classList.add('printing-risk-summary');
+      window.print();
     }
 
     _refresh() {
       if (this.modal && document.body.contains(this.modal.overlay)) {
         this.modal.setBody(this._buildBody());
       }
+    }
+
+    _buildIntro(quantitative) {
+      return el('p', 'risk-summary-intro',
+        "Each page's outcomes, ranked worst-first by post-mitigation risk class, then "
+        + 'pre-mitigation class, severity and likelihood. '
+        + (quantitative
+          ? 'Pre-mitigation figures are the same calculation with every barrier removed; severity is a '
+            + 'property of the outcome itself and is never changed by barriers.'
+          : 'Pre-mitigation figures need Quantitative mode — a Qualitative likelihood is picked by hand, '
+            + 'with no barrier arithmetic to remove.'));
     }
 
     _buildBody() {
@@ -72,15 +190,13 @@
         return wrap;
       }
 
-      const quantitative = model.mode === 'quantitative';
-      wrap.appendChild(el('p', 'risk-summary-intro',
-        "Each page's outcomes, ranked worst-first by post-mitigation risk class, then "
-        + 'pre-mitigation class, severity and likelihood. '
-        + (quantitative
-          ? 'Pre-mitigation figures are the same calculation with every barrier removed; severity is a '
-            + 'property of the outcome itself and is never changed by barriers.'
-          : 'Pre-mitigation figures need Quantitative mode — a Qualitative likelihood is picked by hand, '
-            + 'with no barrier arithmetic to remove.')));
+      // A print-only heading: on paper the modal's own title bar is gone,
+      // so the sheet needs to say what it is and which analysis it's from.
+      const heading = el('div', 'risk-summary-print-heading');
+      heading.appendChild(el('h2', null, `${model.name} — Risk Summary`));
+      heading.appendChild(el('p', null, new Date().toLocaleDateString()));
+      wrap.appendChild(heading);
+      wrap.appendChild(this._buildIntro(model.mode === 'quantitative'));
 
       let anyExcluded = false;
       model.pages.forEach((page) => {

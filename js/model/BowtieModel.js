@@ -524,7 +524,11 @@
     // portable even if a bundled preset is later edited). Pass null to
     // clear it (e.g. switching back to Simple mode).
     setRiskMatrix(matrix) {
-      this.riskMatrix = matrix;
+      // Back-fills risk-class `rank` when the caller hands over a matrix
+      // that predates that field (see RiskMatrixValidator.
+      // withRiskClassRanks) -- the bundled presets and the import path
+      // already carry it, this is the belt to their braces.
+      this.riskMatrix = Bowtie.withRiskClassRanks(matrix);
       this._emitChange();
     }
 

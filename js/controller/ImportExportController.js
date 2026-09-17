@@ -23,21 +23,42 @@
     // completed (not one the user cancelled out of a native Save dialog) —
     // this is how UnsavedChangesController knows the document was just
     // saved and the close-confirmation prompt can stand down again.
-    constructor(model, svgRoot, getContentBounds, els, onImported, onExported) {
+    // `onFileHandle`, if given, receives the FileSystemFileHandle of any
+    // file this controller saved to or opened natively -- what
+    // RecentFilesController remembers so the start screen can offer it
+    // again. Nothing happens without the File System Access API: there is
+    // no handle to hand over on the download/`<input type=file>` paths.
+    constructor(model, svgRoot, getContentBounds, els, onImported, onExported, getRenderOpts, onFileHandle) {
       this.model = model;
       this.svgRoot = svgRoot;
       this.getContentBounds = getContentBounds;
       this.onImported = onImported;
       this.onExported = onExported;
+      // The same `{ showAnnotations, displayUnit }` main.js's renderAll
+      // passes, so an off-screen page render matches the live canvas.
+      this.getRenderOpts = getRenderOpts;
+      this.onFileHandle = onFileHandle;
 
       els.exportPngBtn.addEventListener('click', () => {
-        Bowtie.ExportUtil.exportPng(this.svgRoot, this.getContentBounds(), 'bowtie-diagram.png');
+        Bowtie.ExportUtil.exportPng(this.svgRoot, this.getContentBounds(), `${this._baseName()}.png`);
       });
       els.exportSvgBtn.addEventListener('click', () => {
-        Bowtie.ExportUtil.exportSvg(this.svgRoot, this.getContentBounds(), 'bowtie-diagram.svg');
+        Bowtie.ExportUtil.exportSvg(this.svgRoot, this.getContentBounds(), `${this._baseName()}.svg`);
       });
+      // Every page, one file each (ExportUtil.exportAllPages): a folder
+      // picker where the File System Access API exists, sequential
+      // downloads where it doesn't. The loading modal stays up for the
+      // duration, naming the page being rendered.
+      if (els.exportAllSvgBtn) {
+        els.exportAllSvgBtn.addEventListener('click', () => this._exportAllPages('svg'));
+      }
+      if (els.exportAllPngBtn) {
+        els.exportAllPngBtn.addEventListener('click', () => this._exportAllPages('png'));
+      }
       els.exportJsonBtn.addEventListener('click', async () => {
-        const saved = await Bowtie.ExportUtil.exportJson(this.model, 'bowtie-diagram.json');
+        const saved = await Bowtie.ExportUtil.exportJson(
+          this.model, `${this._baseName()}.json`, (handle) => this._rememberFile(handle),
+        );
         if (saved && this.onExported) this.onExported();
       });
       // Prefers the real native "Open" dialog (File System Access API);
@@ -50,12 +71,47 @@
       els.importJsonBtn.addEventListener('click', async () => {
         const result = await Bowtie.ExportUtil.pickJsonFileText();
         if (result.supported) {
-          if (result.text != null) await this._processImportedText(result.text);
+          if (result.text != null) {
+            this._rememberFile(result.handle);
+            await this._processImportedText(result.text);
+          }
           return;
         }
         els.importFileInput.click();
       });
       els.importFileInput.addEventListener('change', (e) => this._onImportFile(e));
+    }
+
+    _rememberFile(handle) {
+      if (handle && this.onFileHandle) this.onFileHandle(handle);
+    }
+
+    // Exports are named after the analysis, not a fixed "bowtie-diagram"
+    // -- a folder of exports from several analyses is otherwise a folder
+    // of identically-named files.
+    _baseName() {
+      return Bowtie.ExportUtil.safeFileName(this.model.name, 'bowtie-diagram');
+    }
+
+    async _exportAllPages(format) {
+      const total = this.model.pages.length;
+      const loading = this._showLoadingModal(`Exporting page 1 of ${total}…`);
+      const message = loading.dialog.querySelector('.modal-loading p');
+      try {
+        await nextPaint();
+        const written = await Bowtie.ExportUtil.exportAllPages(this.model, {
+          format,
+          opts: this.getRenderOpts ? this.getRenderOpts() : {},
+          onProgress: (done) => {
+            if (message && done < total) message.textContent = `Exporting page ${done + 1} of ${total}…`;
+          },
+        });
+        loading.close();
+        if (written === 0 && total > 0) return; // the user cancelled the folder picker
+      } catch (err) {
+        loading.close();
+        this._showMessage('Export Failed', err.message || 'Could not export every page.');
+      }
     }
 
     _showMessage(title, message) {
@@ -123,6 +179,15 @@
       } finally {
         loading.close();
       }
+    }
+
+    // Public entry point for raw JSON text from somewhere other than a
+    // file dialog -- WelcomeController's "Recently opened" list reads a
+    // remembered file handle and hands the text straight here, so it
+    // gets the same parse/validate/loading-modal treatment as a file the
+    // user picked this session.
+    importText(text) {
+      return this._processImportedText(text);
     }
 
     // Validates an already-parsed document (shape check, then exact
