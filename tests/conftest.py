@@ -63,6 +63,14 @@ window.Bowtie = new Proxy({}, {
       target[prop] = Wrapped;
       return true;
     }
+    if (prop === 'BarrierRegisterController') {
+      const Orig = value;
+      class Wrapped extends Orig {
+        constructor(...a) { super(...a); window.__lastBarrierRegister = this; }
+      }
+      target[prop] = Wrapped;
+      return true;
+    }
     if (prop === 'RecoveryController') {
       const Orig = value;
       class Wrapped extends Orig {

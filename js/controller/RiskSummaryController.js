@@ -147,11 +147,11 @@
     // again once the print dialog closes, whether it printed or not.
     _print() {
       const done = () => {
-        document.body.classList.remove('printing-risk-summary');
+        document.body.classList.remove('printing-summary');
         window.removeEventListener('afterprint', done);
       };
       window.addEventListener('afterprint', done);
-      document.body.classList.add('printing-risk-summary');
+      document.body.classList.add('printing-summary');
       window.print();
     }
 

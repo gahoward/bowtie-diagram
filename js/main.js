@@ -293,6 +293,12 @@
       model, document.getElementById('btn-risk-summary'), () => preferences.getDisplayUnit(),
     );
 
+    // The barrier owner's counterpart to the Risk Summary (proposals/09),
+    // document-wide for the same reason: it walks every page.
+    new Bowtie.BarrierRegisterController(
+      model, document.getElementById('btn-barrier-register'), () => preferences.getDisplayUnit(),
+    );
+
     // The document's own context (mode, matrix, unit, aggregation) at the
     // end of the bottom bar. Constructed with `model` -- all of it is
     // document-wide -- and re-rendered from renderAll too, since the
@@ -336,7 +342,7 @@
 
     const TOOLBAR_BUTTON_IDS = [
       'btn-add-cause', 'btn-add-outcome', 'btn-auto-arrange', 'btn-reset-view', 'btn-risk-summary',
-      'btn-shortcuts',
+      'btn-barrier-register', 'btn-shortcuts',
       'btn-manage-ids', 'btn-preferences', 'btn-export-all-svg', 'btn-export-all-png', 'btn-print',
       'btn-project-settings', 'btn-export-png', 'btn-export-svg', 'btn-export-json', 'btn-import-json',
       'menu-trigger-file', 'menu-trigger-add', 'menu-trigger-view', 'menu-trigger-settings',

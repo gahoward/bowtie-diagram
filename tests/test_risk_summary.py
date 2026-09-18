@@ -468,11 +468,11 @@ def test_print_swaps_the_print_class_on_and_off_again(page):
     page.wait_for_timeout(100)
 
     assert page.evaluate("() => window.__printed") == 1
-    assert page.evaluate("() => document.body.classList.contains('printing-risk-summary')") is True
+    assert page.evaluate("() => document.body.classList.contains('printing-summary')") is True
     assert page.locator(".modal-overlay").count() == 1, "the modal stays open"
     page.evaluate("() => window.dispatchEvent(new Event('afterprint'))")
     page.wait_for_timeout(50)
-    assert page.evaluate("() => document.body.classList.contains('printing-risk-summary')") is False
+    assert page.evaluate("() => document.body.classList.contains('printing-summary')") is False
     page.get_by_role("button", name="Close", exact=True).click()
 
 

@@ -294,6 +294,116 @@
       return rows;
     }
 
+    // Every barrier placement as one row, worst-first (proposals/09).
+    // The Risk Summary is the outcome owner's view; this is the barrier
+    // owner's -- barriers carry more data than anything else in the
+    // document (type, owner, effectiveness, the protection measure and
+    // its value, a computed demand rate, and up to two advisory
+    // warnings) and nothing gathered it before.
+    //
+    // Unlike computeRiskSummary this works in EVERY mode: a barrier has a
+    // type, an owner and an effectiveness whether or not the document
+    // does any arithmetic, and the register is exactly as useful for a
+    // Simple diagram. The quantitative columns simply come back null and
+    // the view drops them.
+    computeBarrierRegister(pageId = null) {
+      const model = this.model;
+      const quantitative = model.mode === 'quantitative';
+      const inScope = (placement) => pageId === null || placement.pageId === pageId;
+
+      // Once per call, not once per row: getWarnings() walks the whole
+      // document (and, in quantitative mode, folds every line) -- doing
+      // that per barrier would make the register quadratic in the thing
+      // it is summarising.
+      const warningsById = new Map();
+      model.getWarnings().forEach((warning) => {
+        if (!warningsById.has(warning.id)) warningsById.set(warning.id, []);
+        warningsById.get(warning.id).push(warning);
+      });
+
+      // Which causes (preventative) or outcomes (mitigative) this barrier
+      // actually stands in the way of, by the display ids a user reads on
+      // the canvas rather than the internal placement ids.
+      const protectedOrigins = (barrierId) => model.linesThrough(barrierId)
+        .map((line) => {
+          const origin = model.findById(line.originId);
+          return origin ? model.displayIdentifierFor(model.getNode(origin.nodeId)) : null;
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b));
+
+      const build = (placement, side) => {
+        const node = model.getNode(placement.nodeId);
+        const page = model.getPage(placement.pageId);
+        const warnings = warningsById.get(placement.id) || [];
+        return {
+          placementId: placement.id,
+          nodeId: node.id,
+          displayId: model.displayIdentifierFor(node),
+          name: node.name,
+          side,
+          pageId: page.id,
+          pageName: page.name,
+          barrierType: node.barrierType,
+          owner: node.owner,
+          effectiveness: node.effectiveness,
+          protection: quantitative ? (node.protection || null) : null,
+          demandRate: quantitative ? this.computeDemandRateAt(placement.id) : null,
+          protects: protectedOrigins(placement.id),
+          warnings,
+        };
+      };
+
+      const rows = [
+        ...model.preventativeBarriers.filter(inScope).map((p) => build(p, 'preventative')),
+        ...model.mitigativeBarriers.filter(inScope).map((p) => build(p, 'mitigative')),
+      ];
+
+      // Worst first: something wrong with it, then something unknown
+      // about it, then something weak about it, then whatever it is
+      // holding back the most. A blocking warning outranks an advisory
+      // one because it also stops the document being exported at all.
+      const warningRank = (row) => {
+        if (row.warnings.some((w) => w.severity !== 'advisory')) return 0;
+        if (row.warnings.length > 0) return 1;
+        return 2;
+      };
+      // Only meaningful where a measure is expected at all: in Simple and
+      // Qualitative mode every row is equally "unknown", so this collapses
+      // to a no-op rather than sorting by an absence.
+      const unknownRank = (row) => {
+        if (!quantitative) return 0;
+        return (!row.protection || row.protection.unknown) ? 0 : 1;
+      };
+      // An unrecorded effectiveness sorts last, not first: "nobody has
+      // said" is a gap in the register, but a barrier someone has
+      // assessed as Low is a live weakness, and the point of the order is
+      // to put the weaknesses at the top.
+      const EFFECTIVENESS_ORDER = { low: 0, medium: 1, high: 2 };
+      const effectivenessRank = (row) => {
+        const rank = EFFECTIVENESS_ORDER[row.effectiveness];
+        return rank === undefined ? 3 : rank;
+      };
+
+      rows.sort((a, b) => {
+        const byWarning = warningRank(a) - warningRank(b);
+        if (byWarning) return byWarning;
+        const byUnknown = unknownRank(a) - unknownRank(b);
+        if (byUnknown) return byUnknown;
+        const byEffectiveness = effectivenessRank(a) - effectivenessRank(b);
+        if (byEffectiveness) return byEffectiveness;
+        if (a.demandRate && b.demandRate) {
+          const byDemand = b.demandRate.compare(a.demandRate); // busiest first
+          if (byDemand) return byDemand;
+        } else if (a.demandRate !== b.demandRate) {
+          return a.demandRate ? -1 : 1; // a known rate outranks an unknown one
+        }
+        return a.displayId.localeCompare(b.displayId);
+      });
+      rows.forEach((row, i) => { row.rank = i + 1; });
+      return rows;
+    }
+
     // The running frequency at the point a demand reaches `barrierId` on
     // one specific Line -- barrier_measures_proposal.md's UI ask ("the
     // demand rate at this barrier... the single number that decides low-

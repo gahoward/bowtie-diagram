@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Added View > "Barrier Register…" (`proposals/09`): one table per page of
+  every barrier on it, with its side, type, owner, effectiveness, measure,
+  the demand rate reaching it, which causes or outcomes it protects, and
+  any warnings against it — the barrier owner's view, where the Risk
+  Summary is the outcome owner's. Ranked worst-first: anything warned
+  about, then anything unknown about it, then the weakest assessed
+  effectiveness, then whatever is holding back the most. Works in every
+  mode (a barrier has an owner and an effectiveness whether or not the
+  document does arithmetic), dropping the measure and demand columns when
+  there are no figures for them, and carries the same Copy as table /
+  Export CSV… / Print… actions as the Risk Summary. Model API:
+  `computeBarrierRegister(pageId)`.
 - Added a second bundled risk matrix, **MIL-STD-882E** (`proposals/10`),
   selectable in the New Bowtie wizard and Project Settings like Leaflet 5.
   Its probability levels are stated per item life rather than per unit

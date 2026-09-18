@@ -227,6 +227,21 @@ step for the app itself, so tests run directly against `index.html` as-is.
   not, and the synthetic `beforeunload` event is only `preventDefault`ed
   while dirty. What happens to the work itself when the user leaves
   anyway is `test_recovery.py` below.
+- **`test_barrier_register.py`** — View › Barrier Register (proposals/09),
+  the barrier owner's counterpart to the Risk Summary. Model-level: every
+  placement is a row with its metadata, "Protects" lists every origin
+  whose line runs through a shared barrier, the worst-first ranking
+  (warned, then unknown, then weakest effectiveness, then busiest), an
+  unrecorded effectiveness sorting after a recorded Low, page scoping,
+  and the demand rate matching `computeDemandRateAt`. UI-level: one table
+  per page with the empty-page message, columns following the mode
+  (Measure/Demand only in Quantitative), a row reading the way the canvas
+  does, Unknown called out rather than left blank, one warning glyph per
+  row with every message in its tooltip, live refresh while open, and the
+  CSV export's figures. Note the ranking tests keep cause frequencies
+  below IEC 61511's ~1/year boundary: above it every low-demand measure
+  picks up an advisory warning, which is the top ranking tier and would
+  mask the tiers under test.
 - **`test_risk_matrix_882e.py`** — golden master for the bundled
   MIL-STD-882E preset (proposals/10), mirroring `test_risk_matrix.py`'s
   Leaflet 5 coverage: all 20 Table III cells against a transcription of

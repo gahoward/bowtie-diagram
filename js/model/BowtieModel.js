@@ -719,6 +719,13 @@
       return this._quantitative.computeRiskSummary(pageId);
     }
 
+    // The barrier owner's view of the document (proposals/09) -- see
+    // Quantitative.computeBarrierRegister. Same delegation reasoning as
+    // the methods above.
+    computeBarrierRegister(pageId = null) {
+      return this._quantitative.computeBarrierRegister(pageId);
+    }
+
     // barrier_measures_proposal.md's demand-rate readout -- see
     // Quantitative.computeDemandRateAt. Same delegation reasoning as the
     // three methods above.

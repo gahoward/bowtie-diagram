@@ -585,6 +585,31 @@ html, body {
   color: #374151;
 }
 
+/* Barrier Register (proposals/09) -- shares .summary-* with the Risk
+   Summary; only the columns unique to it need their own rules. */
+.barrier-register-protects {
+  font-variant-numeric: tabular-nums;
+  color: #374151;
+}
+
+.barrier-register-unknown {
+  color: #b45309;
+}
+
+.barrier-register-warning {
+  text-align: center;
+}
+
+.barrier-register-blocking {
+  color: #b91c1c;
+  cursor: help;
+}
+
+.barrier-register-advisory {
+  color: #b45309;
+  cursor: help;
+}
+
 /* The "Upgraded" notice's list of applied migrations (proposals/12). */
 .migration-list {
   margin: 8px 0 0;
@@ -1423,35 +1448,42 @@ html, body {
 }
 
 .risk-summary-intro,
-.risk-summary-empty {
+.summary-intro,
+.risk-summary-empty,
+.summary-empty {
   margin: 0;
   font-size: 13px;
   line-height: 1.5;
   color: #374151;
 }
 
-.risk-summary-empty {
+.risk-summary-empty,
+.summary-empty {
   color: #6b7280;
 }
 
-.risk-summary-page {
+.risk-summary-page,
+.summary-page {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.risk-summary-page-title {
+.risk-summary-page-title,
+.summary-page-title {
   margin: 4px 0 0;
   font-size: 13px;
   font-weight: 700;
   color: #111827;
 }
 
-.risk-summary-table-wrap {
+.risk-summary-table-wrap,
+.summary-table-wrap {
   overflow-x: auto;
 }
 
-.risk-summary-table {
+.risk-summary-table,
+.summary-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
@@ -1459,14 +1491,17 @@ html, body {
 }
 
 .risk-summary-table th,
-.risk-summary-table td {
+.summary-table th,
+.risk-summary-table td,
+.summary-table td {
   padding: 6px 8px;
   border-bottom: 1px solid var(--border);
   text-align: left;
   vertical-align: top;
 }
 
-.risk-summary-table thead th {
+.risk-summary-table thead th,
+.summary-table thead th {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -1475,40 +1510,49 @@ html, body {
   background: #f9fafb;
 }
 
-.risk-summary-table th.risk-summary-group {
+.risk-summary-table th.risk-summary-group,
+.summary-table th.risk-summary-group {
   text-align: center;
 }
 
 .risk-summary-table th.risk-summary-group,
-.risk-summary-table .risk-summary-group-start {
+.summary-table th.risk-summary-group,
+.risk-summary-table .risk-summary-group-start,
+.summary-table .risk-summary-group-start {
   border-left: 1px solid var(--border);
 }
 
-.risk-summary-rank {
+.risk-summary-rank,
+.summary-rank {
   color: #6b7280;
   white-space: nowrap;
 }
 
 .risk-summary-id,
-.risk-summary-value {
+.summary-id,
+.risk-summary-value,
+.summary-value {
   font-weight: 600;
   white-space: nowrap;
 }
 
-.risk-summary-sub {
+.risk-summary-sub,
+.summary-sub {
   display: block;
   font-size: 11px;
   color: #6b7280;
 }
 
-.risk-summary-chip {
+.risk-summary-chip,
+.summary-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   white-space: nowrap;
 }
 
-.risk-summary-note {
+.risk-summary-note,
+.summary-note {
   margin: 0;
   font-size: 11px;
   color: #b45309;
@@ -1516,7 +1560,8 @@ html, body {
 
 /* On screen the modal's own title says what this is; the heading below
    exists for the printed sheet, where that title bar isn't there. */
-.risk-summary-print-heading {
+.risk-summary-print-heading,
+.summary-print-heading {
   display: none;
 }
 
@@ -1575,15 +1620,18 @@ html, body {
     break-after: auto;
   }
 
-  body.printing-document .risk-summary-table-wrap {
+  body.printing-document .risk-summary-table-wrap,
+  body.printing-document .summary-table-wrap {
     overflow: visible;
   }
 
-  body.printing-document .risk-summary-page {
+  body.printing-document .risk-summary-page,
+  body.printing-document .summary-page {
     break-inside: avoid;
   }
 
-  body.printing-document .risk-summary-print-heading {
+  body.printing-document .risk-summary-print-heading,
+  body.printing-document .summary-print-heading {
     display: block;
   }
 
@@ -1597,18 +1645,18 @@ html, body {
    the app behind the backdrop, the backdrop itself and the buttons all
    go, and the dialog becomes a plain document. */
 @media print {
-  body.printing-risk-summary #app,
-  body.printing-risk-summary .modal-actions {
+  body.printing-summary #app,
+  body.printing-summary .modal-actions {
     display: none !important;
   }
 
-  body.printing-risk-summary .modal-overlay {
+  body.printing-summary .modal-overlay {
     position: static;
     display: block;
     background: none;
   }
 
-  body.printing-risk-summary .modal-dialog {
+  body.printing-summary .modal-dialog {
     width: auto;
     max-width: none;
     max-height: none;
@@ -1618,30 +1666,35 @@ html, body {
     border-radius: 0;
   }
 
-  body.printing-risk-summary .modal-title {
+  body.printing-summary .modal-title {
     display: none;
   }
 
-  body.printing-risk-summary .risk-summary-print-heading {
+  body.printing-summary .risk-summary-print-heading,
+  body.printing-summary .summary-print-heading {
     display: block;
   }
 
-  body.printing-risk-summary .risk-summary-print-heading h2 {
+  body.printing-summary .risk-summary-print-heading h2,
+  body.printing-summary .summary-print-heading h2 {
     margin: 0 0 2px;
     font-size: 16px;
   }
 
-  body.printing-risk-summary .risk-summary-print-heading p {
+  body.printing-summary .risk-summary-print-heading p,
+  body.printing-summary .summary-print-heading p {
     margin: 0 0 10px;
     font-size: 11px;
     color: #4b5563;
   }
 
-  body.printing-risk-summary .risk-summary-page {
+  body.printing-summary .risk-summary-page,
+  body.printing-summary .summary-page {
     break-inside: avoid;
   }
 
-  body.printing-risk-summary .risk-summary-table-wrap {
+  body.printing-summary .risk-summary-table-wrap,
+  body.printing-summary .summary-table-wrap {
     overflow: visible;
   }
 }
