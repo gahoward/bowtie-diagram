@@ -95,11 +95,17 @@
     // for a shared node's id without saying which page it means.
     _resolvePlacementId(id) {
       const model = this.model;
+      // Escalation factors and their barriers (proposals/08) are in the
+      // same id space as everything else, so they resolve here too -- a
+      // factor's node id has to reach its placement for "Add Escalation
+      // Barrier" to find the line it owns.
       const isPlacementId = (
         model.threats.some((c) => c.id === id) ||
         model.consequences.some((o) => o.id === id) ||
         model.preventativeBarriers.some((p) => p.id === id) ||
-        model.mitigativeBarriers.some((m) => m.id === id)
+        model.mitigativeBarriers.some((m) => m.id === id) ||
+        model.escalationFactors.some((f) => f.id === id) ||
+        model.escalationBarriers.some((b) => b.id === id)
       );
       if (isPlacementId) return id;
       const matches = [
@@ -107,6 +113,8 @@
         ...model.consequences.filter((o) => o.nodeId === id),
         ...model.preventativeBarriers.filter((p) => p.nodeId === id),
         ...model.mitigativeBarriers.filter((m) => m.nodeId === id),
+        ...model.escalationFactors.filter((f) => f.nodeId === id),
+        ...model.escalationBarriers.filter((b) => b.nodeId === id),
       ];
       if (matches.length > 1) {
         throw new Error(
@@ -176,6 +184,67 @@
       });
       model[side.barrierCollection].push(barrier);
       line.stops.push(id);
+      model._emitChange();
+      return barrier;
+    }
+
+    // The escalation-line counterpart of _addBarrierChainedFrom: appends a
+    // new escalation barrier to the far end of an escalation factor's own
+    // line (proposals/08). Same shape as the barrier version, with two
+    // differences that follow from the line running VERTICALLY from the
+    // factor up into the barrier it degrades: the new stop is placed by y
+    // rather than x, and its anchor is the previous stop (or the factor
+    // itself) above it.
+    _addEscalationBarrierChainedFrom(escalationFactorId, opts = {}) {
+      const model = this.model;
+      const factorId = this._resolvePlacementId(escalationFactorId);
+      const factor = model.escalationFactors.find((f) => f.id === factorId);
+      if (!factor) throw new Error(`Unknown escalationFactor id: ${escalationFactorId}`);
+      const line = this._lineFor(factorId);
+
+      const tailId = line.stops.length > 0 ? line.stops[line.stops.length - 1] : factorId;
+      const anchor = line.stops.length > 0
+        ? model.escalationBarriers.find((b) => b.id === tailId)
+        : factor;
+
+      const node = model._resolveOrCreateNode('escalationBarrier', opts, factor.pageId);
+      model.idCounters.placement += 1;
+      const w = Bowtie.Geometry.ESCALATION_BARRIER_W;
+      const h = Bowtie.Geometry.ESCALATION_BARRIER_H;
+      const barrier = new Bowtie.Placement({
+        id: `PLACEMENT_${model.idCounters.placement}`,
+        type: 'escalationBarrier',
+        nodeId: node.id,
+        // Centred on the factor's own vertical line, one gap above
+        // whatever it was chained from -- stops run factor-to-barrier,
+        // so each new one sits closer to the barrier.
+        x: opts.x ?? factor.x + factor.w / 2 - w / 2,
+        y: opts.y ?? anchor.y - Bowtie.Geometry.ESCALATION_GAP,
+        w,
+        h,
+        pageId: factor.pageId,
+      });
+      model.escalationBarriers.push(barrier);
+      line.stops.push(barrier.id);
+      model._emitChange();
+      return barrier;
+    }
+
+    // Routes an existing escalation barrier onto another factor's line --
+    // the escalation-side counterpart of attachExistingBarrier, and the
+    // reason one "quarterly test regime" node can control the same factor
+    // wherever it appears.
+    attachExistingEscalationBarrier(escalationFactorId, escalationBarrierId) {
+      const model = this.model;
+      const factorId = this._resolvePlacementId(escalationFactorId);
+      const barrierId = this._resolvePlacementId(escalationBarrierId);
+      const factor = model.escalationFactors.find((f) => f.id === factorId);
+      if (!factor) throw new Error(`Unknown escalationFactor id: ${escalationFactorId}`);
+      const barrier = model.escalationBarriers.find((b) => b.id === barrierId);
+      if (!barrier) throw new Error(`Unknown escalationBarrier id: ${escalationBarrierId}`);
+      const line = this._lineFor(factorId);
+      if (line.stops.includes(barrierId)) throw new Error('That escalation barrier is already on this line');
+      line.stops.push(barrierId);
       model._emitChange();
       return barrier;
     }

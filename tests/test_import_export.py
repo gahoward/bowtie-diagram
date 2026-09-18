@@ -1,4 +1,4 @@
-"""Schema v10 round-trip, and the version rules around it.
+"""Schema round-trip, and the version rules around it.
 
 A file NEWER than the editor is still rejected outright rather than
 silently misread; one OLDER than v10 predates the upgrade path and is
@@ -140,4 +140,4 @@ def test_a_version_older_than_the_upgrade_path_is_rejected_with_a_message(page):
     assert loaded is False
     assert page.locator(".modal-title").last.text_content() == "Unsupported File Version"
     assert "version 5" in page.locator(".modal-body").text_content()
-    assert page.evaluate("() => Bowtie.BowtieModel.SCHEMA_VERSION") == 11
+    assert page.evaluate("() => Bowtie.BowtieModel.SCHEMA_VERSION") == 12

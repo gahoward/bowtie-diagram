@@ -37,7 +37,14 @@
   // reading one as the other would silently mislabel a whole document.
   // The first entry in Migrations.js upgrades v10 files, so unlike v9 and
   // v10 nobody's export is stranded by it.
-  const SCHEMA_VERSION = 11;
+  //
+  // v12 (proposals/08): escalation factors and their barriers. Purely
+  // additive -- two library/retiredIds keys, two placement arrays, and a
+  // third `Line.originType` -- so a v11 document means exactly what it
+  // always did and its migration only fills in the empty collections.
+  // The bump still happens, because a v11 editor handed a v12 file would
+  // silently drop every escalation factor in it.
+  const SCHEMA_VERSION = 12;
 
   class BowtieModel {
     constructor() {
@@ -60,6 +67,13 @@
       this.consequences = [];
       this.preventativeBarriers = [];
       this.mitigativeBarriers = [];
+      // Escalation factors and their barriers (proposals/08). An EF
+      // placement carries a `barrierId`: it is anchored to one barrier
+      // PLACEMENT on the same page rather than sitting free, because an
+      // escalation factor has no meaning apart from the barrier it
+      // degrades.
+      this.escalationFactors = [];
+      this.escalationBarriers = [];
       // One Line per Threat and per Consequence — the first-order representation
       // of that element's continuous path to/from the TLE. Created/destroyed
       // alongside their origin, mutated directly by every chaining operation
@@ -95,6 +109,8 @@
         consequence: 0,
         preventativeBarrier: 0,
         mitigativeBarrier: 0,
+        escalationFactor: 0,
+        escalationBarrier: 0,
         line: 0,
         // Node ids are drawn from the four counters above (repurposed to
         // count NODES, not placements, by this proposal — same counters,
@@ -215,6 +231,8 @@
       this.consequences = this.consequences.filter((o) => o.pageId !== pageId);
       this.preventativeBarriers = this.preventativeBarriers.filter((p) => p.pageId !== pageId);
       this.mitigativeBarriers = this.mitigativeBarriers.filter((m) => m.pageId !== pageId);
+      this.escalationFactors = this.escalationFactors.filter((f) => f.pageId !== pageId);
+      this.escalationBarriers = this.escalationBarriers.filter((b) => b.pageId !== pageId);
       this.lines = this.lines.filter((l) => l.pageId !== pageId);
       this._emitChange();
     }
@@ -239,6 +257,14 @@
       return this.mitigativeBarriers.filter((m) => m.pageId === pageId);
     }
 
+    escalationFactorsForPage(pageId) {
+      return this.escalationFactors.filter((f) => f.pageId === pageId);
+    }
+
+    escalationBarriersForPage(pageId) {
+      return this.escalationBarriers.filter((b) => b.pageId === pageId);
+    }
+
     linesForPage(pageId) {
       return this.lines.filter((l) => l.pageId === pageId);
     }
@@ -249,6 +275,8 @@
         case 'consequence': return this.consequencesForPage(pageId);
         case 'preventativeBarrier': return this.preventativeBarriersForPage(pageId);
         case 'mitigativeBarrier': return this.mitigativeBarriersForPage(pageId);
+        case 'escalationFactor': return this.escalationFactorsForPage(pageId);
+        case 'escalationBarrier': return this.escalationBarriersForPage(pageId);
         default: return [];
       }
     }
@@ -295,7 +323,14 @@
       if (opts.nodeId) {
         const node = this.getNodeOfType(kind, opts.nodeId);
         if (!node) throw new Error(`Unknown ${kind} node id: ${opts.nodeId}`);
-        if (this._placementsForPage(kind, pageId).some((p) => p.nodeId === opts.nodeId)) {
+        // "At most one placement per node per page" holds for everything
+        // except an escalation factor, whose uniqueness is keyed by
+        // (node, barrier) instead -- the same factor ("not proof tested")
+        // legitimately degrades several barriers on one page, and
+        // addEscalationFactor enforces the per-barrier rule itself
+        // (proposals/08, open question 1).
+        if (kind !== 'escalationFactor'
+          && this._placementsForPage(kind, pageId).some((p) => p.nodeId === opts.nodeId)) {
           throw new Error('That node is already placed on this page');
         }
         return node;
@@ -443,6 +478,80 @@
       return this._lineTopology._addBarrierChainedFrom('mitigativeBarrier', consequenceId, opts);
     }
 
+    // --- Escalation factors (proposals/08) --------------------------------
+    //
+    // An escalation factor degrades one barrier: "the ESDV isn't proof
+    // tested", "the deluge pump is on manual". It hangs below that barrier
+    // and owns its own Line -- `originType: 'escalationFactor'`, stops =
+    // the escalation barriers controlling it, far end = the barrier
+    // itself. That reuse is the whole design: every splice, attach,
+    // reorder and truncate primitive in LineTopology already works on a
+    // Line, so none of them needed a second implementation here.
+    //
+    // Deliberately NOT part of the quantitative fold: an EF does not
+    // change any computed frequency (see Quantitative.js). The standard
+    // treatment -- an EF degrading its barrier's PFD -- is a separate
+    // proposal, kept out of this one so the schema change stays
+    // structural.
+    addEscalationFactor(barrierId, opts = {}) {
+      const barrier = this.findById(barrierId);
+      if (!barrier || !['preventativeBarrier', 'mitigativeBarrier'].includes(barrier.type)) {
+        throw new Error(`Escalation factors attach to a barrier, not ${barrierId}`);
+      }
+      const node = this._resolveOrCreateNode('escalationFactor', opts, barrier.pageId);
+      // One placement of a given EF node per BARRIER per page, rather than
+      // per page: the same factor legitimately degrades several barriers
+      // on one page, which the document-wide "one placement per node per
+      // page" rule would otherwise forbid (open question 1).
+      const existing = this.escalationFactors.find(
+        (f) => f.nodeId === node.id && f.barrierId === barrier.id,
+      );
+      if (existing) return existing;
+
+      this.idCounters.placement += 1;
+      const w = Bowtie.Geometry.ESCALATION_FACTOR_W;
+      const h = Bowtie.Geometry.ESCALATION_FACTOR_H;
+      const stack = this.escalationFactorsFor(barrier.id).length;
+      const placement = new Bowtie.Placement({
+        id: `PLACEMENT_${this.idCounters.placement}`,
+        type: 'escalationFactor',
+        nodeId: node.id,
+        x: opts.x ?? barrier.x + barrier.w / 2 - w / 2,
+        y: opts.y ?? barrier.y + barrier.h + Bowtie.Geometry.ESCALATION_GAP
+          + stack * (h + Bowtie.Geometry.ESCALATION_GAP),
+        w,
+        h,
+        pageId: barrier.pageId,
+        barrierId: barrier.id,
+      });
+      this.escalationFactors.push(placement);
+      this.idCounters.line += 1;
+      this.lines.push(new Bowtie.Line({
+        id: `LINE_${this.idCounters.line}`,
+        originType: 'escalationFactor',
+        originId: placement.id,
+        pageId: barrier.pageId,
+      }));
+      this._emitChange();
+      return placement;
+    }
+
+    addEscalationBarrier(escalationFactorId, opts = {}) {
+      return this._lineTopology._addEscalationBarrierChainedFrom(escalationFactorId, opts);
+    }
+
+    attachExistingEscalationBarrier(escalationFactorId, escalationBarrierId) {
+      return this._lineTopology.attachExistingEscalationBarrier(escalationFactorId, escalationBarrierId);
+    }
+
+    // Every escalation factor hanging off one barrier placement, in
+    // creation order -- what the renderer stacks and what auto-arrange
+    // reserves room for.
+    escalationFactorsFor(barrierId) {
+      const resolved = this._resolvePlacementId(barrierId);
+      return this.escalationFactors.filter((f) => f.barrierId === resolved);
+    }
+
     insertBarrier(kind, direction, anchorId, opts = {}, selectedLineIds = null) {
       return this._lineTopology.insertBarrier(kind, direction, anchorId, opts, selectedLineIds);
     }
@@ -500,6 +609,8 @@
         this.consequences.find((o) => o.id === id) ||
         this.preventativeBarriers.find((p) => p.id === id) ||
         this.mitigativeBarriers.find((m) => m.id === id) ||
+        this.escalationFactors.find((f) => f.id === id) ||
+        this.escalationBarriers.find((b) => b.id === id) ||
         null
       );
       if (direct) return direct;
@@ -508,6 +619,8 @@
         this.consequences.find((o) => o.nodeId === id) ||
         this.preventativeBarriers.find((p) => p.nodeId === id) ||
         this.mitigativeBarriers.find((m) => m.nodeId === id) ||
+        this.escalationFactors.find((f) => f.nodeId === id) ||
+        this.escalationBarriers.find((b) => b.nodeId === id) ||
         null
       );
     }
@@ -617,6 +730,23 @@
     // shared by deleteElement (below, page-scoped, never retires anything
     // any more) and deleteNode's cross-page cascade (above, which retires
     // the NODE's id once for the whole batch).
+    _removeStop(id) {
+      this.lines.forEach((line) => {
+        const idx = line.stops.indexOf(id);
+        if (idx !== -1) line.stops.splice(idx, 1);
+      });
+    }
+
+    // Deleting a barrier takes its escalation factors with it: an EF is
+    // anchored to that barrier and means nothing without it. Recursive
+    // through _removePlacementOnly so each factor's own line goes too.
+    _removeEscalationFactorsOf(barrierId) {
+      this.escalationFactors
+        .filter((f) => f.barrierId === barrierId)
+        .map((f) => f.id)
+        .forEach((factorId) => this._removePlacementOnly(factorId));
+    }
+
     _removePlacementOnly(id) {
       const el = this.findById(id);
       if (!el) return;
@@ -631,17 +761,25 @@
           break;
         case 'preventativeBarrier':
           this.preventativeBarriers = this.preventativeBarriers.filter((p) => p.id !== id);
-          this.lines.forEach((line) => {
-            const idx = line.stops.indexOf(id);
-            if (idx !== -1) line.stops.splice(idx, 1);
-          });
+          this._removeStop(id);
+          this._removeEscalationFactorsOf(id);
           break;
         case 'mitigativeBarrier':
           this.mitigativeBarriers = this.mitigativeBarriers.filter((m) => m.id !== id);
-          this.lines.forEach((line) => {
-            const idx = line.stops.indexOf(id);
-            if (idx !== -1) line.stops.splice(idx, 1);
-          });
+          this._removeStop(id);
+          this._removeEscalationFactorsOf(id);
+          break;
+        case 'escalationFactor':
+          this.escalationFactors = this.escalationFactors.filter((f) => f.id !== id);
+          // Its escalation line goes with it. The escalation barriers on
+          // that line do NOT: they stay as placements, now orphaned, and
+          // the blocking warning says so -- exactly what happens to a
+          // preventative barrier whose line is truncated away.
+          this.lines = this.lines.filter((l) => l.originId !== id);
+          break;
+        case 'escalationBarrier':
+          this.escalationBarriers = this.escalationBarriers.filter((b) => b.id !== id);
+          this._removeStop(id);
           break;
         default:
           break;

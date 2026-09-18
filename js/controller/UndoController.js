@@ -38,6 +38,11 @@
       return first ? rawModel.findById(first.id).pageId : null;
     },
     swapBarrierWithNeighbor: (rawModel, args) => rawModel.findById(args[1]).pageId,
+    // Escalation factors (proposals/08): the anchor's page, like every
+    // other id-scoped creation above.
+    addEscalationFactor: (rawModel, args) => rawModel.findById(args[0]).pageId,
+    addEscalationBarrier: (rawModel, args) => rawModel.findById(args[0]).pageId,
+    attachExistingEscalationBarrier: (rawModel, args) => rawModel.findById(args[0]).pageId,
   };
 
   // Genuinely document-wide mutations — one whole-document snapshot each,
@@ -71,12 +76,14 @@
   // its method name -- the one dispatch case here that isn't mechanical.
   const WHOLE_DOCUMENT_ON_CREATE = [
     'addThreat', 'addConsequence', 'addPreventativeControl', 'addMitigativeControl', 'insertBarrier',
+    'addEscalationFactor', 'addEscalationBarrier',
   ];
   // Index of the `opts` argument within each method's own parameter list --
   // `{ nodeId }` present in opts means "place an existing node" (page-
   // scoped); its absence means "create a new node" (document-scoped).
   const OPTS_ARG_INDEX = {
     addThreat: 0, addConsequence: 0, addPreventativeControl: 1, addMitigativeControl: 1, insertBarrier: 3,
+    addEscalationFactor: 1, addEscalationBarrier: 1,
   };
   function isPlacingExistingNode(methodName, args) {
     const opts = args[OPTS_ARG_INDEX[methodName]] || {};

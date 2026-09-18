@@ -107,12 +107,44 @@
     return migrated;
   }
 
+  // v11 -> v12 (proposals/08): escalation factors. Additive only -- the
+  // new collections start empty and every existing key keeps its meaning
+  // -- so this fills in the shape rather than rewriting anything. It is
+  // still a real step: without it a v11 file would not reach the current
+  // version at all, and `fromJSON` would be left to guess at missing
+  // arrays it should be able to rely on.
+  function migrateV11ToV12(doc) {
+    const withKeys = (obj, empty) => ({
+      ...(obj || {}),
+      escalationFactor: (obj && obj.escalationFactor) || empty(),
+      escalationBarrier: (obj && obj.escalationBarrier) || empty(),
+    });
+    return {
+      ...doc,
+      library: withKeys(doc.library, () => []),
+      retiredIds: withKeys(doc.retiredIds, () => []),
+      idCounters: {
+        ...(doc.idCounters || {}),
+        escalationFactor: (doc.idCounters && doc.idCounters.escalationFactor) || 0,
+        escalationBarrier: (doc.idCounters && doc.idCounters.escalationBarrier) || 0,
+      },
+      escalationFactors: doc.escalationFactors || [],
+      escalationBarriers: doc.escalationBarriers || [],
+    };
+  }
+
   const MIGRATIONS = [
     {
       from: 10,
       to: 11,
       describe: 'Renamed Causes to Threats and Outcomes to Consequences (ids C_n became T_n, O_n became C_n)',
       migrate: migrateV10ToV11,
+    },
+    {
+      from: 11,
+      to: 12,
+      describe: 'Added escalation factors and escalation barriers (nothing existing changed)',
+      migrate: migrateV11ToV12,
     },
   ];
 

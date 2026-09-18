@@ -10,7 +10,7 @@
 (function (Bowtie) {
   Bowtie.DEMO_DATA_VARIANTS = {
   "simple": {
-    "version": 11,
+    "version": 12,
     "name": "Demo: Pipeline Overpressure Release",
     "idCounters": {
       "page": 2,
@@ -559,7 +559,7 @@
     "riskMatrix": null
   },
   "qualitative": {
-    "version": 11,
+    "version": 12,
     "name": "Demo: Pipeline Overpressure Release",
     "idCounters": {
       "page": 2,
@@ -1290,7 +1290,7 @@
     }
   },
   "quantitative": {
-    "version": 11,
+    "version": 12,
     "name": "Demo: Pipeline Overpressure Release",
     "idCounters": {
       "page": 2,

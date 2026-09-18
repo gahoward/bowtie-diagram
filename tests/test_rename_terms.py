@@ -66,16 +66,14 @@ def test_the_add_menu_and_node_library_say_threats_and_consequences(page):
 def test_the_exported_document_uses_the_new_keys(page):
     _add_one_of_each(page)
     doc = page.evaluate("() => window.__lastModel.toJSON()")
-    assert doc["version"] == 11
+    assert doc["version"] == 12
     assert "threats" in doc and "consequences" in doc
     assert "causes" not in doc and "outcomes" not in doc
-    assert sorted(doc["library"]) == [
-        "consequence", "mitigativeBarrier", "preventativeBarrier", "threat",
-    ]
+    assert {"threat", "consequence"}.issubset(doc["library"])
+    assert "cause" not in doc["library"] and "outcome" not in doc["library"]
     assert {line["originType"] for line in doc["lines"]} == {"threat", "consequence"}
-    assert sorted(doc["idCounters"]) == sorted(
-        ["page", "threat", "consequence", "preventativeBarrier", "mitigativeBarrier", "line", "placement"]
-    )
+    assert {"threat", "consequence"}.issubset(doc["idCounters"])
+    assert "cause" not in doc["idCounters"] and "outcome" not in doc["idCounters"]
 
 
 def test_the_illustration_and_start_screen_use_the_new_words(browser, base_url):

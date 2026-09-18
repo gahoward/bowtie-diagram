@@ -55,6 +55,10 @@
 
     get mitigativeBarriers() { return this.realModel.mitigativeBarriersForPage(this.getActivePageId()); }
 
+    get escalationFactors() { return this.realModel.escalationFactorsForPage(this.getActivePageId()); }
+
+    get escalationBarriers() { return this.realModel.escalationBarriersForPage(this.getActivePageId()); }
+
     get lines() { return this.realModel.linesForPage(this.getActivePageId()); }
 
     get topLevelEvent() { return this.realModel.getPage(this.getActivePageId()).topLevelEvent; }
@@ -143,6 +147,25 @@
     // (constructed with this facade) shows it in a barrier's Properties.
     computeDemandRateAt(barrierId) {
       return this.realModel.computeDemandRateAt(barrierId);
+    }
+
+    // Escalation factors (proposals/08) are id-scoped like every barrier
+    // operation: the barrier or factor id decides the page, so these are
+    // straight passthroughs rather than page-injecting wrappers.
+    addEscalationFactor(barrierId, opts = {}) {
+      return this.realModel.addEscalationFactor(barrierId, opts);
+    }
+
+    addEscalationBarrier(escalationFactorId, opts = {}) {
+      return this.realModel.addEscalationBarrier(escalationFactorId, opts);
+    }
+
+    attachExistingEscalationBarrier(escalationFactorId, escalationBarrierId) {
+      return this.realModel.attachExistingEscalationBarrier(escalationFactorId, escalationBarrierId);
+    }
+
+    escalationFactorsFor(barrierId) {
+      return this.realModel.escalationFactorsFor(barrierId);
     }
 
     addThreat(opts = {}) {

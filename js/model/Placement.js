@@ -31,21 +31,31 @@
     consequence: { w: Bowtie.Geometry.THREAT_CONSEQUENCE_W, h: 60 },
     preventativeBarrier: { w: Bowtie.Geometry.BARRIER_W, h: Bowtie.Geometry.BARRIER_H },
     mitigativeBarrier: { w: Bowtie.Geometry.BARRIER_W, h: Bowtie.Geometry.BARRIER_H },
+    escalationFactor: { w: Bowtie.Geometry.ESCALATION_FACTOR_W, h: Bowtie.Geometry.ESCALATION_FACTOR_H },
+    escalationBarrier: { w: Bowtie.Geometry.ESCALATION_BARRIER_W, h: Bowtie.Geometry.ESCALATION_BARRIER_H },
   };
 
   class Placement {
     constructor({
-      id, type, nodeId, x = 0, y = 0, w, h, pageId,
+      id, type, nodeId, x = 0, y = 0, w, h, pageId, barrierId = null,
     } = {}) {
       const defaults = DEFAULT_DIMENSIONS[type] || {};
       this.id = id;
-      this.type = type; // 'threat' | 'consequence' | 'preventativeBarrier' | 'mitigativeBarrier'
+      // 'threat' | 'consequence' | 'preventativeBarrier' | 'mitigativeBarrier'
+      // | 'escalationFactor' | 'escalationBarrier'
+      this.type = type;
       this.nodeId = nodeId;
       this.x = x;
       this.y = y;
       this.w = w ?? defaults.w;
       this.h = h ?? defaults.h;
       this.pageId = pageId;
+      // Escalation factors only (proposals/08): the barrier PLACEMENT this
+      // factor degrades. An EF is the one placement kind that is anchored
+      // to another placement rather than free on the page -- it has no
+      // meaning apart from the barrier it hangs off, and deleting that
+      // barrier takes it with it. Null for every other kind.
+      this.barrierId = barrierId;
     }
   }
 

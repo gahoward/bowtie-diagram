@@ -20,9 +20,18 @@
       id, originType, originId, stops = [], pageId,
     } = {}) {
       this.id = id;
-      // 'threat' | 'consequence'
+      // 'threat' | 'consequence' | 'escalationFactor'
+      //
+      // An escalation line (proposals/08) runs from an escalation factor
+      // up into the barrier it degrades, with escalation barriers as its
+      // stops -- the same shape as a threat's line to the TLE, with the
+      // barrier standing in for the TLE as the far end. Reusing Line
+      // rather than inventing a parallel structure means every splice,
+      // attach, reorder and "connect directly" primitive in LineTopology
+      // works on it unchanged.
       this.originType = originType;
-      // The Threat or Consequence id that owns this Line.
+      // The Threat, Consequence or Escalation Factor PLACEMENT id that
+      // owns this Line.
       this.originId = originId;
       this.pageId = pageId;
       // Ordered barrier ids the line passes through. Index 0 is always

@@ -12,7 +12,15 @@
   // Quantitative does: `placementsForNode`/`deleteNode`/`reassignId` all
   // need to see every placement across all four types, which live on
   // BowtieModel, not here.
-  const CONTROL_TYPES = ['threat', 'consequence', 'preventativeBarrier', 'mitigativeBarrier'];
+  // The library's own type list. Escalation factors and their barriers
+  // (proposals/08) are library nodes like any other -- the same EF ("ESDV
+  // not proof-tested") can degrade barriers on several pages, and the same
+  // escalation barrier ("quarterly test regime") can control it in each
+  // place, which is exactly what a shared library is for.
+  const CONTROL_TYPES = [
+    'threat', 'consequence', 'preventativeBarrier', 'mitigativeBarrier',
+    'escalationFactor', 'escalationBarrier',
+  ];
   const NODE_ID_PREFIX = {
     // Rotated with the rename (proposals/11): a Threat is T_n and a
     // Consequence takes over C_n, which used to mean Cause. That rotation
@@ -20,12 +28,15 @@
     // file's C_1 are different things -- and why Migrations.js's v10 -> v11
     // step rewrites every id rather than only the type keys.
     threat: 'T', consequence: 'C', preventativeBarrier: 'PB', mitigativeBarrier: 'MB',
+    escalationFactor: 'EF', escalationBarrier: 'EB',
   };
   const NODE_DEFAULT_NAME = {
     threat: (n) => `Threat ${n}`,
     consequence: (n) => `Consequence ${n}`,
     preventativeBarrier: (n) => `Preventative Barrier ${n}`,
     mitigativeBarrier: (n) => `Mitigative Barrier ${n}`,
+    escalationFactor: (n) => `Escalation Factor ${n}`,
+    escalationBarrier: (n) => `Escalation Barrier ${n}`,
   };
 
   class NodeLibrary {
@@ -41,6 +52,7 @@
       // linked per node, not per placement — see Node.js.
       this.library = {
         threat: [], consequence: [], preventativeBarrier: [], mitigativeBarrier: [],
+        escalationFactor: [], escalationBarrier: [],
       };
       // 'internal' (default, today's behaviour: a node's own id renders) |
       // 'custom' (a node's freeform `identifier` renders instead, when set)
@@ -59,6 +71,7 @@
       // identifiers and die with their Threat/Consequence placement.
       this.retiredIds = {
         threat: [], consequence: [], preventativeBarrier: [], mitigativeBarrier: [],
+        escalationFactor: [], escalationBarrier: [],
       };
     }
 
@@ -99,16 +112,17 @@
       return node;
     }
 
-    // Searches all four library arrays — used whenever the caller doesn't
+    // Searches every library array — used whenever the caller doesn't
     // already know a node's type (e.g. resolving a placement's own node).
+    // Driven off CONTROL_TYPES rather than a hand-written chain, so
+    // adding a type (escalation factors, proposals/08) cannot leave this
+    // silently returning null for it.
     getNode(nodeId) {
-      return (
-        this.library.threat.find((n) => n.id === nodeId)
-        || this.library.consequence.find((n) => n.id === nodeId)
-        || this.library.preventativeBarrier.find((n) => n.id === nodeId)
-        || this.library.mitigativeBarrier.find((n) => n.id === nodeId)
-        || null
-      );
+      for (const type of CONTROL_TYPES) {
+        const found = (this.library[type] || []).find((n) => n.id === nodeId);
+        if (found) return found;
+      }
+      return null;
     }
 
     // Narrower variant when the type is already known — mirrors getPage's
@@ -124,13 +138,11 @@
     // have no custom identifier set).
     getNodeByIdentifier(identifier) {
       if (!identifier) return null;
-      return (
-        this.library.threat.find((n) => n.identifier === identifier)
-        || this.library.consequence.find((n) => n.identifier === identifier)
-        || this.library.preventativeBarrier.find((n) => n.identifier === identifier)
-        || this.library.mitigativeBarrier.find((n) => n.identifier === identifier)
-        || null
-      );
+      for (const type of CONTROL_TYPES) {
+        const found = (this.library[type] || []).find((n) => n.identifier === identifier);
+        if (found) return found;
+      }
+      return null;
     }
 
     // The node analogue of renamePage/renameElement — also doubles as the
