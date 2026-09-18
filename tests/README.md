@@ -227,6 +227,21 @@ step for the app itself, so tests run directly against `index.html` as-is.
   not, and the synthetic `beforeunload` event is only `preventDefault`ed
   while dirty. What happens to the work itself when the user leaves
   anyway is `test_recovery.py` below.
+- **`test_migrations.py`** — forward schema migrations (proposals/12):
+  the shipped chain is empty, so these register a step and raise
+  `SCHEMA_VERSION` in the page to stand in for the next bump — everything
+  under test is the real path. Covers `migrateDocument`'s ordering and
+  purity (the caller's parsed file is left exactly as read), a gap in the
+  chain refusing rather than half-upgrading, a file from the future
+  refused for being newer, a pre-v10 file refused with the reason, the
+  current version loading with no notice, and an older file upgrading
+  end to end — the "Upgraded" dialog, the migrated document, and the
+  dirty flag that follows it, since the file on disk is still the old
+  version. Recovery snapshots go through the same path, so one from an
+  older version upgrades too. `tests/fixtures/schema-v10.json` is the
+  quantitative demo as v10 exported it, and is **frozen** — never
+  regenerate a fixture from a later build, or a migration is only ever
+  tested against what today's code assumes the old shape was.
 - **`test_recovery.py`** — `RecoveryController` (proposals/04): an edit
   writes a `localStorage` snapshot only after the debounce (never on the
   change itself), a clean document is never snapshotted, a completed

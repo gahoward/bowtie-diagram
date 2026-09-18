@@ -28,7 +28,8 @@
     // RecentFilesController remembers so the start screen can offer it
     // again. Nothing happens without the File System Access API: there is
     // no handle to hand over on the download/`<input type=file>` paths.
-    constructor(model, svgRoot, getContentBounds, els, onImported, onExported, getRenderOpts, onFileHandle) {
+    constructor(model, svgRoot, getContentBounds, els, onImported, onExported, getRenderOpts,
+      onFileHandle, onMigrated) {
       this.model = model;
       this.svgRoot = svgRoot;
       this.getContentBounds = getContentBounds;
@@ -38,6 +39,9 @@
       // passes, so an off-screen page render matches the live canvas.
       this.getRenderOpts = getRenderOpts;
       this.onFileHandle = onFileHandle;
+      // Called with the list of applied migration descriptions after an
+      // older document was upgraded on load (proposals/12).
+      this.onMigrated = onMigrated;
 
       els.exportPngBtn.addEventListener('click', () => {
         Bowtie.ExportUtil.exportPng(this.svgRoot, this.getContentBounds(), `${this._baseName()}.png`);
@@ -190,9 +194,8 @@
       return this._processImportedText(text);
     }
 
-    // Validates an already-parsed document (shape check, then exact
-    // SCHEMA_VERSION match — no migration path for older versions) and, if
-    // valid, loads it. Public entry point for anything besides a real file
+    // Validates an already-parsed document (shape check, then the
+    // version rules below) and, if valid, loads it. Public entry point for anything besides a real file
     // import that wants to hand the model a full document — currently just
     // WelcomeController's "Load Demo" action (`Bowtie.DEMO_DATA`). Routing
     // the demo through the exact same validation a real import gets isn't
@@ -215,13 +218,54 @@
         this._showMessage('Invalid File', 'That file does not look like a bowtie diagram export.');
         return false;
       }
-      if (data.version !== Bowtie.BowtieModel.SCHEMA_VERSION) {
-        this._showMessage(
-          'Unsupported File Version',
-          `This file was created with schema version ${data.version ?? 'unknown'}, but this `
-            + `editor only reads version ${Bowtie.BowtieModel.SCHEMA_VERSION}.`,
-        );
-        return false;
+      // Three version cases (proposals/12). A file NEWER than this
+      // editor is always refused: there is no way to know what a future
+      // field means, and guessing would corrupt it. An OLDER file with a
+      // migration chain is upgraded here, in memory only -- the user's
+      // own file is never rewritten. An older file with no chain (v7-v9,
+      // which predate the upgrade path) is refused as before.
+      const current = Bowtie.BowtieModel.SCHEMA_VERSION;
+      let loadable = data;
+      let migrated = null;
+      if (data.version !== current) {
+        if (typeof data.version === 'number' && data.version > current) {
+          this._showMessage(
+            'Unsupported File Version',
+            `This file was created with schema version ${data.version}, which is newer than `
+              + `this editor (version ${current}). Update the editor to open it.`,
+          );
+          return false;
+        }
+        if (!Bowtie.Migrations.canMigrate(data.version)) {
+          this._showMessage(
+            'Unsupported File Version',
+            `This file was created with schema version ${data.version ?? 'unknown'}, but this `
+              + `editor only reads version ${current}. Files from schema v7–v9 predate the `
+              + 'upgrade path and cannot be opened.',
+          );
+          return false;
+        }
+        // A migration that throws is a bug in the migration, but it
+        // must not surface as an uncaught error over a half-loaded
+        // document -- same reasoning as the loadFromJSON guard below.
+        // Nothing has touched the model at this point, so refusing here
+        // leaves the user exactly where they were.
+        let result;
+        try {
+          result = Bowtie.Migrations.migrateDocument(data);
+        } catch (err) {
+          result = { ok: false, error: err };
+        }
+        if (!result.ok) {
+          this._showMessage(
+            'Upgrade Failed',
+            `This file was created with schema version ${data.version} and could not be upgraded`
+              + `${result.error ? `: ${result.error.message}` : '.'}`,
+          );
+          return false;
+        }
+        loadable = result.doc;
+        migrated = result.applied;
       }
       // loadFromJSON throws, changing nothing on the model, when `data`
       // parses but doesn't hold together referentially (e.g. a placement
@@ -230,12 +274,17 @@
       // shape/version checks above, rather than left to surface as an
       // uncaught page error over a half-loaded document.
       try {
-        this.model.loadFromJSON(data);
+        this.model.loadFromJSON(loadable);
       } catch (err) {
         this._showMessage('Invalid File', err.message);
         return false;
       }
       if (this.onImported) this.onImported();
+      // After onImported, which marks the document clean: an upgraded
+      // document is NOT what is on disk, so `onMigrated` marks it dirty
+      // again (and shows what changed). Same ordering reason as
+      // RecoveryController's restore.
+      if (migrated && this.onMigrated) this.onMigrated(migrated);
       return true;
     }
   }

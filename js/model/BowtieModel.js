@@ -20,6 +20,13 @@
   // document's plain `{ value: '10' }` would be read as a PFD_avg of 10,
   // not an RRF of 10 -- so this is a version bump, not an additive field,
   // and there is (as with v9) no migration path.
+  //
+  // From v10 on the policy changes (proposals/12): a bump ships with a
+  // migration in js/model/Migrations.js AND a frozen fixture in
+  // tests/fixtures/schema-v<old>.json, so an older export is upgraded on
+  // load instead of refused. v7-v9 predate that and stay refused --
+  // nobody has those files, and a migration with no fixture to test it
+  // against is guesswork.
   const SCHEMA_VERSION = 10;
 
   class BowtieModel {

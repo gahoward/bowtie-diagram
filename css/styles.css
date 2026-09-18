@@ -585,6 +585,18 @@ html, body {
   color: #374151;
 }
 
+/* The "Upgraded" notice's list of applied migrations (proposals/12). */
+.migration-list {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.migration-list li {
+  margin-bottom: 4px;
+}
+
 .modal-title {
   margin: 0 0 12px;
   font-size: 17px;

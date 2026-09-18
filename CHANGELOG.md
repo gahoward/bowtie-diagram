@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Files from an older schema version are now upgraded on load rather than
+  refused (`proposals/12`). `js/model/Migrations.js` holds a forward-only
+  chain of pure JSON→JSON steps; a file newer than the editor is still
+  refused (a future field can't be guessed at), and one older than v10
+  still is too (those versions predate the chain and have no fixture to
+  test a migration against). An upgraded document is marked unsaved and
+  announced with an "Upgraded" notice listing what changed — the original
+  file is never rewritten. Recovery snapshots come through the same path,
+  so a schema bump no longer strands unsaved work either. The chain ships
+  empty: it exists ahead of the two bumps that need it (escalation
+  factors, and the Threats/Consequences rename).
 - Added View > "Keyboard shortcuts…" and the keys it lists
   (`proposals/03`): Ctrl/⌘+S export to JSON, +O import, +Shift+E/P the
   SVG and PNG exports, +P print, +Shift+A auto-arrange, +0 reset view,

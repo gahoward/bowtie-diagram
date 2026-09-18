@@ -15,17 +15,19 @@
     // start screen offers it back. Constructed on `rawModel` for the same
     // reason as the guard above -- every mutation, whichever layer made
     // it. A recovered document is dirty again: it still isn't on disk.
-    // Recovering runs the welcome flow's own "a fresh document starts
-    // clean" deferral too (the load dismisses the welcome modal), and
-    // that deferral runs LAST -- so it has to know not to clear a guard
-    // the recovery just deliberately put back.
-    let recoveredUnsavedWork = false;
+    // Two loads leave the document deliberately dirty -- recovering a
+    // snapshot, and opening a file that had to be upgraded (proposals/12)
+    // -- because neither is what is on disk. Both can happen from the
+    // welcome screen, whose own "a fresh document starts clean" deferral
+    // runs LAST, so it has to know not to clear a guard they just put up.
+    let loadedWorkNotOnDisk = false;
+    const markNotOnDisk = () => {
+      loadedWorkNotOnDisk = true;
+      unsavedChanges.markDirty();
+    };
     const recovery = new Bowtie.RecoveryController(rawModel, {
       isDirty: () => unsavedChanges.dirty,
-      onRecovered: () => {
-        recoveredUnsavedWork = true;
-        unsavedChanges.markDirty();
-      },
+      onRecovered: markNotOnDisk,
     });
     // Where the File System Access API exists, the handles of files
     // opened or saved natively, so the start screen can re-open them.
@@ -221,6 +223,34 @@
       },
       () => renderOpts(),
       (handle) => recentFiles.remember(handle),
+      // An upgraded document (proposals/12): the file on disk is still
+      // the old version, so the unsaved-changes guard goes straight back
+      // up, and the user is told what changed. The notice is deferred a
+      // tick so it opens AFTER the import flow's own loading modal has
+      // closed, rather than stacking on top of a dialog that is about to
+      // disappear underneath it.
+      (applied) => {
+        markNotOnDisk();
+        setTimeout(() => {
+          const body = document.createElement('div');
+          const intro = document.createElement('p');
+          intro.textContent = 'This file was made by an older version of the editor and has been '
+            + 'upgraded to open. Your original file has not been changed — export again to save '
+            + 'the upgraded version.';
+          body.appendChild(intro);
+          const list = document.createElement('ul');
+          list.className = 'migration-list';
+          applied.forEach((line) => {
+            const item = document.createElement('li');
+            item.textContent = line;
+            list.appendChild(item);
+          });
+          body.appendChild(list);
+          Bowtie.ModalView.openModal({
+            title: 'Upgraded', bodyEl: body, actions: [{ label: 'OK', primary: true }],
+          });
+        }, 0);
+      },
     );
 
     document.getElementById('btn-reset-view').addEventListener('click', () => {
@@ -344,7 +374,7 @@
       // before the user has actually changed anything themselves.
       setTimeout(() => {
         undo.reset();
-        if (!recoveredUnsavedWork) unsavedChanges.markClean();
+        if (!loadedWorkNotOnDisk) unsavedChanges.markClean();
       }, 0);
     }, { recovery, recent: recentFiles });
   });

@@ -1,7 +1,9 @@
-"""Schema v10 round-trip, and the version-mismatch guard that replaced the
-old migration path (this project has exactly one user, so there is no
-migration code any more — an incompatible file is rejected outright rather
-than silently misread)."""
+"""Schema v10 round-trip, and the version rules around it.
+
+A file NEWER than the editor is still rejected outright rather than
+silently misread; one OLDER than v10 predates the upgrade path and is
+rejected too. Older files from v10 on are migrated instead -- that half
+lives in test_migrations.py (proposals/12)."""
 
 
 # Every field DocumentSerializer persists, read straight off the live model
@@ -126,18 +128,16 @@ def test_export_then_import_round_trips_every_persisted_field(page):
     )
 
 
-def test_wrong_schema_version_is_rejected_with_a_message(page):
-    page.evaluate("""() => {
+def test_a_version_older_than_the_upgrade_path_is_rejected_with_a_message(page):
+    """v5 predates v10, where the migration chain starts, so there is no
+    fixture to migrate it against and no way to know what its fields
+    meant -- it is refused, not guessed at."""
+    loaded = page.evaluate("""() => {
       const data = window.__lastModel.toJSON();
       data.version = 5;
-      window.__badImportData = data;
+      return window.__lastImportExport.loadDocument(data);
     }""")
-    # Exercise the same guard ImportExportController._onImportFile applies,
-    # without needing to drive an actual <input type=file> pick.
-    shown = page.evaluate("""() => {
-      const data = window.__badImportData;
-      const mismatch = data.version !== Bowtie.BowtieModel.SCHEMA_VERSION;
-      return { mismatch, current: Bowtie.BowtieModel.SCHEMA_VERSION };
-    }""")
-    assert shown["mismatch"] is True
-    assert shown["current"] == 10
+    assert loaded is False
+    assert page.locator(".modal-title").last.text_content() == "Unsupported File Version"
+    assert "version 5" in page.locator(".modal-body").text_content()
+    assert page.evaluate("() => Bowtie.BowtieModel.SCHEMA_VERSION") == 10
