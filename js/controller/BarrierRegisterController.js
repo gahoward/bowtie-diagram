@@ -175,7 +175,7 @@
       wrap.appendChild(el('p', 'summary-intro',
         "Every barrier on each page, worst-first: anything warned about, then anything unknown about it, "
         + 'then the weakest assessed effectiveness, then whatever is holding back the most. "Protects" '
-        + 'names the causes or outcomes whose lines run through it.'
+        + 'names the threats or consequences whose lines run through it.'
         + (this._quantitative() ? '' : ' Measure and demand rate need Quantitative mode.')));
 
       model.pages.forEach((page) => {

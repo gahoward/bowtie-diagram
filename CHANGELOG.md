@@ -2,11 +2,27 @@
 
 ## Unreleased
 
+- **Causes are now Threats and Outcomes are now Consequences**
+  (`proposals/11`), the bowtie method's own terms, everywhere: labels,
+  menus, the node library, model and JSON keys, CSS classes, and the
+  visible id prefixes — a Threat is `T_n`, and `C_n` has rotated from
+  Cause to Consequence. That rotation is why this is **schema v11**: a
+  v10 `C_1` and a v11 `C_1` name different sides of the diagram. Existing
+  files are not stranded — the first entry in the migration chain
+  upgrades a v10 export on load, rotating its ids, and marks the document
+  unsaved so it gets re-exported in the new schema. The codemod that
+  performed the rename is checked in as `scripts/rename-terms.js`.
+- Fixed a latent bug in the single-file build surfaced by that rename:
+  the bundle was inserted with a string replacement, which treats `$&` in
+  the replacement as a substitution pattern — and minified output can
+  contain exactly that, so `dist/bowtie-diagram.html` came out truncated
+  mid-module. The dist smoke test caught it; the build now inserts the
+  bundle verbatim.
 - Added View > "Barrier Register…" (`proposals/09`): one table per page of
   every barrier on it, with its side, type, owner, effectiveness, measure,
-  the demand rate reaching it, which causes or outcomes it protects, and
+  the demand rate reaching it, which threats or consequences it protects, and
   any warnings against it — the barrier owner's view, where the Risk
-  Summary is the outcome owner's. Ranked worst-first: anything warned
+  Summary is the consequence owner's. Ranked worst-first: anything warned
   about, then anything unknown about it, then the weakest assessed
   effectiveness, then whatever is holding back the most. Works in every
   mode (a barrier has an owner and an effectiveness whether or not the
@@ -68,12 +84,12 @@
   followed by the Risk Summary tables. Single-page exports are now named
   after the analysis rather than a fixed "bowtie-diagram".
 - The Risk Summary gained Copy as table, Export CSV… and Print…
-  (`proposals/01`) -- the CSV carries one row per outcome with its page,
+  (`proposals/01`) -- the CSV carries one row per consequence with its page,
   rank, severity, pre- and post-mitigation likelihood (with unit) and
-  risk class, plus any causes excluded from the figures.
+  risk class, plus any threats excluded from the figures.
 - Added a status strip beside the page tabs (`proposals/07`): the
   document's mode, its risk matrix and that matrix's class letters, the
-  display unit and how the top event combines its causes -- each
+  display unit and how the top event combines its threats -- each
   segment opening the setting it names.
 - Risk classes now carry an explicit `rank` (`proposals/05`), so "worse
   than" no longer depends on the order classes happen to appear in the
@@ -81,7 +97,7 @@
   a matrix without them (an older export) is back-filled from array
   order on load, so no existing document changes meaning.
 - The quantitative demo now loads with no warnings (`proposals/06`): its
-  cause frequencies were rebased onto documented LOPA-style figures, and
+  threat frequencies were rebased onto documented LOPA-style figures, and
   its residual classes span A through D rather than bunching at one.
 
 - Reworked the Settings menu and the modals behind it
@@ -119,17 +135,17 @@
   identifier display moved under "More options", page name defaulting to
   the top-level event), then the risk mode and matrix preset, previously
   only reachable in Project Settings after the fact.
-- Every Outcome now shows its pre-mitigation risk class alongside the
+- Every Consequence now shows its pre-mitigation risk class alongside the
   post-mitigation one (quantitative_mode_proposal.md's inherent/residual
   ALARP pair): the pre-mitigation figure is the same calculation with
   every barrier -- preventative and mitigative -- removed. On the canvas
   this is a "pre → post" badge pair (dashed ring for pre-mitigation) plus
-  a "Pre-mitigation" likelihood line; the Outcome's Properties modal shows
+  a "Pre-mitigation" likelihood line; the Consequence's Properties modal shows
   both classes and both likelihoods. Quantitative mode only -- a
   Qualitative likelihood is a manual pick with no barrier arithmetic to
   remove, so it keeps its single badge. Model API: `assessConsequence`.
 - Added View > "Risk Summary…": one table per page, each ranking that
-  page's Outcomes worst-first by post-mitigation risk class (then pre-
+  page's Consequences worst-first by post-mitigation risk class (then pre-
   mitigation class, severity, likelihood), with severity and the pre- and
   post-mitigation likelihood and risk class side by side. Model API:
   `computeRiskSummary(pageId)`.
@@ -155,8 +171,8 @@
   carried as an exact `Rational` all the way through rather than ever
   computing its reciprocal.
 - Fixed a real (previously harmless) bug this surfaced: mitigative
-  barriers were folded in the order an Outcome's Line stores them
-  (nearest-Outcome-first), the opposite of how a computed likelihood
+  barriers were folded in the order an Consequence's Line stores them
+  (nearest-Consequence-first), the opposite of how a computed likelihood
   actually propagates outward from the TLE. Multiplication is
   commutative, so this never produced a wrong number until the new
   frequency-limiting `min()` rule made barrier order along a Line
@@ -170,7 +186,7 @@
   boundary. The Properties modal now also shows a barrier's own computed
   demand rate read-only, the number that decides which of the two regimes
   applies.
-- Fixed a click-focus regression: clicking a Cause or Outcome dimmed
+- Fixed a click-focus regression: clicking a Threat or Consequence dimmed
   every barrier on its own side, including the one actually on its path.
   `FocusController` compared `Line.originId`/`.stops` (internal placement
   ids) directly against each node's `data-id`, which the earlier node-
@@ -192,7 +208,7 @@
 ## v0.2.1 - 2026-09-07
 
 - Added a randomized/generative auto-arrange test (30 seeded random
-  Cause/Outcome + shared-barrier topologies per run) alongside the existing
+  Threat/Consequence + shared-barrier topologies per run) alongside the existing
   hand-written scenario tests, checking the same general invariant every
   reported overlap bug in this file has violated: a barrier's rendered box
   must only ever span rows whose line actually passes through it. It
@@ -203,9 +219,9 @@
   shared member to that block's own tail end, when it needed to be pushed
   to the block's front (the edge actually facing its neighbor in the
   merged run) whenever that block wasn't the first of the touched group —
-  e.g. one Cause sharing a barrier with the FRONT of an already-3-way-
-  shared block, while a different Cause shares another barrier with a
-  member further inside that same block, could leave the first Cause's own
+  e.g. one Threat sharing a barrier with the FRONT of an already-3-way-
+  shared block, while a different Threat shares another barrier with a
+  member further inside that same block, could leave the first Threat's own
   barrier separated from its actual shared partner by two unrelated rows,
   and its box ended up overlapping a second, unrelated barrier's box as a
   result.
@@ -217,18 +233,18 @@
   (including, in the worst case, one barrier visually overlapping another)
   until the user remembered to press Auto-arrange themselves.
 - Fixed a further gap in auto-arrange's row ordering: a chain of two
-  overlapping shared-barrier pairs (e.g. two Outcomes sharing one barrier,
+  overlapping shared-barrier pairs (e.g. two Consequences sharing one barrier,
   which then diverge into two further barriers, each itself shared with a
-  third and fourth Outcome) could still leave two of those further
+  third and fourth Consequence) could still leave two of those further
   barriers' boxes overlapping each other, even though neither shares an
-  Outcome with the other. Re-positioning an already-built shared group
+  Consequence with the other. Re-positioning an already-built shared group
   next to a new neighbour now also promotes the actual shared member to
   that group's own edge, not just the group as a whole, so every barrier
   in the chain keeps its own dedicated row(s).
 
 - Added multi-page support: an analysis document can now contain multiple
   pages (tabs), each with its own TopLevelEvent, Hazard, and independent
-  diagram content (Causes, Outcomes, Barriers, and Lines).
+  diagram content (Threats, Consequences, Barriers, and Lines).
 - Added bottom tab bar UI with tab selection, page creation, renaming,
   description editing, deletion with fallback, and a "Jump to page ▾"
   quick navigation dropdown.
@@ -244,17 +260,17 @@
   and updated built-in demo data to a two-page bowtie diagram.
 - Fixed two compounding bugs when "Shift Away From TLE" (or Toward) is
   applied to a shared barrier on more than one of its paths at once
-  (e.g. PB_3 in the demo, ticking both C_1 and C_2): the immediate
+  (e.g. PB_3 in the demo, ticking both T_1 and T_2): the immediate
   position feedback used to corrupt the barrier onto the exact same spot
   as an unrelated one before Auto-arrange even ran, and Auto-arrange
   itself then let one barrier's label overlap the very next barrier's box
-  — both because the code assumed two Causes sharing a first barrier
+  — both because the code assumed two Threats sharing a first barrier
   never diverge into separate barriers afterward, which this feature
   makes possible for the first time.
-- Fixed auto-arrange placing an unrelated Cause/Outcome's row between two
+- Fixed auto-arrange placing an unrelated Threat/Consequence's row between two
   others that privately share a barrier, whenever all of them also share
-  a LATER barrier further down the line (e.g. attaching a bare Cause to
-  an existing barrier that a different Cause also uses) — the shared
+  a LATER barrier further down the line (e.g. attaching a bare Threat to
+  an existing barrier that a different Threat also uses) — the shared
   barrier's box then grew tall enough to visually swallow the unrelated
   row in between. Two rows sharing a barrier with few participants are
   now clustered strictly adjacent, ahead of a looser, many-participant
@@ -262,7 +278,7 @@
 - "Attach to Existing Preventative/Mitigative Barrier…" now asks whether
   to follow that barrier's existing continuation toward the TLE (only
   when it actually has one) instead of always silently inheriting it —
-  declining keeps whatever the attaching Cause/Outcome's own line already
+  declining keeps whatever the attaching Threat/Consequence's own line already
   had, or connects straight to the TLE if it had nothing of its own.
 - Fixed a line's final bend toward the TLE starting right at its own last
   barrier's edge even when that barrier sits short of the diagram's true
@@ -273,11 +289,11 @@
   short of where the diagram's actual barrier columns are. Every line's
   flat run now extends to at least the shallowest occupied barrier
   column on its side before turning, matching every other line.
-- Fixed auto-arrange still letting an unrelated Cause/Outcome's row land
+- Fixed auto-arrange still letting an unrelated Threat/Consequence's row land
   inside a shared barrier's grown box in cases the previous fix (v0.1.3)
-  didn't cover — e.g. attaching a bare Cause to one barrier of a chain and
+  didn't cover — e.g. attaching a bare Threat to one barrier of a chain and
   declining to inherit its further continuation ("Stop Here") could leave
-  that Cause sandwiched inside a separate, larger barrier's box it was
+  that Threat sandwiched inside a separate, larger barrier's box it was
   never attached to at all. Row ordering is now built from each barrier's
   full shared-participant set directly (largest shared groups first, so a
   smaller, tighter pair can always still pull its members together even
@@ -290,7 +306,7 @@
 
 - Fixed auto-arrange placing a barrier on top of another when it's shared
   by two chains whose remaining length to the TLE differs (e.g. connecting
-  a second Cause to an existing barrier ahead of that Cause's own further
+  a second Threat to an existing barrier ahead of that Threat's own further
   barrier) — depth is now ranked by the longest remaining chain through the
   barrier, not whichever chain happened to be found first.
 - Added "Shift Toward TLE" / "Shift Away From TLE" on a barrier's
@@ -299,8 +315,8 @@
   it's exactly what every future Auto-arrange reflects. Prompts for which
   path to reorder when a shared barrier's lines disagree on its neighbor.
 - Fixed auto-arrange spacing rows far apart vertically (regardless of
-  Loose/Tight mode) when several Causes or Outcomes had few or no
-  barriers between them — two Causes/Outcomes with no barrier at all now
+  Loose/Tight mode) when several Threats or Consequences had few or no
+  barriers between them — two Threats/Consequences with no barrier at all now
   sit as close together as two that share one, since there's no barrier
   box or label between them to protect against.
 

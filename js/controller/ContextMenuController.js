@@ -1,12 +1,12 @@
 (function (Bowtie) {
   // Design review finding 07: the two largest mirrored pairs in this file
-  // -- _gapInsertItemsForCauseLine/-OutcomeLine (originally 77/84 lines,
+  // -- _gapInsertItemsForThreatLine/-ConsequenceLine (originally 77/84 lines,
   // 48 byte-identical) and _addPreventativeControlFrom/
   // _addMitigativeControlFrom -- differed only by barrier kind, which
   // model collection/method to use, argument order on the origin-vs-
   // barrier-first attach calls, and (gap-insert only) which physical
-  // x-direction is "toward the TLE" from the origin, since a Cause sits
-  // left of the TLE and an Outcome sits right of it. This table writes
+  // x-direction is "toward the TLE" from the origin, since a Threat sits
+  // left of the TLE and an Consequence sits right of it. This table writes
   // that down once, mirroring LineTopology.js's own SIDE table for the
   // same asymmetry at the model layer -- each pair now collapses to one
   // shared method reading the difference out of here.
@@ -15,7 +15,7 @@
       barrierCollection: 'preventativeBarriers',
       addLabel: 'Add Preventative Barrier',
       attachLabel: 'Attach to Existing Preventative Barrier…',
-      // A Cause sits to the LEFT of the TLE, so its barrier chain grows
+      // A Threat sits to the LEFT of the TLE, so its barrier chain grows
       // toward increasing x -- physical left-to-right (x-increasing)
       // order already matches origin-to-TLE order, no reversal needed
       // to scan a line's stops in physical order.
@@ -29,7 +29,7 @@
       barrierCollection: 'mitigativeBarriers',
       addLabel: 'Add Mitigative Barrier',
       attachLabel: 'Attach to Existing Mitigative Barrier…',
-      // An Outcome sits to the RIGHT of the TLE, so its barrier chain
+      // An Consequence sits to the RIGHT of the TLE, so its barrier chain
       // grows toward DEcreasing x -- physical left-to-right order runs
       // origin-to-TLE BACKWARDS, so stops (nearest-origin-first, same as
       // PB) must be reversed to scan them in physical x order.
@@ -91,52 +91,52 @@
       }
       // Empty canvas — nothing under the cursor to target, so offer the two
       // things that always make sense regardless of what's currently on the
-      // diagram: starting a new Cause or Outcome, placed right where the
+      // diagram: starting a new Threat or Consequence, placed right where the
       // user clicked (same "add it where you clicked" convention as the
       // line-gap and TLE menus below). `e.target` is always inside
       // `svgRoot` here, since that's what this listener is attached to.
       e.preventDefault();
-      this.view.render(e.clientX, e.clientY, this._buildAddCauseOutcomeItems(this._toSvgPoint(e)));
+      this.view.render(e.clientX, e.clientY, this._buildAddThreatConsequenceItems(this._toSvgPoint(e)));
     }
 
     // Shared by the empty-canvas menu and the TopLevelEvent's own node menu
     // — both are "nothing specific to react to, just offer to start a new
-    // Cause/Outcome here" (feature request: a context menu reachable from
-    // anywhere on the diagram or the TLE, not just an existing Cause/Outcome
-    // node, to Add Cause/Add Outcome).
+    // Threat/Consequence here" (feature request: a context menu reachable from
+    // anywhere on the diagram or the TLE, not just an existing Threat/Consequence
+    // node, to Add Threat/Add Consequence).
     //
     // Both items are offered regardless of which side of the TLE was
-    // right-clicked, so a click on the Outcome side still offers "Add
-    // Cause" (and vice versa). Placing it at that exact wrong-side point
-    // would put a Cause to the right of the TLE / an Outcome to its left —
+    // right-clicked, so a click on the Consequence side still offers "Add
+    // Threat" (and vice versa). Placing it at that exact wrong-side point
+    // would put a Threat to the right of the TLE / an Consequence to its left —
     // visually the wrong side (wishlist: this must self-correct, the same
-    // way it would if the user had used the toolbar's Add Cause/Add Outcome
+    // way it would if the user had used the toolbar's Add Threat/Add Consequence
     // button instead). Only honor the click point when it's already on the
     // correct side; otherwise fall back to the toolbar's own placement
-    // (no opts — BowtieModel.addCause/addOutcome's fixed default x, auto y).
-    _buildAddCauseOutcomeItems(point) {
+    // (no opts — BowtieModel.addThreat/addConsequence's fixed default x, auto y).
+    _buildAddThreatConsequenceItems(point) {
       const tleX = this.model.topLevelEvent.x;
       return [
         {
-          label: 'Add Cause',
-          action: () => this._openCreateOrChooseLeaf('cause', point.x <= tleX ? point : {}),
+          label: 'Add Threat',
+          action: () => this._openCreateOrChooseLeaf('threat', point.x <= tleX ? point : {}),
         },
         {
-          label: 'Add Outcome',
-          action: () => this._openCreateOrChooseLeaf('outcome', point.x >= tleX ? point : {}),
+          label: 'Add Consequence',
+          action: () => this._openCreateOrChooseLeaf('consequence', point.x >= tleX ? point : {}),
         },
       ];
     }
 
-    // Shared by the empty-canvas/TLE menu's "Add Cause"/"Add Outcome" items:
+    // Shared by the empty-canvas/TLE menu's "Add Threat"/"Add Consequence" items:
     // the create-or-choose modal (node_library_proposal.md ask 3), placed
     // at `placementOpts` (the click point when it's already on the correct
     // side of the TLE, or {} to fall back to the model's own default
-    // placement — see _buildAddCauseOutcomeItems above).
+    // placement — see _buildAddThreatConsequenceItems above).
     _openCreateOrChooseLeaf(kind, placementOpts) {
-      const addFn = kind === 'cause'
-        ? (opts) => this.model.addCause(opts)
-        : (opts) => this.model.addOutcome(opts);
+      const addFn = kind === 'threat'
+        ? (opts) => this.model.addThreat(opts)
+        : (opts) => this.model.addConsequence(opts);
       Bowtie.openCreateOrChooseNodeModal({
         model: this.model,
         type: kind,
@@ -155,9 +155,9 @@
     _buildNodeItems(el, point) {
       const items = [];
       if (el.type === 'topLevelEvent') {
-        items.push(...this._buildAddCauseOutcomeItems(point));
+        items.push(...this._buildAddThreatConsequenceItems(point));
       }
-      if (el.type === 'cause') {
+      if (el.type === 'threat') {
         items.push({
           label: 'Add Preventative Barrier',
           action: () => this._openCreateOrChooseBarrier('preventativeBarrier', el),
@@ -166,7 +166,7 @@
           items.push({
             label: 'Attach to Existing Preventative Barrier…',
             action: () => this.flows.openAttachModal(
-              'Attach Cause to Preventative Barrier',
+              'Attach Threat to Preventative Barrier',
               this.model.preventativeBarriers,
               (pb) => this.flows.attachWithInheritPrompt(
                 pb.id,
@@ -177,7 +177,7 @@
           });
         }
       }
-      if (el.type === 'outcome') {
+      if (el.type === 'consequence') {
         items.push({
           label: 'Add Mitigative Barrier',
           action: () => this._openCreateOrChooseBarrier('mitigativeBarrier', el),
@@ -186,7 +186,7 @@
           items.push({
             label: 'Attach to Existing Mitigative Barrier…',
             action: () => this.flows.openAttachModal(
-              'Attach Outcome to Mitigative Barrier',
+              'Attach Consequence to Mitigative Barrier',
               this.model.mitigativeBarriers,
               (mb) => this.flows.attachWithInheritPrompt(
                 mb.id,
@@ -231,7 +231,7 @@
       return items;
     }
 
-    // Shared by the Cause/Outcome node menu's own "Add ... Barrier" item:
+    // Shared by the Threat/Consequence node menu's own "Add ... Barrier" item:
     // the create-or-choose modal (node_library_proposal.md ask 3), created
     // against `anchorEl`'s own chain the exact same way
     // addPreventativeControl/addMitigativeControl always have.
@@ -324,16 +324,16 @@
       const lineId = lineEl.getAttribute('data-line-id');
       if (!lineId) return [];
       const point = this._toSvgPoint(e);
-      if (role === 'cause-line' || role === 'cause-direct') {
+      if (role === 'threat-line' || role === 'threat-direct') {
         return this._gapInsertItems('preventativeBarrier', lineId, point);
       }
-      if (role === 'outcome-line' || role === 'outcome-direct') {
+      if (role === 'consequence-line' || role === 'consequence-direct') {
         return this._gapInsertItems('mitigativeBarrier', lineId, point);
       }
       return [];
     }
 
-    // The display id/name for a Line's own origin (a Cause/Outcome
+    // The display id/name for a Line's own origin (a Threat/Consequence
     // placement) -- resolved through its shared library node, same as
     // everywhere else a node's label renders.
     _labelForOrigin(originId) {
@@ -360,8 +360,8 @@
     // instead of the cursor). One shared implementation behind
     // _buildLineItems' two call sites -- see the SIDE table above (design
     // review finding 07); `SIDE.originLeftOfTle` says whether the origin-
-    // first stops array already runs left-to-right (Cause) or needs
-    // reversing first to scan it in physical order (Outcome, whose chain
+    // first stops array already runs left-to-right (Threat) or needs
+    // reversing first to scan it in physical order (Consequence, whose chain
     // grows toward decreasing x).
     _gapInsertItems(kind, lineId, point) {
       const { model } = this;
@@ -428,10 +428,10 @@
       // dropped from THIS line. Meaningless when the click already sits
       // in the gap right next to the TLE itself, nothing left to drop.
       // Which shape that check (and the "keep through" stop) takes
-      // depends on SIDE.originLeftOfTle: for a Cause, physical order
+      // depends on SIDE.originLeftOfTle: for a Threat, physical order
       // already IS origin-to-TLE order, so "nothing toward the TLE" is
       // simply "before not found" (past the last, TLE-most, stop), and
-      // the stop to keep is `before`'s predecessor. For an Outcome,
+      // the stop to keep is `before`'s predecessor. For an Consequence,
       // `orderedByX` was reversed to get physical order, so it now runs
       // TLE-to-origin -- "nothing toward the TLE" is instead "before
       // found, and it's the very first (TLE-most) entry," and `before`

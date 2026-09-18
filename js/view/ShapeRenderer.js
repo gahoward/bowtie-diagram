@@ -110,12 +110,12 @@
     return { g, bounds: { w: layout.w, h: layout.h } };
   }
 
-  // `node` here is a PLACEMENT (Cause/Outcome/PreventativeBarrier/
+  // `node` here is a PLACEMENT (Threat/Consequence/PreventativeBarrier/
   // MitigativeBarrier) — `stableId`/`displayId`/`displayName` are resolved
   // by the caller (CanvasView) from the placement's `nodeId` against the
   // shared library (node_library_proposal.md "Two id spaces"). Three
   // distinct strings, each doing a different job:
-  //   - `stableId` (the library NODE's own id, e.g. "C_1"): the DOM
+  //   - `stableId` (the library NODE's own id, e.g. "T_1"): the DOM
   //     `data-id` — deliberately NOT the placement's own internal id.
   //     Drag/context-menu/focus resolve elements via this, and "at most
   //     one placement per node per page" (decided) makes a node id
@@ -126,8 +126,8 @@
   //   - `displayId`: the same node's id OR its custom identifier, per the
   //     document's identifierDisplayMode — what actually renders as text.
   //   - `displayName`: the node's name, for text wrapping/the label line.
-  function renderCauseOrOutcome(svgRoot, node, kind, stableId, displayId, displayName) {
-    const { w, h, lines } = Bowtie.Layout.causeOutcomeBounds(svgRoot, node, displayName);
+  function renderThreatOrConsequence(svgRoot, node, kind, stableId, displayId, displayName) {
+    const { w, h, lines } = Bowtie.Layout.threatConsequenceBounds(svgRoot, node, displayName);
     const g = el('g', { class: `node ${kind}`, 'data-id': stableId });
     g.appendChild(el('rect', {
       x: node.x - w / 2, y: node.y - h / 2, width: w, height: h,
@@ -165,11 +165,11 @@
   Bowtie.ShapeRenderer = {
     renderTopLevelEvent,
     renderHazard,
-    renderCause: (svgRoot, node, stableId, displayId, displayName) => renderCauseOrOutcome(
-      svgRoot, node, 'cause', stableId, displayId, displayName,
+    renderThreat: (svgRoot, node, stableId, displayId, displayName) => renderThreatOrConsequence(
+      svgRoot, node, 'threat', stableId, displayId, displayName,
     ),
-    renderOutcome: (svgRoot, node, stableId, displayId, displayName) => renderCauseOrOutcome(
-      svgRoot, node, 'outcome', stableId, displayId, displayName,
+    renderConsequence: (svgRoot, node, stableId, displayId, displayName) => renderThreatOrConsequence(
+      svgRoot, node, 'consequence', stableId, displayId, displayName,
     ),
     renderPreventativeBarrier: (svgRoot, node, laneYs, stableId, displayId, displayName) => renderControl(
       svgRoot, node, 'preventative-barrier', laneYs, stableId, displayId, displayName,

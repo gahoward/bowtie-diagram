@@ -1,7 +1,7 @@
 (function (Bowtie) {
   // Gives the canvas-manipulation controllers (CanvasView/ConnectionRenderer,
   // DragController, AutoArrangeController, FocusController,
-  // ContextMenuController, ToolbarController's add-cause/add-outcome) a
+  // ContextMenuController, ToolbarController's add-threat/add-consequence) a
   // single page's drawable content, shaped exactly like the old single-page
   // model, so none of their internals need to change -- only what `main.js`
   // constructs them with does.
@@ -47,9 +47,9 @@
       this.getActivePageId = getActivePageId;
     }
 
-    get causes() { return this.realModel.causesForPage(this.getActivePageId()); }
+    get threats() { return this.realModel.threatsForPage(this.getActivePageId()); }
 
-    get outcomes() { return this.realModel.outcomesForPage(this.getActivePageId()); }
+    get consequences() { return this.realModel.consequencesForPage(this.getActivePageId()); }
 
     get preventativeBarriers() { return this.realModel.preventativeBarriersForPage(this.getActivePageId()); }
 
@@ -62,8 +62,8 @@
     get hazard() { return this.realModel.getPage(this.getActivePageId()).hazard; }
 
     // Document-wide, NOT page-scoped -- the whole-document name.
-    // ToolbarController reads both this and the page-scoped addCause/
-    // addOutcome from the same reference, so it's constructed with this
+    // ToolbarController reads both this and the page-scoped addThreat/
+    // addConsequence from the same reference, so it's constructed with this
     // facade rather than the raw model, and needs both surfaces satisfied.
     get name() { return this.realModel.name; }
 
@@ -105,9 +105,9 @@
     displayIdentifierFor(node) { return this.realModel.displayIdentifierFor(node); }
 
     // ContextMenuController's rename modal (constructed with this facade)
-    // resolves a Cause/Outcome/Barrier's rename to the underlying node --
+    // resolves a Threat/Consequence/Barrier's rename to the underlying node --
     // a node's identity is document-wide, so this passes straight through
-    // to the real model exactly like setName/addCause above.
+    // to the real model exactly like setName/addThreat above.
     renameNode(nodeId, opts) { return this.realModel.renameNode(nodeId, opts); }
 
     // The "Choose existing" list for the create-or-choose modal (ask 3):
@@ -120,23 +120,23 @@
       );
     }
 
-    computeConsequenceLikelihood(outcomeId, opts) {
-      return this.realModel.computeConsequenceLikelihood(outcomeId, opts);
+    computeConsequenceLikelihood(consequenceId, opts) {
+      return this.realModel.computeConsequenceLikelihood(consequenceId, opts);
     }
 
     computeTleLikelihoodForActivePage(opts) {
       return this.realModel.computeTleLikelihood(this.getActivePageId(), opts);
     }
 
-    getConsequenceRiskClass(outcomeId, opts) {
-      return this.realModel.getConsequenceRiskClass(outcomeId, opts);
+    getConsequenceRiskClass(consequenceId, opts) {
+      return this.realModel.getConsequenceRiskClass(consequenceId, opts);
     }
 
     // The pre-/post-mitigation pair CanvasView's badges and PropertiesModal
     // (both constructed with this facade) render -- id-scoped, so a
     // straight passthrough like the two above.
-    assessConsequence(outcomeId) {
-      return this.realModel.assessConsequence(outcomeId);
+    assessConsequence(consequenceId) {
+      return this.realModel.assessConsequence(consequenceId);
     }
 
     // barrier_measures_proposal.md's demand-rate readout -- PropertiesModal
@@ -145,12 +145,12 @@
       return this.realModel.computeDemandRateAt(barrierId);
     }
 
-    addCause(opts = {}) {
-      return this.realModel.addCause({ ...opts, pageId: this.getActivePageId() });
+    addThreat(opts = {}) {
+      return this.realModel.addThreat({ ...opts, pageId: this.getActivePageId() });
     }
 
-    addOutcome(opts = {}) {
-      return this.realModel.addOutcome({ ...opts, pageId: this.getActivePageId() });
+    addConsequence(opts = {}) {
+      return this.realModel.addConsequence({ ...opts, pageId: this.getActivePageId() });
     }
 
     // --- Passthrough -----------------------------------------------------
@@ -182,8 +182,8 @@
     findById(id) {
       const pageId = this.getActivePageId();
       const onThisPage = [
-        ...this.realModel.causesForPage(pageId),
-        ...this.realModel.outcomesForPage(pageId),
+        ...this.realModel.threatsForPage(pageId),
+        ...this.realModel.consequencesForPage(pageId),
         ...this.realModel.preventativeBarriersForPage(pageId),
         ...this.realModel.mitigativeBarriersForPage(pageId),
       ];
@@ -204,9 +204,9 @@
 
     laneYsThrough(barrierId) { return this.realModel.laneYsThrough(barrierId); }
 
-    addPreventativeControl(causeId, opts = {}) { return this.realModel.addPreventativeControl(causeId, opts); }
+    addPreventativeControl(threatId, opts = {}) { return this.realModel.addPreventativeControl(threatId, opts); }
 
-    addMitigativeControl(outcomeId, opts = {}) { return this.realModel.addMitigativeControl(outcomeId, opts); }
+    addMitigativeControl(consequenceId, opts = {}) { return this.realModel.addMitigativeControl(consequenceId, opts); }
 
     insertBarrier(kind, direction, anchorId, opts = {}, selectedLineIds = null) {
       return this.realModel.insertBarrier(kind, direction, anchorId, opts, selectedLineIds);
@@ -216,12 +216,12 @@
       return this.realModel.attachExistingBarrier(kind, direction, anchorId, targetId, selectedLineIds);
     }
 
-    attachInputToPreventativeControl(causeId, pcId, inheritDownstream = true) {
-      return this.realModel.attachInputToPreventativeControl(causeId, pcId, inheritDownstream);
+    attachInputToPreventativeControl(threatId, pcId, inheritDownstream = true) {
+      return this.realModel.attachInputToPreventativeControl(threatId, pcId, inheritDownstream);
     }
 
-    attachOutputToMitigativeControl(mcId, outcomeId, inheritDownstream = true) {
-      return this.realModel.attachOutputToMitigativeControl(mcId, outcomeId, inheritDownstream);
+    attachOutputToMitigativeControl(mcId, consequenceId, inheritDownstream = true) {
+      return this.realModel.attachOutputToMitigativeControl(mcId, consequenceId, inheritDownstream);
     }
 
     connectLineDirectlyToTle(lineId, keepThroughId) {

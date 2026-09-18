@@ -26,12 +26,12 @@ def _tle_info_text(page):
     """)
 
 
-def _setup_quantitative_cause(page):
+def _setup_quantitative_threat(page):
     page.evaluate("""() => {
       const m = window.__lastModel;
       m.setMode('quantitative');
       m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
-      const c = m.addCause({x: 150, y: 200});
+      const c = m.addThreat({x: 150, y: 200});
       m.renameNode(c.nodeId, { name: 'C1', frequency: { value: '1' } });
     }""")
     page.wait_for_timeout(100)
@@ -50,7 +50,7 @@ def test_preferences_modal_groups_display_and_auto_arrange_and_says_it_is_per_br
 
 
 def test_display_unit_applies_immediately_to_the_canvas(page):
-    _setup_quantitative_cause(page)
+    _setup_quantitative_threat(page)
     assert "/hr" in _tle_info_text(page)
 
     _open_preferences(page)
@@ -64,11 +64,11 @@ def test_display_unit_applies_immediately_to_the_canvas(page):
 def test_line_annotations_toggle_applies_immediately(page):
     # Origin annotations only render on a barrier carrying more than one
     # lane (ConnectionRenderer.makeLabel), so share one barrier between
-    # two causes.
+    # two threats.
     page.evaluate("""() => {
       const m = window.__lastModel;
-      const c1 = m.addCause({x: 150, y: 200});
-      const c2 = m.addCause({x: 150, y: 400});
+      const c1 = m.addThreat({x: 150, y: 200});
+      const c2 = m.addThreat({x: 150, y: 400});
       const pb = m.addPreventativeControl(c1.id);
       m.attachInputToPreventativeControl(c2.id, pb.id, false);
     }""")

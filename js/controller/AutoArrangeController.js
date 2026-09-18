@@ -6,7 +6,7 @@
   // below, which are all load-bearing overlap-avoidance requirements and
   // never change. COL_SPACING_LOOSE is the original, generously-padded
   // default; COL_SPACING_TIGHT is the real minimum that still avoids
-  // horizontal collisions BETWEEN BARRIER COLUMNS (and Cause/Outcome-to-
+  // horizontal collisions BETWEEN BARRIER COLUMNS (and Threat/Consequence-to-
   // -first-barrier), derived the same way GROUP_GAP was derived for the
   // vertical direction, from real (not guessed) geometry:
   //   - two CHAINED barriers (depth d -> d+1) commonly land on the exact
@@ -15,7 +15,7 @@
   //     at BARRIER_LABEL_MAX_WIDTH (ShapeRenderer's `labelMaxWidth`) and
   //     centered under the barrier, must not touch: needs >=
   //     BARRIER_LABEL_MAX_WIDTH between columns.
-  //   - a Cause/Outcome's own box (width CAUSE_OUTCOME_W) sitting next to
+  //   - a Threat/Consequence's own box (width THREAT_CONSEQUENCE_W) sitting next to
   //     the first barrier column needs its own half-width plus the
   //     barrier's label half-width.
   // The largest of these, plus a fixed margin for visual breathing room, is
@@ -27,8 +27,8 @@
   // literals, each carrying a comment promising to keep it in sync with
   // whichever file actually owns the real number -- now read straight from
   // Bowtie.Geometry, the one place that promise is now enforced.
-  const { BARRIER_LABEL_MAX_WIDTH, CAUSE_OUTCOME_W, TLE_DEFAULT_R } = Bowtie.Geometry;
-  // Minimum vertical gap the topmost Cause/Outcome row must keep above the
+  const { BARRIER_LABEL_MAX_WIDTH, THREAT_CONSEQUENCE_W, TLE_DEFAULT_R } = Bowtie.Geometry;
+  // Minimum vertical gap the topmost Threat/Consequence row must keep above the
   // TLE's own y (see the shift applied near the end of arrange()) — sized
   // generously past a typical TLE radius plus the Hazard's height/gap so
   // the TLE's own bulk can never crowd the top row's lines. Declared here
@@ -38,7 +38,7 @@
   const COL_SPACING_LOOSE = 320;
   const COL_SPACING_TIGHT = Math.ceil(20 + Math.max(
     BARRIER_LABEL_MAX_WIDTH,
-    (CAUSE_OUTCOME_W / 2) + (BARRIER_LABEL_MAX_WIDTH / 2),
+    (THREAT_CONSEQUENCE_W / 2) + (BARRIER_LABEL_MAX_WIDTH / 2),
   ));
   // The hop from the LAST barrier column into the TLE (and, mirrored, from
   // the TLE into the FIRST MC column) can't just reuse COL_SPACING_TIGHT.
@@ -62,7 +62,7 @@
   const TLE_ADJACENT_GAP_TIGHT = Math.ceil(
     20 + ((TLE_CLEARANCE * HAZARD_HALF_W) / (TLE_DEFAULT_R + HAZARD_GAP)),
   );
-  // Spacing between two Cause/Outcome leaf rows that end up MERGED into the
+  // Spacing between two Threat/Consequence leaf rows that end up MERGED into the
   // same shared barrier (i.e. adjacent within one buildConsecutiveOrder
   // hyperedge block). These
   // rows never need barrier-collision clearance from each other — they
@@ -85,7 +85,7 @@
   // no DOM/TextWrap access to measure any real label exactly.
   const LABEL_CLEARANCE = 96;
 
-  // Minimum vertical gap between every OTHER pair of adjacent Cause/Outcome
+  // Minimum vertical gap between every OTHER pair of adjacent Threat/Consequence
   // leaf rows — i.e. between two different buildConsecutiveOrder blocks, or
   // between two singleton (unmerged) rows — sized so that no two
   // same-depth-column barriers' rendered boxes, OR either one's id/name
@@ -106,9 +106,9 @@
   // a single line of label text was even counted.
   const GROUP_GAP = (BARRIER_DEFAULT_H / 2) + LABEL_GAP + LABEL_CLEARANCE + (BARRIER_DEFAULT_H / 2);
   const MIN_ROWS = 3;
-  // ROW_SPACING/GROUP_GAP above assume a Cause/Outcome renders at its
+  // ROW_SPACING/GROUP_GAP above assume a Threat/Consequence renders at its
   // default height (Layout's MIN_H = 60) — true for a short name, but
-  // Layout.causeOutcomeBounds grows a Cause/Outcome's OWN box taller,
+  // Layout.threatConsequenceBounds grows a Threat/Consequence's OWN box taller,
   // unbounded, as its name wraps to more lines (unlike a barrier's label,
   // which renders outside its box so the box itself never grows). Neither
   // constant above ever referenced that possible growth (architecture
@@ -119,9 +119,9 @@
   // leaf's own box instead of a barrier's. `LEAF_ROW_MARGIN` is the same
   // kind of fixed breathing-room margin used elsewhere in this file; unlike
   // LABEL_CLEARANCE (which has to guess, since a barrier's real label
-  // height was never measurable here), a Cause/Outcome's real rendered
+  // height was never measurable here), a Threat/Consequence's real rendered
   // height IS measurable — `assignLeafYs` calls the exact same
-  // `Layout.causeOutcomeBounds` the live render uses, so this closes the
+  // `Layout.threatConsequenceBounds` the live render uses, so this closes the
   // gap exactly rather than picking another, still-guessable ceiling.
   const LEAF_ROW_MARGIN = 20;
 
@@ -131,14 +131,14 @@
   // always spans from its shallowest to its deepest participating lane,
   // Layout.controlBounds via laneYsThrough) visually swallows whatever
   // unrelated line's row got caught inside its span, even though that
-  // line never stops there (reported bug: attaching a bare Cause to a
+  // line never stops there (reported bug: attaching a bare Threat to a
   // barrier that's a tight pair with one member of a larger, separately-
-  // shared barrier's group left the bare Cause's own row sandwiched
+  // shared barrier's group left the bare Threat's own row sandwiched
   // inside the larger barrier's box).
   //
   // `hyperedges` (built by _hyperedges below) is one entry per barrier
   // with 2+ lines through it: `{ members: Set<originId> }` — the exact
-  // set of Causes/Outcomes that need to land contiguous for that one
+  // set of Threats/Consequences that need to land contiguous for that one
   // barrier. Plain pairwise adjacency can't express this correctly: a
   // node can need to sit next to ONE member of a larger group without
   // being absorbed into the middle of it, which only makes sense treating
@@ -151,7 +151,7 @@
   // attach. When a smaller hyperedge's members all fall inside a single
   // already-built block (rather than spanning several top-level blocks),
   // the merge has to happen one level deeper, INSIDE that block's own
-  // children — recurses for exactly that reason (a bare Cause attached to
+  // children — recurses for exactly that reason (a bare Threat attached to
   // one member of an already-4-way-shared barrier needs its private pair
   // pulled together WITHIN that block, not merely alongside it). A block's
   // children are freely re-permuted at whatever level the merge happens
@@ -213,7 +213,7 @@
       // (it needs to face the touched child before it); every other touched
       // child is promoted toward 'end' (it needs to face the touched child
       // after it) — getting this backwards for the last child was a
-      // reported bug: two Causes/Outcomes each privately paired with one
+      // reported bug: two Threats/Consequences each privately paired with one
       // member of an already-built, larger shared-barrier block (one member
       // at the FRONT of that block, one further downstream) landed the
       // second pairing's shared member at the block's tail instead of the
@@ -245,11 +245,11 @@
   // just merged at the first hop, but never diverging into separate
   // barriers at any later hop either. Used by assignLeafYs below to decide
   // whether two adjacent rows can share the cheap ROW_SPACING gap: sharing
-  // only `stops[0]` used to be treated as enough (two Causes exiting into
+  // only `stops[0]` used to be treated as enough (two Threats exiting into
   // the same first barrier), but the manual path-reorder feature
   // (BowtieModel.swapBarrierWithNeighbor) can now produce a line whose
   // stops[0] matches a neighbour's while its LATER stops diverge into a
-  // wholly separate barrier -- e.g. two Causes merge into one shared
+  // wholly separate barrier -- e.g. two Threats merge into one shared
   // barrier, then each continues through its OWN further barrier before
   // the TLE. Those later barriers are two distinct boxes (each with its
   // own label) needing GROUP_GAP's full clearance from each other, exactly
@@ -261,8 +261,8 @@
     return a.length === b.length && a.every((stopId, i) => stopId === b[i]);
   }
 
-  // Assigns y-positions down an adjacency-ordered leaf array (Causes or
-  // Outcomes). The gap between two consecutive entries is ROW_SPACING —
+  // Assigns y-positions down an adjacency-ordered leaf array (Threats or
+  // Consequences). The gap between two consecutive entries is ROW_SPACING —
   // not the full barrier-collision GROUP_GAP — only when their entire
   // remaining chains are identical (see stopsFullyMatch above): either
   // they share the exact same full path to the TLE (meaning every barrier
@@ -270,21 +270,21 @@
   // NEITHER has any barrier at all (`Line.stops` empty for both), meaning
   // there is no barrier box or label anywhere near this particular pair's
   // shared boundary for GROUP_GAP to actually be protecting (a real
-  // reported case: several Causes/Outcomes with few barriers between them
+  // reported case: several Threats/Consequences with few barriers between them
   // — GROUP_GAP's full worst-case clearance, sized for two lone BARRIERS'
   // boxes+labels, was being paid between rows that had no barrier at all).
   // Otherwise GROUP_GAP applies. This is intentionally NOT based on
   // whether buildConsecutiveOrder placed them in the same hyperedge block:
   // that grouping exists to get the ORDER right (so a shared barrier
-  // several hops downstream still pulls its two Causes adjacent), but two
+  // several hops downstream still pulls its two Threats adjacent), but two
   // adjacent entries can still each own a wholly separate barrier at depth
-  // 1 that only merges later (e.g. Cause A -> PB1 -> PB3, Cause C -> PB4
+  // 1 that only merges later (e.g. Threat A -> PB1 -> PB3, Threat C -> PB4
   // -> PB3) — PB1 and PB4 are two distinct boxes sharing that same depth-1
   // column, and need GROUP_GAP's full clearance between them just as much
-  // as two entirely unrelated Causes would.
+  // as two entirely unrelated Threats would.
   function assignLeafYs(nodes, model, svgRoot) {
     const ys = new Map();
-    const halfH = (node) => Bowtie.Layout.causeOutcomeBounds(svgRoot, node).h / 2;
+    const halfH = (node) => Bowtie.Layout.threatConsequenceBounds(svgRoot, node).h / 2;
     let y = MARGIN_Y;
     nodes.forEach((node, i) => {
       if (i > 0) {
@@ -308,8 +308,8 @@
   }
 
   class AutoArrangeController {
-    // `svgRoot` is needed for real Cause/Outcome text measurement
-    // (`Layout.causeOutcomeBounds`, same call the live render uses) — see
+    // `svgRoot` is needed for real Threat/Consequence text measurement
+    // (`Layout.threatConsequenceBounds`, same call the live render uses) — see
     // LEAF_ROW_MARGIN above for why that's the correct-by-construction fix
     // rather than another guessed constant. `getSpacingMode`, if given, is
     // read fresh on every arrange() (not just at construction) — it's a
@@ -340,10 +340,10 @@
     // from the TLE whenever a shorter and a longer chain both pass through
     // it, landing it in the SAME column as the barrier that makes it
     // longer (architecture review finding, 2026 — reported as "PB_1 and
-    // PB_2 land on the exact same spot after attaching a second Cause to
+    // PB_2 land on the exact same spot after attaching a second Threat to
     // PB_1 ahead of its own pre-existing PB_2 → PB_3 chain": PB_1's line to
-    // C_1 goes straight to PB_3, but its line to C_2 goes through PB_2
-    // first — the first-found rule picked C_1's shorter continuation,
+    // T_1 goes straight to PB_3, but its line to T_2 goes through PB_2
+    // first — the first-found rule picked T_1's shorter continuation,
     // giving PB_1 the same depth as PB_2 itself). Shared by both _pcDepth
     // and _mcDepth — Line.stops uses the same origin-nearest-first
     // convention for both PB and MB chains (see Line.js), so "next stop(s)
@@ -361,14 +361,14 @@
     // directly into the TLE (nothing further toward the TLE in its
     // Line.stops) is depth 1; one chained before it (further from the TLE)
     // is one deeper. This must be measured from the TLE, not from the
-    // Cause: a lone PB with no further barrier before the TLE (e.g. a
-    // single barrier on an otherwise-bare Cause) sits immediately before
-    // the TLE regardless of how many hops it is from its own Cause, and
+    // Threat: a lone PB with no further barrier before the TLE (e.g. a
+    // single barrier on an otherwise-bare Threat) sits immediately before
+    // the TLE regardless of how many hops it is from its own Threat, and
     // needs to land in the same TLE-adjacent column as any other chain's
     // final barrier (architecture review finding, 2026 — a lone barrier
     // was landing a full column short of the TLE, alongside chains'
     // FIRST barriers instead of their LAST, because depth was previously
-    // measured from the Cause end instead).
+    // measured from the Threat end instead).
     //
     // When `barrierId` is shared by lines with different-length
     // continuations (see _successorsOf above), depth is the DEEPEST of
@@ -409,7 +409,7 @@
     // of origins that must end up contiguous for buildConsecutiveOrder, or
     // that barrier's grown box (spanning from its shallowest to its
     // deepest participating lane) will visually intercept whatever
-    // unrelated Cause/Outcome's row ends up caught inside that span.
+    // unrelated Threat/Consequence's row ends up caught inside that span.
     _hyperedges(barriers) {
       return barriers
         .map((barrier) => new Set(this.model.linesThrough(barrier.id).map((l) => l.originId)))
@@ -418,7 +418,7 @@
     }
 
     // The y-value(s) that directly feed `barrierId` from its leaf-ward side
-    // (the Cause, for a PB; the Outcome, for an MB) — either an
+    // (the Threat, for a PB; the Consequence, for an MB) — either an
     // already-positioned barrier immediately leaf-ward of it in some line's
     // stops, or the line's own origin node when `barrierId` sits at index 0
     // (nearest the origin, by the shared stops convention). Reads from
@@ -449,7 +449,7 @@
     // lanes. Both PC and MC depth are measured from the TLE, so both
     // propagate the same direction: descending depth (leaf-adjacent,
     // highest-depth columns first, since that end's position is already
-    // known — the Cause or Outcome itself) — see the two call sites below.
+    // known — the Threat or Consequence itself) — see the two call sites below.
     _propagateDepthYs(byDepth, depths, positionedY) {
       depths.forEach((d) => {
         (byDepth.get(d) || []).forEach((node) => {
@@ -485,7 +485,7 @@
       const maxMcDepth = mcsByDepth.size > 0 ? Math.max(...mcsByDepth.keys()) : 0;
       const colSpacing = this.getSpacingMode() === 'tight' ? COL_SPACING_TIGHT : COL_SPACING_LOOSE;
 
-      // Sibling ordering: Causes/Outcomes sharing a downstream barrier —
+      // Sibling ordering: Threats/Consequences sharing a downstream barrier —
       // at ANY depth, not just the immediate next stop, and transitively
       // through a chain of such sharing — end up adjacent (requirement:
       // "C1, C3, C2 permissible if C1 and C3 shared a Preventative
@@ -494,22 +494,22 @@
       // does NOT need this: every barrier's y comes from _propagateDepthYs
       // below, purely as the midpoint of its own leafward neighbours,
       // independent of iteration order — only the leaf assignment order
-      // actually determines a y (via assignLeafYs), so only Causes and
-      // Outcomes need to go through buildConsecutiveOrder.
-      const causeCluster = buildConsecutiveOrder(model.causes, this._hyperedges(model.preventativeBarriers));
-      const outcomeCluster = buildConsecutiveOrder(model.outcomes, this._hyperedges(model.mitigativeBarriers));
+      // actually determines a y (via assignLeafYs), so only Threats and
+      // Consequences need to go through buildConsecutiveOrder.
+      const threatCluster = buildConsecutiveOrder(model.threats, this._hyperedges(model.preventativeBarriers));
+      const consequenceCluster = buildConsecutiveOrder(model.consequences, this._hyperedges(model.mitigativeBarriers));
 
-      // Leaf rows (Causes/Outcomes) get their y first, with extra clearance
+      // Leaf rows (Threats/Consequences) get their y first, with extra clearance
       // around any merge group; every barrier depth then propagates its y
       // from whatever's already positioned leaf-ward of it.
       const positionedY = new Map();
-      assignLeafYs(causeCluster, model, this.svgRoot).forEach((y, id) => positionedY.set(id, y));
-      assignLeafYs(outcomeCluster, model, this.svgRoot).forEach((y, id) => positionedY.set(id, y));
+      assignLeafYs(threatCluster, model, this.svgRoot).forEach((y, id) => positionedY.set(id, y));
+      assignLeafYs(consequenceCluster, model, this.svgRoot).forEach((y, id) => positionedY.set(id, y));
 
       // Both PC and MC depth are now measured from the TLE (see _pcDepth),
       // so both propagate the same direction: leaf-adjacent (highest-depth)
       // columns first, since that's the end whose position is already known
-      // (the Cause/Outcome itself) — then progressively toward the
+      // (the Threat/Consequence itself) — then progressively toward the
       // TLE-adjacent (depth 1) column.
       const descendingPcDepths = Array.from({ length: maxPcDepth }, (_, i) => maxPcDepth - i);
       this._propagateDepthYs(pcsByDepth, descendingPcDepths, positionedY);
@@ -517,8 +517,8 @@
       this._propagateDepthYs(mcsByDepth, descendingMcDepths, positionedY);
 
       const rowCount = Math.max(
-        causeCluster.length,
-        outcomeCluster.length,
+        threatCluster.length,
+        consequenceCluster.length,
         ...Array.from(pcsByDepth.values(), (arr) => arr.length),
         ...Array.from(mcsByDepth.values(), (arr) => arr.length),
         MIN_ROWS,
@@ -536,16 +536,16 @@
         ? (Math.min(...tleAdjacentYs) + Math.max(...tleAdjacentYs)) / 2
         : MARGIN_Y + ((rowCount * ROW_SPACING) / 2);
 
-      // The topmost Cause/Outcome row must clear the TLE (and the Hazard
+      // The topmost Threat/Consequence row must clear the TLE (and the Hazard
       // sitting above it) by TLE_CLEARANCE. Left alone, a single simple
-      // chain per side (one Cause -> one PB, say) makes the TLE's y land
-      // exactly on that Cause's own row — the TLE's bulk then crowds that
+      // chain per side (one Threat -> one PB, say) makes the TLE's y land
+      // exactly on that Threat's own row — the TLE's bulk then crowds that
       // row's lines straight through neighbouring barriers' descriptive
-      // text. Shift every Cause/Outcome/barrier position (never the TLE
+      // text. Shift every Threat/Consequence/barrier position (never the TLE
       // itself, which stays exactly where its neighbours placed it) up by
       // however much is missing so the top row always ends up above the
       // TLE with room to spare.
-      const topRowYs = [...causeCluster, ...outcomeCluster].map((n) => positionedY.get(n.id));
+      const topRowYs = [...threatCluster, ...consequenceCluster].map((n) => positionedY.get(n.id));
       if (topRowYs.length > 0) {
         const topmostY = Math.min(...topRowYs);
         const minAllowedTopY = tleY - TLE_CLEARANCE;
@@ -555,7 +555,7 @@
         }
       }
 
-      const causesX = 150;
+      const threatsX = 150;
       // The hop immediately into/out of the TLE uses `tleAdjacentGap`, NOT
       // `colSpacing` — see TLE_ADJACENT_GAP_TIGHT above for why that hop
       // has its own, larger constraint (the Hazard) that tight mode's
@@ -568,15 +568,15 @@
       // side's depth, so a shallower side got padded with wasted empty
       // columns' worth of gap it never actually used. A real inefficiency,
       // independent of loose/tight mode, fixed here for both.
-      const tleX = causesX + (maxPcDepth * colSpacing) + tleAdjacentGap;
-      const outcomesX = tleX + (maxMcDepth * colSpacing) + tleAdjacentGap;
+      const tleX = threatsX + (maxPcDepth * colSpacing) + tleAdjacentGap;
+      const consequencesX = tleX + (maxMcDepth * colSpacing) + tleAdjacentGap;
       // PC depth is measured from the TLE (depth 1 = TLE-adjacent), but
-      // causesX is the fixed, cause-adjacent end — so column position runs
+      // threatsX is the fixed, threat-adjacent end — so column position runs
       // the OPPOSITE direction from depth: depth 1 gets the highest x
       // (closest to the TLE), depth `maxPcDepth` gets the lowest (closest
-      // to causesX). Mirrors mcColX, which is already TLE-anchored the
+      // to threatsX). Mirrors mcColX, which is already TLE-anchored the
       // same way for the MC side.
-      const pcColX = (d) => causesX + ((maxPcDepth - d + 1) * colSpacing);
+      const pcColX = (d) => threatsX + ((maxPcDepth - d + 1) * colSpacing);
       const mcColX = (d) => tleX + tleAdjacentGap + ((d - 1) * colSpacing);
 
       const updates = [];
@@ -589,43 +589,43 @@
       };
 
       // §7 toggle ("pull shallow chains closer to the TLE"): off by default,
-      // preserving today's fixed-column causesX/outcomesX for every origin
+      // preserving today's fixed-column threatsX/consequencesX for every origin
       // regardless of how few barriers its own chain actually has. When on,
       // each origin is positioned one gap before wherever its own chain's
       // first REAL stop actually is, instead of always starting at the
-      // fixed causesX/outcomesX column:
+      // fixed threatsX/consequencesX column:
       //   - fully bare (no stops at all): one gap before the TLE itself —
       //     there's nothing between that column and the TLE to cross, so
       //     ConnectionRenderer's zero-stop rendering is safe automatically.
       //   - has stops, but its first stop sits deeper than depth 1 (forced
       //     there by a merge elsewhere): one gap before that first stop's
-      //     real column, i.e. `pcColX(depth) - colSpacing` for a Cause —
+      //     real column, i.e. `pcColX(depth) - colSpacing` for a Threat —
       //     this is pure arithmetic on the SAME `depth`/`colSpacing` already
       //     used to place that barrier, so it needs no new constant.
       //   - first stop already at its own natural minimum depth (1, the
       //     common unmerged case): the formula above resolves to exactly
-      //     `causesX` — no change from today. (Mirrored for Outcomes/MBs,
+      //     `threatsX` — no change from today. (Mirrored for Consequences/MBs,
       //     whose depth is counted from the TLE outward, so their "natural,
       //     unforced" case is `depth === maxMcDepth` instead of depth 1.)
       // Moving the origin never moves the barrier it targets — only origins
       // are ever repositioned here, so this can't conflict with anything a
       // shared barrier's other lines need from its own (unchanged) position.
       const pullChainsCloser = this.getPullChainsCloser();
-      const causeOriginX = (cause) => {
-        const line = model._lineFor(cause.id);
+      const threatOriginX = (threat) => {
+        const line = model._lineFor(threat.id);
         if (line.stops.length === 0) return tleX - tleAdjacentGap;
         return pcColX(pcDepthCache.get(line.stops[0])) - colSpacing;
       };
-      const outcomeOriginX = (outcome) => {
-        const line = model._lineFor(outcome.id);
+      const consequenceOriginX = (consequence) => {
+        const line = model._lineFor(consequence.id);
         if (line.stops.length === 0) return tleX + tleAdjacentGap;
         return mcColX(mcDepthCache.get(line.stops[0])) + colSpacing;
       };
 
-      placeWithPositionedY(causeCluster, pullChainsCloser ? causeOriginX : causesX);
+      placeWithPositionedY(threatCluster, pullChainsCloser ? threatOriginX : threatsX);
       pcsByDepth.forEach((pcs, d) => placeWithPositionedY(pcs, pcColX(d)));
       mcsByDepth.forEach((mcs, d) => placeWithPositionedY(mcs, mcColX(d)));
-      placeWithPositionedY(outcomeCluster, pullChainsCloser ? outcomeOriginX : outcomesX);
+      placeWithPositionedY(consequenceCluster, pullChainsCloser ? consequenceOriginX : consequencesX);
       updates.push({ id: model.topLevelEvent.id, x: tleX, y: tleY });
 
       model.setPositions(updates);

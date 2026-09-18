@@ -93,7 +93,7 @@
         { value: 'tight', text: 'Tight' },
       ], this.arrangeSpacing, (v) => this._set('arrangeSpacing', v)));
       arrange.appendChild(this._checkRow('Short chains', 'pull-chains-closer',
-        'Pull a cause or outcome in toward the top event when it has fewer barriers than its neighbours',
+        'Pull a threat or consequence in toward the top event when it has fewer barriers than its neighbours',
         this.pullChainsCloser, (v) => this._set('pullChainsCloser', v)));
       body.appendChild(arrange);
 

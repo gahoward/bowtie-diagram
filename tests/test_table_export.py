@@ -1,6 +1,6 @@
 """Unit tests for js/view/TableExport.js -- the CSV/TSV serialiser the
 Risk Summary's "Export CSV…" and "Copy as table" go through (and, later,
-the barrier register). RFC 4180 quoting is the whole point: an outcome
+the barrier register). RFC 4180 quoting is the whole point: an consequence
 named `Fire, "major"` must survive a round trip into a spreadsheet.
 """
 
@@ -14,8 +14,8 @@ def _tsv(page, table):
 
 
 def test_plain_rows_need_no_quoting(page):
-    table = {"columns": ["id", "name"], "rows": [["O_1", "Pool Fire"], ["O_2", "Flash Fire"]]}
-    assert _csv(page, table) == "id,name\r\nO_1,Pool Fire\r\nO_2,Flash Fire"
+    table = {"columns": ["id", "name"], "rows": [["C_1", "Pool Fire"], ["C_2", "Flash Fire"]]}
+    assert _csv(page, table) == "id,name\r\nC_1,Pool Fire\r\nC_2,Flash Fire"
 
 
 def test_fields_containing_the_delimiter_are_quoted(page):

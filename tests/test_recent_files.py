@@ -138,9 +138,9 @@ def test_clicking_an_entry_loads_that_document(browser, base_url):
     pg = _started(browser, base_url)
     try:
         _install_fake_handle(pg)
-        # A real document to "re-open": the current one, with a cause that
+        # A real document to "re-open": the current one, with a threat that
         # makes it recognisable once loaded.
-        pg.evaluate("() => window.__lastUndo.model.addCause({x: 150, y: 200, name: 'Corrosion'})")
+        pg.evaluate("() => window.__lastUndo.model.addThreat({x: 150, y: 200, name: 'Corrosion'})")
         doc = pg.evaluate("() => JSON.stringify(window.__lastModel.toJSON())")
         _remember(pg, "overpressure.json")
         pg.reload()
@@ -155,7 +155,7 @@ def test_clicking_an_entry_loads_that_document(browser, base_url):
 
         assert pg.locator(".welcome-overlay").count() == 0
         assert pg.evaluate(
-            "() => window.__lastModel.causes.map((c) => window.__lastModel.getNode(c.nodeId).name)"
+            "() => window.__lastModel.threats.map((c) => window.__lastModel.getNode(c.nodeId).name)"
         ) == ["Corrosion"]
     finally:
         assert pg.errors == []

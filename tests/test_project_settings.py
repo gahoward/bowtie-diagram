@@ -109,7 +109,7 @@ def test_project_settings_identifier_display_mode_lives_on_the_general_tab_only(
 
 
 def test_project_settings_switching_identifier_mode_to_custom_backfills_ids(page):
-    page.evaluate("() => { window.__lastModel.addCause({x: 150, y: 200}); }")
+    page.evaluate("() => { window.__lastModel.addThreat({x: 150, y: 200}); }")
     page.wait_for_timeout(80)
 
     _open_project_settings(page)
@@ -119,10 +119,10 @@ def test_project_settings_switching_identifier_mode_to_custom_backfills_ids(page
     _done(page)
 
     identifier = page.evaluate("""() => {
-      const c = window.__lastModel.causes[0];
+      const c = window.__lastModel.threats[0];
       return window.__lastModel.getNode(c.nodeId).identifier;
     }""")
-    assert identifier == "C_1"
+    assert identifier == "T_1"
 
 
 def test_risk_tab_uses_the_wizards_mode_cards_and_hides_the_matrix_in_simple_mode(page):
@@ -176,9 +176,9 @@ def test_quantitative_tab_tle_aggregation_toggle_updates_model_and_canvas(page):
     page.evaluate("""() => {
       const m = window.__lastModel;
       m.setMode('quantitative');
-      const c1 = m.addCause({x: 150, y: 200});
+      const c1 = m.addThreat({x: 150, y: 200});
       m.renameNode(c1.nodeId, { name: 'C1', frequency: { value: '0.001' } });
-      const c2 = m.addCause({x: 150, y: 400});
+      const c2 = m.addThreat({x: 150, y: 400});
       m.renameNode(c2.nodeId, { name: 'C2', frequency: { value: '0.01' } });
     }""")
     page.wait_for_timeout(100)

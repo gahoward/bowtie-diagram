@@ -59,10 +59,10 @@
       if (!page) throw new Error(`Unknown page id: ${pageId}`);
       return {
         ...this.pageHeaderToJSON(page),
-        causes: model.causesForPage(pageId).map((c) => ({
+        threats: model.threatsForPage(pageId).map((c) => ({
           id: c.id, nodeId: c.nodeId, x: c.x, y: c.y, w: c.w, h: c.h, pageId: c.pageId,
         })),
-        outcomes: model.outcomesForPage(pageId).map((o) => ({
+        consequences: model.consequencesForPage(pageId).map((o) => ({
           id: o.id, nodeId: o.nodeId, x: o.x, y: o.y, w: o.w, h: o.h, pageId: o.pageId,
         })),
         preventativeBarriers: model.preventativeBarriersForPage(pageId).map((p) => ({
@@ -82,10 +82,10 @@
       const idx = model.pages.findIndex((p) => p.id === pageId);
       if (idx === -1) throw new Error(`Unknown page id: ${pageId}`);
       model.pages[idx] = this.pageHeaderFromJSON(data);
-      model.causes = model.causes.filter((c) => c.pageId !== pageId)
-        .concat((data.causes || []).map((c) => new Bowtie.Placement({ ...c, type: 'cause' })));
-      model.outcomes = model.outcomes.filter((o) => o.pageId !== pageId)
-        .concat((data.outcomes || []).map((o) => new Bowtie.Placement({ ...o, type: 'outcome' })));
+      model.threats = model.threats.filter((c) => c.pageId !== pageId)
+        .concat((data.threats || []).map((c) => new Bowtie.Placement({ ...c, type: 'threat' })));
+      model.consequences = model.consequences.filter((o) => o.pageId !== pageId)
+        .concat((data.consequences || []).map((o) => new Bowtie.Placement({ ...o, type: 'consequence' })));
       model.preventativeBarriers = model.preventativeBarriers.filter((p) => p.pageId !== pageId)
         .concat((data.preventativeBarriers || []).map(
           (p) => new Bowtie.Placement({ ...p, type: 'preventativeBarrier' }),
@@ -112,22 +112,22 @@
         identifierDisplayMode: model.identifierDisplayMode,
         idCounters: { ...model.idCounters },
         retiredIds: {
-          cause: model.retiredIds.cause.map((e) => ({ ...e })),
-          outcome: model.retiredIds.outcome.map((e) => ({ ...e })),
+          threat: model.retiredIds.threat.map((e) => ({ ...e })),
+          consequence: model.retiredIds.consequence.map((e) => ({ ...e })),
           preventativeBarrier: model.retiredIds.preventativeBarrier.map((e) => ({ ...e })),
           mitigativeBarrier: model.retiredIds.mitigativeBarrier.map((e) => ({ ...e })),
         },
         library: {
-          cause: model.library.cause.map((n) => ({ ...n })),
-          outcome: model.library.outcome.map((n) => ({ ...n })),
+          threat: model.library.threat.map((n) => ({ ...n })),
+          consequence: model.library.consequence.map((n) => ({ ...n })),
           preventativeBarrier: model.library.preventativeBarrier.map((n) => ({ ...n })),
           mitigativeBarrier: model.library.mitigativeBarrier.map((n) => ({ ...n })),
         },
         pages: model.pages.map((p) => this.pageHeaderToJSON(p)),
-        causes: model.causes.map((c) => ({
+        threats: model.threats.map((c) => ({
           id: c.id, nodeId: c.nodeId, x: c.x, y: c.y, w: c.w, h: c.h, pageId: c.pageId,
         })),
-        outcomes: model.outcomes.map((o) => ({
+        consequences: model.consequences.map((o) => ({
           id: o.id, nodeId: o.nodeId, x: o.x, y: o.y, w: o.w, h: o.h, pageId: o.pageId,
         })),
         preventativeBarriers: model.preventativeBarriers.map((p) => ({
@@ -187,8 +187,8 @@
           topLevelEvent: data.topLevelEvent, hazard: data.hazard,
         })];
       }
-      model.causes = (data.causes || []).map((c) => new Bowtie.Placement({ ...c, type: 'cause' }));
-      model.outcomes = (data.outcomes || []).map((o) => new Bowtie.Placement({ ...o, type: 'outcome' }));
+      model.threats = (data.threats || []).map((c) => new Bowtie.Placement({ ...c, type: 'threat' }));
+      model.consequences = (data.consequences || []).map((o) => new Bowtie.Placement({ ...o, type: 'consequence' }));
       model.preventativeBarriers = (data.preventativeBarriers || []).map(
         (p) => new Bowtie.Placement({ ...p, type: 'preventativeBarrier' }),
       );
@@ -197,14 +197,14 @@
       );
       model.lines = (data.lines || []).map((l) => new Bowtie.Line(l));
       model.library = {
-        cause: ((data.library && data.library.cause) || []).map((n) => new Bowtie.Node(n)),
-        outcome: ((data.library && data.library.outcome) || []).map((n) => new Bowtie.Node(n)),
+        threat: ((data.library && data.library.threat) || []).map((n) => new Bowtie.Node(n)),
+        consequence: ((data.library && data.library.consequence) || []).map((n) => new Bowtie.Node(n)),
         preventativeBarrier: ((data.library && data.library.preventativeBarrier) || []).map((n) => new Bowtie.Node(n)),
         mitigativeBarrier: ((data.library && data.library.mitigativeBarrier) || []).map((n) => new Bowtie.Node(n)),
       };
       model.retiredIds = {
-        cause: (data.retiredIds && data.retiredIds.cause) || [],
-        outcome: (data.retiredIds && data.retiredIds.outcome) || [],
+        threat: (data.retiredIds && data.retiredIds.threat) || [],
+        consequence: (data.retiredIds && data.retiredIds.consequence) || [],
         preventativeBarrier: (data.retiredIds && data.retiredIds.preventativeBarrier) || [],
         mitigativeBarrier: (data.retiredIds && data.retiredIds.mitigativeBarrier) || [],
       };
@@ -244,8 +244,8 @@
       };
 
       const placementChecks = [
-        checkPlacements(model.causes, 'cause', 'Cause'),
-        checkPlacements(model.outcomes, 'outcome', 'Outcome'),
+        checkPlacements(model.threats, 'threat', 'Threat'),
+        checkPlacements(model.consequences, 'consequence', 'Consequence'),
         checkPlacements(model.preventativeBarriers, 'preventativeBarrier', 'Preventative barrier'),
         checkPlacements(model.mitigativeBarriers, 'mitigativeBarrier', 'Mitigative barrier'),
       ].find((r) => r !== null);
@@ -255,12 +255,12 @@
         if (!model.getPage(line.pageId)) {
           return fail(`Line ${line.id} references a page that doesn't exist (${line.pageId}).`);
         }
-        const originCollection = line.originType === 'cause' ? model.causes : model.outcomes;
+        const originCollection = line.originType === 'threat' ? model.threats : model.consequences;
         const origin = originCollection.find((p) => p.id === line.originId && p.pageId === line.pageId);
         if (!origin) {
           return fail(`Line ${line.id} doesn't connect to a live ${line.originType} on its own page.`);
         }
-        const barrierCollection = line.originType === 'cause' ? model.preventativeBarriers : model.mitigativeBarriers;
+        const barrierCollection = line.originType === 'threat' ? model.preventativeBarriers : model.mitigativeBarriers;
         for (const stopId of line.stops) {
           const stop = barrierCollection.find((b) => b.id === stopId && b.pageId === line.pageId);
           if (!stop) {
@@ -283,8 +283,8 @@
       if (!result.ok) throw new Error(result.error);
       model.name = fresh.name;
       model.pages = fresh.pages;
-      model.causes = fresh.causes;
-      model.outcomes = fresh.outcomes;
+      model.threats = fresh.threats;
+      model.consequences = fresh.consequences;
       model.preventativeBarriers = fresh.preventativeBarriers;
       model.mitigativeBarriers = fresh.mitigativeBarriers;
       model.lines = fresh.lines;

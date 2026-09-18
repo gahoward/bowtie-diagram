@@ -1,5 +1,5 @@
 """Canvas "at a glance" risk summaries (quantitative_mode_proposal.md
-"Canvas badges"): a short read-only text block under each Outcome
+"Canvas badges"): a short read-only text block under each Consequence
 (severity/likelihood) and under the TLE (computed likelihood), rendered by
 CanvasView._renderInfoText -- distinct from the small colour-coded risk-
 class badge, which stays a compact chip rather than the actual figures.
@@ -30,8 +30,8 @@ def _setup_and_emit(page, body):
 def test_no_info_text_in_simple_mode(page):
     page.evaluate("""() => {
       const m = window.__lastModel;
-      m.addCause({x: 150, y: 200});
-      m.addOutcome({x: 1200, y: 200});
+      m.addThreat({x: 150, y: 200});
+      m.addConsequence({x: 1200, y: 200});
     }""")
     page.wait_for_timeout(100)
     assert _info_texts(page) == []
@@ -42,7 +42,7 @@ def test_tle_shows_computed_likelihood_in_quantitative_mode_only(page):
       const m = window.__lastModel;
       m.setMode('qualitative');
       m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
-      m.addCause({x: 150, y: 200});
+      m.addThreat({x: 150, y: 200});
     """)
     assert not any("Likelihood" in t for t in _info_texts(page)), \
         "qualitative mode has no arithmetic combination defined for the TLE"
@@ -50,7 +50,7 @@ def test_tle_shows_computed_likelihood_in_quantitative_mode_only(page):
     _setup_and_emit(page, """
       const m = window.__lastModel;
       m.setMode('quantitative');
-      const c = m.causes[0];
+      const c = m.threats[0];
       m.getNode(c.nodeId).frequency = { value: '1E-3' };
     """)
     texts = _info_texts(page)
@@ -61,21 +61,21 @@ def test_tle_computed_likelihood_shows_excluded_threat_count(page):
     _setup_and_emit(page, """
       const m = window.__lastModel;
       m.setMode('quantitative');
-      const c1 = m.addCause({x: 150, y: 200});
+      const c1 = m.addThreat({x: 150, y: 200});
       m.getNode(c1.nodeId).frequency = { value: '1E-3' };
-      const c2 = m.addCause({x: 150, y: 400});
+      const c2 = m.addThreat({x: 150, y: 400});
       m.getNode(c2.nodeId).frequency = { unknown: true };
     """)
     texts = _info_texts(page)
     assert any("1 excluded" in t for t in texts)
 
 
-def test_outcome_shows_severity_and_likelihood_text_in_qualitative_mode(page):
+def test_consequence_shows_severity_and_likelihood_text_in_qualitative_mode(page):
     _setup_and_emit(page, """
       const m = window.__lastModel;
       m.setMode('qualitative');
       m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
-      const o = m.addOutcome({x: 1200, y: 200});
+      const o = m.addConsequence({x: 1200, y: 200});
       const node = m.getNode(o.nodeId);
       node.severityClassId = m.riskMatrix.severityClasses[2].id;
       node.likelihoodClassId = m.riskMatrix.likelihoodClasses[0].id;
@@ -87,38 +87,38 @@ def test_outcome_shows_severity_and_likelihood_text_in_qualitative_mode(page):
     assert any(f"Likelihood: {likelihood_label}" == t for t in texts)
 
 
-def test_outcome_shows_computed_likelihood_text_in_quantitative_mode(page):
+def test_consequence_shows_computed_likelihood_text_in_quantitative_mode(page):
     _setup_and_emit(page, """
       const m = window.__lastModel;
       m.setMode('quantitative');
       m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
-      const c = m.addCause({x: 150, y: 200});
+      const c = m.addThreat({x: 150, y: 200});
       m.getNode(c.nodeId).frequency = { value: '1E-3' };
-      const o = m.addOutcome({x: 1200, y: 200});
+      const o = m.addConsequence({x: 1200, y: 200});
       m.getNode(o.nodeId).severityClassId = m.riskMatrix.severityClasses[3].id;
     """)
     texts = _info_texts(page)
     assert any("Likelihood: 0.001/hr" in t for t in texts)
 
 
-def test_outcome_shows_nothing_when_no_risk_fields_are_set(page):
+def test_consequence_shows_nothing_when_no_risk_fields_are_set(page):
     _setup_and_emit(page, """
       const m = window.__lastModel;
       m.setMode('quantitative');
       m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
-      m.addOutcome({x: 1200, y: 200});
+      m.addConsequence({x: 1200, y: 200});
     """)
     assert _info_texts(page) == []
 
 
-# --- Cause: likelihood (qualitative) / frequency (quantitative) -----------
+# --- Threat: likelihood (qualitative) / frequency (quantitative) -----------
 
-def test_cause_shows_likelihood_text_in_qualitative_mode(page):
+def test_threat_shows_likelihood_text_in_qualitative_mode(page):
     _setup_and_emit(page, """
       const m = window.__lastModel;
       m.setMode('qualitative');
       m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
-      const c = m.addCause({x: 150, y: 200});
+      const c = m.addThreat({x: 150, y: 200});
       m.getNode(c.nodeId).likelihoodClassId = m.riskMatrix.likelihoodClasses[1].id;
     """)
     texts = _info_texts(page)
@@ -126,33 +126,33 @@ def test_cause_shows_likelihood_text_in_qualitative_mode(page):
     assert any(f"Likelihood: {likelihood_label}" == t for t in texts)
 
 
-def test_cause_shows_frequency_text_in_quantitative_mode(page):
+def test_threat_shows_frequency_text_in_quantitative_mode(page):
     _setup_and_emit(page, """
       const m = window.__lastModel;
       m.setMode('quantitative');
-      const c = m.addCause({x: 150, y: 200});
+      const c = m.addThreat({x: 150, y: 200});
       m.getNode(c.nodeId).frequency = { value: '1E-3' };
     """)
     texts = _info_texts(page)
     assert any("Frequency: 0.001/hr" == t for t in texts)
 
 
-def test_cause_shows_frequency_unknown_explicitly(page):
+def test_threat_shows_frequency_unknown_explicitly(page):
     _setup_and_emit(page, """
       const m = window.__lastModel;
       m.setMode('quantitative');
-      const c = m.addCause({x: 150, y: 200});
+      const c = m.addThreat({x: 150, y: 200});
       m.getNode(c.nodeId).frequency = { unknown: true };
     """)
     texts = _info_texts(page)
     assert any("Frequency: Unknown" == t for t in texts)
 
 
-def test_cause_shows_nothing_when_no_risk_fields_are_set(page):
+def test_threat_shows_nothing_when_no_risk_fields_are_set(page):
     _setup_and_emit(page, """
       const m = window.__lastModel;
       m.setMode('quantitative');
-      m.addCause({x: 150, y: 200});
+      m.addThreat({x: 150, y: 200});
     """)
     assert _info_texts(page) == []
 
@@ -163,7 +163,7 @@ def test_preventative_barrier_shows_risk_reduction_factor(page):
     _setup_and_emit(page, """
       const m = window.__lastModel;
       m.setMode('quantitative');
-      const c = m.addCause({x: 150, y: 200});
+      const c = m.addThreat({x: 150, y: 200});
       const pb = m.addPreventativeControl(c.id);
       m.getNode(pb.nodeId).protection = { measure: 'rrf', value: '10' };
     """)
@@ -175,7 +175,7 @@ def test_preventative_barrier_shows_pfd_measure(page):
     _setup_and_emit(page, """
       const m = window.__lastModel;
       m.setMode('quantitative');
-      const c = m.addCause({x: 150, y: 200});
+      const c = m.addThreat({x: 150, y: 200});
       const pb = m.addPreventativeControl(c.id);
       m.getNode(pb.nodeId).protection = { measure: 'pfdavg', value: '0.01' };
     """)
@@ -187,7 +187,7 @@ def test_mitigative_barrier_shows_protection_unknown(page):
     _setup_and_emit(page, """
       const m = window.__lastModel;
       m.setMode('quantitative');
-      const o = m.addOutcome({x: 1200, y: 200});
+      const o = m.addConsequence({x: 1200, y: 200});
       const mb = m.addMitigativeControl(o.id);
       m.getNode(mb.nodeId).protection = { unknown: true };
     """)
@@ -203,7 +203,7 @@ def test_barrier_shows_no_protection_text_in_qualitative_mode(page):
       const m = window.__lastModel;
       m.setMode('qualitative');
       m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
-      const c = m.addCause({x: 150, y: 200});
+      const c = m.addThreat({x: 150, y: 200});
       m.addPreventativeControl(c.id);
     """)
     assert not any("RRF" in t or "PFD" in t or "Barrier:" in t for t in _info_texts(page))
@@ -223,7 +223,7 @@ def test_quantitative_figures_render_in_the_emphasized_style(page):
     _setup_and_emit(page, """
       const m = window.__lastModel;
       m.setMode('quantitative');
-      const c = m.addCause({x: 150, y: 200});
+      const c = m.addThreat({x: 150, y: 200});
       m.getNode(c.nodeId).frequency = { value: '1E-3' };
       const pb = m.addPreventativeControl(c.id);
       m.getNode(pb.nodeId).protection = { measure: 'rrf', value: '10' };
@@ -241,7 +241,7 @@ def test_qualitative_class_labels_stay_at_the_quieter_default_style(page):
       const m = window.__lastModel;
       m.setMode('qualitative');
       m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
-      const c = m.addCause({x: 150, y: 200});
+      const c = m.addThreat({x: 150, y: 200});
       m.getNode(c.nodeId).likelihoodClassId = m.riskMatrix.likelihoodClasses[0].id;
     """)
     assert _emphasized_texts(page) == []
@@ -255,9 +255,9 @@ def test_risk_class_badge_has_a_title_tooltip_naming_the_full_label(page):
       const m = window.__lastModel;
       m.setMode('quantitative');
       m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
-      const o = m.addOutcome({x: 1200, y: 200});
+      const o = m.addConsequence({x: 1200, y: 200});
       m.getNode(o.nodeId).severityClassId = m.riskMatrix.severityClasses[m.riskMatrix.severityClasses.length - 1].id;
-      const c = m.addCause({x: 150, y: 200});
+      const c = m.addThreat({x: 150, y: 200});
       m.getNode(c.nodeId).frequency = { value: '1' };
     """)
     titles = page.evaluate("""
@@ -291,17 +291,17 @@ def _badge_letters(page, phase):
     """)
 
 
-def test_outcome_shows_pre_and_post_mitigation_badges_in_quantitative_mode(page):
-    # Catastrophic outcome, frequent cause: A before any barrier. A huge
+def test_consequence_shows_pre_and_post_mitigation_badges_in_quantitative_mode(page):
+    # Catastrophic consequence, frequent threat: A before any barrier. A huge
     # mitigative RRF drops the residual likelihood into the bottom band,
     # which the Leaflet 5 matrix maps to C for a catastrophic severity.
     _setup_and_emit(page, """
       const m = window.__lastModel;
       m.setMode('quantitative');
       m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
-      const o = m.addOutcome({x: 1200, y: 200});
+      const o = m.addConsequence({x: 1200, y: 200});
       m.getNode(o.nodeId).severityClassId = 'catastrophic';
-      const c = m.addCause({x: 150, y: 200});
+      const c = m.addThreat({x: 150, y: 200});
       m.getNode(c.nodeId).frequency = { value: '1' };
       const mb = m.addMitigativeControl(o.id);
       m.getNode(mb.nodeId).protection = { measure: 'rrf', value: '1E12' };
@@ -324,14 +324,14 @@ def test_outcome_shows_pre_and_post_mitigation_badges_in_quantitative_mode(page)
     assert any(t.startswith("Likelihood: 1e-12/hr") for t in texts)
 
 
-def test_outcome_shows_a_single_unphased_badge_in_qualitative_mode(page):
+def test_consequence_shows_a_single_unphased_badge_in_qualitative_mode(page):
     # A manual likelihood pick has no barrier arithmetic to strip out, so
     # there is no "pre-mitigation" half -- one badge, plain tooltip.
     _setup_and_emit(page, """
       const m = window.__lastModel;
       m.setMode('qualitative');
       m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
-      const o = m.addOutcome({x: 1200, y: 200});
+      const o = m.addConsequence({x: 1200, y: 200});
       const node = m.getNode(o.nodeId);
       node.severityClassId = 'catastrophic';
       node.likelihoodClassId = 'frequent';

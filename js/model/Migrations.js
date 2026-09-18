@@ -29,12 +29,91 @@
   // check it against.
   //
   // Each entry: { from, to, describe, migrate(doc) -> doc }.
+  // v10 -> v11 (proposals/11): Causes became Threats and Outcomes became
+  // Consequences. Type keys, collection names, library/idCounters/
+  // retiredIds keys and Line.originType all rename -- but the part that
+  // forced a schema bump rather than a cosmetic change is that the id
+  // prefixes ROTATE: `C_` meant Cause in v10 and means Consequence in
+  // v11, while a Threat is now `T_`. Read a v10 file as v11 without this
+  // and every Cause would come back labelled as a Consequence.
+  //
+  // The rotation is done from the LIBRARY outward rather than by
+  // rewriting the text of the document: each node's new id is decided by
+  // which collection it was in, then every reference to it is looked up
+  // in that map. A regex over the whole file would have to get the order
+  // exactly right to avoid mapping both sides onto `C_`, and would
+  // silently rewrite any user-typed name that happened to contain "C_1".
+  function migrateV10ToV11(doc) {
+    const rotate = (id, from, to) => (
+      typeof id === 'string' && id.startsWith(`${from}_`) ? `${to}_${id.slice(from.length + 1)}` : id
+    );
+    const library = doc.library || {};
+    const idMap = new Map();
+    (library.cause || []).forEach((node) => idMap.set(node.id, rotate(node.id, 'C', 'T')));
+    (library.outcome || []).forEach((node) => idMap.set(node.id, rotate(node.id, 'O', 'C')));
+    const newId = (id) => (idMap.has(id) ? idMap.get(id) : id);
+
+    const renameNodes = (nodes, type) => (nodes || []).map((node) => ({
+      ...node, id: newId(node.id), type,
+    }));
+    const renamePlacements = (placements) => (placements || []).map((placement) => ({
+      ...placement, nodeId: newId(placement.nodeId),
+    }));
+
+    const migrated = { ...doc };
+    migrated.library = {
+      ...library,
+      threat: renameNodes(library.cause, 'threat'),
+      consequence: renameNodes(library.outcome, 'consequence'),
+    };
+    delete migrated.library.cause;
+    delete migrated.library.outcome;
+
+    migrated.threats = renamePlacements(doc.causes);
+    migrated.consequences = renamePlacements(doc.outcomes);
+    delete migrated.causes;
+    delete migrated.outcomes;
+    // Barrier placements keep their own PB_/MB_ ids, but they are in the
+    // same id space, so they go through the same lookup rather than being
+    // assumed unaffected.
+    migrated.preventativeBarriers = renamePlacements(doc.preventativeBarriers);
+    migrated.mitigativeBarriers = renamePlacements(doc.mitigativeBarriers);
+
+    const ORIGIN_TYPES = { cause: 'threat', outcome: 'consequence' };
+    migrated.lines = (doc.lines || []).map((line) => ({
+      ...line, originType: ORIGIN_TYPES[line.originType] || line.originType,
+    }));
+
+    // `idCounters` and `retiredIds` are keyed by type; the retired ids
+    // themselves are node ids from the same rotating space, so they
+    // rotate with their collection -- an id retired as C_3 (a Cause) must
+    // come back as T_3, or the next Threat would be handed an id a
+    // previous one still owns.
+    const renameKeyed = (obj, transform) => {
+      if (!obj) return obj;
+      const out = { ...obj };
+      out.threat = transform(obj.cause, 'C', 'T');
+      out.consequence = transform(obj.outcome, 'O', 'C');
+      delete out.cause;
+      delete out.outcome;
+      return out;
+    };
+    migrated.idCounters = renameKeyed(doc.idCounters, (value) => value);
+    migrated.retiredIds = renameKeyed(
+      doc.retiredIds,
+      (ids, from, to) => (ids || []).map((id) => rotate(id, from, to)),
+    );
+
+    return migrated;
+  }
+
   const MIGRATIONS = [
-    // The chain is empty until the next schema bump -- proposals 08
-    // (escalation factors) and 11 (the Threats/Consequences rename) each
-    // add their 10 -> 11 entry when they land. The framework ships first
-    // on purpose: both of those bumps are the reason it exists, and
-    // neither should have to invent the mechanism as a side-quest.
+    {
+      from: 10,
+      to: 11,
+      describe: 'Renamed Causes to Threats and Outcomes to Consequences (ids C_n became T_n, O_n became C_n)',
+      migrate: migrateV10ToV11,
+    },
   ];
 
   // The steps from `version` up to SCHEMA_VERSION, or null when no

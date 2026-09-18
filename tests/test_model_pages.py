@@ -39,7 +39,7 @@ def test_rename_page_updates_metadata_only(page):
       const before = m.pages[0];
       const tleName = before.topLevelEvent.name;
       const hazardName = before.hazard.name;
-      m.addCause({x: 150, y: 200, pageId: before.id});
+      m.addThreat({x: 150, y: 200, pageId: before.id});
 
       m.renamePage(before.id, { name: 'Renamed', description: 'New desc' });
 
@@ -49,14 +49,14 @@ def test_rename_page_updates_metadata_only(page):
         description: after.description,
         tleNameUnchanged: after.topLevelEvent.name === tleName,
         hazardNameUnchanged: after.hazard.name === hazardName,
-        causeCount: m.causesForPage(before.id).length,
+        threatCount: m.threatsForPage(before.id).length,
       };
     }""")
     assert result["name"] == "Renamed"
     assert result["description"] == "New desc"
     assert result["tleNameUnchanged"] is True
     assert result["hazardNameUnchanged"] is True
-    assert result["causeCount"] == 1
+    assert result["threatCount"] == 1
 
 
 def test_delete_page_cascades_and_leaves_other_pages_untouched(page):
@@ -64,24 +64,24 @@ def test_delete_page_cascades_and_leaves_other_pages_untouched(page):
       const m = window.__lastModel;
       const page1Id = m.pages[0].id;
       const page2Id = m.addPage({ name: 'Page Two' }).id;
-      m.addCause({x: 150, y: 200, pageId: page1Id});
-      m.addCause({x: 150, y: 200, pageId: page2Id});
-      m.addOutcome({x: 1200, y: 200, pageId: page2Id});
+      m.addThreat({x: 150, y: 200, pageId: page1Id});
+      m.addThreat({x: 150, y: 200, pageId: page2Id});
+      m.addConsequence({x: 1200, y: 200, pageId: page2Id});
 
       m.deletePage(page2Id);
 
       return {
         page1Id,
         remainingPageIds: m.pages.map((p) => p.id),
-        causePages: m.causes.map((c) => c.pageId),
-        outcomeCount: m.outcomes.length,
+        threatPages: m.threats.map((c) => c.pageId),
+        consequenceCount: m.consequences.length,
         lineCount: m.lines.length,
       };
     }""")
     assert result["remainingPageIds"] == [result["page1Id"]]
-    assert result["causePages"] == [result["page1Id"]], "page two's cause must be gone, page one's must survive"
-    assert result["outcomeCount"] == 0, "page two's only outcome must be gone"
-    assert result["lineCount"] == 1, "only page one's cause's own line should remain"
+    assert result["threatPages"] == [result["page1Id"]], "page two's threat must be gone, page one's must survive"
+    assert result["consequenceCount"] == 0, "page two's only consequence must be gone"
+    assert result["lineCount"] == 1, "only page one's threat's own line should remain"
 
 
 def test_delete_page_throws_on_last_remaining_page(page):
@@ -100,20 +100,20 @@ def test_for_page_filters_return_only_that_pages_elements(page):
       const m = window.__lastModel;
       const page1Id = m.pages[0].id;
       const page2Id = m.addPage({ name: 'Page Two' }).id;
-      m.addCause({x: 150, y: 200, pageId: page1Id});
-      m.addCause({x: 150, y: 200, pageId: page2Id});
-      m.addOutcome({x: 1200, y: 200, pageId: page1Id});
-      m.addOutcome({x: 1200, y: 200, pageId: page2Id});
-      m.addPreventativeControl(m.causesForPage(page1Id)[0].id);
-      m.addPreventativeControl(m.causesForPage(page2Id)[0].id);
-      m.addMitigativeControl(m.outcomesForPage(page1Id)[0].id);
-      m.addMitigativeControl(m.outcomesForPage(page2Id)[0].id);
+      m.addThreat({x: 150, y: 200, pageId: page1Id});
+      m.addThreat({x: 150, y: 200, pageId: page2Id});
+      m.addConsequence({x: 1200, y: 200, pageId: page1Id});
+      m.addConsequence({x: 1200, y: 200, pageId: page2Id});
+      m.addPreventativeControl(m.threatsForPage(page1Id)[0].id);
+      m.addPreventativeControl(m.threatsForPage(page2Id)[0].id);
+      m.addMitigativeControl(m.consequencesForPage(page1Id)[0].id);
+      m.addMitigativeControl(m.consequencesForPage(page2Id)[0].id);
 
       return {
-        p1Causes: m.causesForPage(page1Id).length,
-        p2Causes: m.causesForPage(page2Id).length,
-        p1Outcomes: m.outcomesForPage(page1Id).length,
-        p2Outcomes: m.outcomesForPage(page2Id).length,
+        p1Threats: m.threatsForPage(page1Id).length,
+        p2Threats: m.threatsForPage(page2Id).length,
+        p1Consequences: m.consequencesForPage(page1Id).length,
+        p2Consequences: m.consequencesForPage(page2Id).length,
         p1PBs: m.preventativeBarriersForPage(page1Id).map((b) => b.id),
         p2PBs: m.preventativeBarriersForPage(page2Id).map((b) => b.id),
         p1MBs: m.mitigativeBarriersForPage(page1Id).map((b) => b.id),
@@ -122,13 +122,13 @@ def test_for_page_filters_return_only_that_pages_elements(page):
         p2Lines: m.linesForPage(page2Id).length,
       };
     }""")
-    assert result["p1Causes"] == 1 and result["p2Causes"] == 1
-    assert result["p1Outcomes"] == 1 and result["p2Outcomes"] == 1
+    assert result["p1Threats"] == 1 and result["p2Threats"] == 1
+    assert result["p1Consequences"] == 1 and result["p2Consequences"] == 1
     assert len(result["p1PBs"]) == 1 and len(result["p2PBs"]) == 1
     assert result["p1PBs"][0] != result["p2PBs"][0]
     assert len(result["p1MBs"]) == 1 and len(result["p2MBs"]) == 1
     assert result["p1MBs"][0] != result["p2MBs"][0]
-    # 2 each: one line for the page's own cause, one for its own outcome.
+    # 2 each: one line for the page's own threat, one for its own consequence.
     assert result["p1Lines"] == 2 and result["p2Lines"] == 2
 
 
@@ -142,8 +142,8 @@ def test_find_clear_y_collision_avoidance_is_scoped_per_page(page):
       const m = window.__lastModel;
       const page1Id = m.pages[0].id;
       const page2Id = m.addPage({ name: 'Page Two' }).id;
-      const c1 = m.addCause({x: 150, pageId: page1Id});
-      const c2 = m.addCause({x: 150, pageId: page2Id});
+      const c1 = m.addThreat({x: 150, pageId: page1Id});
+      const c2 = m.addThreat({x: 150, pageId: page2Id});
       return { y1: c1.y, y2: c2.y };
     }""")
     assert result["y1"] == result["y2"], "each page's placement search must be independent"
@@ -153,14 +153,14 @@ def test_find_by_id_resolves_elements_from_any_page(page):
     result = page.evaluate("""() => {
       const m = window.__lastModel;
       const page2 = m.addPage({ name: 'Page Two' });
-      const cause = m.addCause({x: 150, y: 200, pageId: page2.id});
+      const threat = m.addThreat({x: 150, y: 200, pageId: page2.id});
       return {
         tle: m.findById(page2.topLevelEvent.id) === page2.topLevelEvent,
         hazard: m.findById(page2.hazard.id) === page2.hazard,
-        cause: m.findById(cause.id) === cause,
+        threat: m.findById(threat.id) === threat,
       };
     }""")
-    assert result == {"tle": True, "hazard": True, "cause": True}
+    assert result == {"tle": True, "hazard": True, "threat": True}
 
 
 def test_find_by_id_page_id_resolves_correctly_for_non_first_page(page):
@@ -181,8 +181,8 @@ def test_ids_stay_globally_unique_across_pages(page):
     result = page.evaluate("""() => {
       const m = window.__lastModel;
       const page2Id = m.addPage({ name: 'Page Two' }).id;
-      const c1 = m.addCause({x: 150, y: 200});
-      const c2 = m.addCause({x: 150, y: 200, pageId: page2Id});
+      const c1 = m.addThreat({x: 150, y: 200});
+      const c2 = m.addThreat({x: 150, y: 200, pageId: page2Id});
       return { c1: c1.id, c2: c2.id };
     }""")
     assert result["c1"] != result["c2"]
@@ -193,9 +193,9 @@ def test_to_json_from_json_round_trips_three_pages(page):
       const m = window.__lastModel;
       m.addPage({ name: 'Page Two', description: 'second' });
       m.addPage({ name: 'Page Three', description: 'third' });
-      m.addCause({x: 150, y: 200, pageId: m.pages[0].id});
-      m.addCause({x: 150, y: 200, pageId: m.pages[1].id});
-      m.addOutcome({x: 1200, y: 200, pageId: m.pages[2].id});
+      m.addThreat({x: 150, y: 200, pageId: m.pages[0].id});
+      m.addThreat({x: 150, y: 200, pageId: m.pages[1].id});
+      m.addConsequence({x: 1200, y: 200, pageId: m.pages[2].id});
 
       const before = m.toJSON();
       const restored = Bowtie.BowtieModel.fromJSON(before);
@@ -217,14 +217,14 @@ def test_delete_element_does_not_retire_but_delete_node_does_with_no_page_info(p
     result = page.evaluate("""() => {
       const m = window.__lastModel;
       const page2Id = m.addPage({ name: 'Page Two' }).id;
-      const c1 = m.addCause({x: 150, y: 200, pageId: page2Id});
+      const c1 = m.addThreat({x: 150, y: 200, pageId: page2Id});
       const nodeId = c1.nodeId;
       m.deleteElement(c1.id); // placement-only removal -- must not retire anything
-      const retiredAfterDeleteElement = m.retiredIds.cause.find((e) => e.id === nodeId);
+      const retiredAfterDeleteElement = m.retiredIds.threat.find((e) => e.id === nodeId);
 
-      const c1Again = m.addCause({nodeId, pageId: page2Id}); // re-place the same (still-live) node
+      const c1Again = m.addThreat({nodeId, pageId: page2Id}); // re-place the same (still-live) node
       m.deleteNode(nodeId); // the real, cascading delete -- retires the NODE id
-      const retiredAfterDeleteNode = m.retiredIds.cause.find((e) => e.id === nodeId);
+      const retiredAfterDeleteNode = m.retiredIds.threat.find((e) => e.id === nodeId);
 
       return {
         retiredAfterDeleteElement: retiredAfterDeleteElement || null,
@@ -241,15 +241,15 @@ def test_get_page_json_load_page_from_json_round_trips_and_isolates_other_state(
       const m = window.__lastModel;
       const page1Id = m.pages[0].id;
       const page2Id = m.addPage({ name: 'Page Two', description: 'd2' }).id;
-      m.addCause({x: 150, y: 200, pageId: page1Id});
-      m.addCause({x: 150, y: 200, pageId: page2Id});
+      m.addThreat({x: 150, y: 200, pageId: page1Id});
+      m.addThreat({x: 150, y: 200, pageId: page2Id});
       m.setName('My Document');
 
       const page2Snapshot = m.getPageJSON(page2Id);
-      m.addOutcome({x: 1200, y: 200, pageId: page2Id}); // mutate page 2 further
+      m.addConsequence({x: 1200, y: 200, pageId: page2Id}); // mutate page 2 further
 
       // Captured immediately before the loadPageFromJSON call under test --
-      // NOT before the addOutcome above, which legitimately bumps
+      // NOT before the addConsequence above, which legitimately bumps
       // idCounters; this isolates what the load call itself should and
       // should not touch.
       const idCountersBefore = JSON.stringify(m.idCounters);
@@ -257,7 +257,7 @@ def test_get_page_json_load_page_from_json_round_trips_and_isolates_other_state(
       const nameBefore = m.name;
       const page1JsonBefore = JSON.stringify(m.getPageJSON(page1Id));
 
-      m.loadPageFromJSON(page2Id, page2Snapshot); // restore page 2 to before the outcome
+      m.loadPageFromJSON(page2Id, page2Snapshot); // restore page 2 to before the consequence
 
       return {
         page2RestoredExactly: JSON.stringify(m.getPageJSON(page2Id)) === JSON.stringify(page2Snapshot),

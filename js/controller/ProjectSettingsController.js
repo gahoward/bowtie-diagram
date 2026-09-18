@@ -2,8 +2,8 @@
   // Design review finding 11 -- see BowtieModel's tleAggregation
   // constructor comment and Quantitative.js's computeTleLikelihood.
   const AGGREGATION_OPTIONS = [
-    { value: 'max', text: 'Highest single cause' },
-    { value: 'sum', text: 'Sum of all causes' },
+    { value: 'max', text: 'Highest single threat' },
+    { value: 'sum', text: 'Sum of all threats' },
   ];
 
   const TABS = [
@@ -199,7 +199,7 @@
         ], this.model.identifierDisplayMode, (v) => this.model.setIdentifierDisplayMode(v)),
         custom
           ? 'Every node shows its generated id as a starting label — edit them in the Node Library. New nodes get no label automatically.'
-          : 'Generated IDs are C_1, PB_1, …; custom labels are whatever you type per node.',
+          : 'Generated IDs are T_1, PB_1, …; custom labels are whatever you type per node.',
       ));
     }
 
@@ -363,7 +363,7 @@
     // --- Quantitative ----------------------------------------------------
     //
     // Everything that only means something once likelihoods are computed:
-    // how the TLE combines its causes (design review finding 11) and
+    // how the TLE combines its threats (design review finding 11) and
     // barrier_measures_proposal.md's ProjectDefaults -- the dangerous
     // fraction and standby proof-test interval a barrier's own protection
     // falls back to when it doesn't set its own override. All persisted,
@@ -371,7 +371,7 @@
 
     _buildQuantitative(panel) {
       panel.appendChild(this._row(
-        'Combine causes at the top event by',
+        'Combine threats at the top event by',
         this._radios('tle-aggregation', AGGREGATION_OPTIONS, this.model.tleAggregation, (v) => this.model.setTleAggregation(v)),
         'Highest = the conservative worst-initiator reading. Sum = the independent-initiator LOPA convention. '
           + 'Changes what the saved numbers mean.',

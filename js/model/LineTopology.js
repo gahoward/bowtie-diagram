@@ -8,7 +8,7 @@
   //
   // Like Quantitative/Warnings, this doesn't own `lines` (or the placement
   // arrays) itself -- `lines` stays a plain array on BowtieModel, alongside
-  // causes/outcomes/preventativeBarriers/mitigativeBarriers, since
+  // threats/consequences/preventativeBarriers/mitigativeBarriers, since
   // `_removePlacementOnly`/`linesForPage`/`deletePage`/DocumentSerializer
   // all read and mutate it as part of page/placement bookkeeping that's
   // core to BowtieModel, not line topology specifically. This collaborator
@@ -33,19 +33,19 @@
   };
   const SIDE = {
     preventativeBarrier: {
-      originCollection: 'causes',
-      originType: 'cause',
+      originCollection: 'threats',
+      originType: 'threat',
       barrierCollection: 'preventativeBarriers',
       // The x-direction a freshly-chained barrier lands in, relative to
       // its anchor (the chain's current TLE-facing end) -- a PB chain
       // grows toward larger x (toward the TLE, which sits right of the
-      // causes); an MB chain grows toward smaller x (toward the TLE,
-      // which sits left of the outcomes).
+      // threats); an MB chain grows toward smaller x (toward the TLE,
+      // which sits left of the consequences).
       xSign: 1,
     },
     mitigativeBarrier: {
-      originCollection: 'outcomes',
-      originType: 'outcome',
+      originCollection: 'consequences',
+      originType: 'consequence',
       barrierCollection: 'mitigativeBarriers',
       xSign: -1,
     },
@@ -96,15 +96,15 @@
     _resolvePlacementId(id) {
       const model = this.model;
       const isPlacementId = (
-        model.causes.some((c) => c.id === id) ||
-        model.outcomes.some((o) => o.id === id) ||
+        model.threats.some((c) => c.id === id) ||
+        model.consequences.some((o) => o.id === id) ||
         model.preventativeBarriers.some((p) => p.id === id) ||
         model.mitigativeBarriers.some((m) => m.id === id)
       );
       if (isPlacementId) return id;
       const matches = [
-        ...model.causes.filter((c) => c.nodeId === id),
-        ...model.outcomes.filter((o) => o.nodeId === id),
+        ...model.threats.filter((c) => c.nodeId === id),
+        ...model.consequences.filter((o) => o.nodeId === id),
         ...model.preventativeBarriers.filter((p) => p.nodeId === id),
         ...model.mitigativeBarriers.filter((m) => m.nodeId === id),
       ];
@@ -134,17 +134,17 @@
     }
 
     // The y-coordinate each Line passing through `barrierId` travels at
-    // (its origin Cause/Outcome's own y, constant for the Line's whole run)
+    // (its origin Threat/Consequence's own y, constant for the Line's whole run)
     // — Layout.controlBounds uses this to grow the box tall enough to cover
     // every lane passing through, each still exiting at its own height.
     laneYsThrough(barrierId) {
       return this.linesThrough(barrierId).map((l) => this.model.findById(l.originId).y);
     }
 
-    // --- Creation of barriers, chained from a Cause/Outcome --------------
+    // --- Creation of barriers, chained from a Threat/Consequence --------------
     //
     // Creates a new barrier placement of `kind`, chained from `originId`
-    // (a Cause for a PB, an Outcome for an MB). If `originId` already has
+    // (a Threat for a PB, an Consequence for an MB). If `originId` already has
     // a chain, the new barrier is appended at the chain's TLE-facing end
     // (the tail of its Line) — always unambiguous, since it only ever
     // touches this one Line. Accepts either creation shape in `opts` — see
@@ -304,7 +304,7 @@
     // everything that used to continue further toward the TLE from there —
     // those barriers aren't deleted, just no longer part of THIS line. Pass
     // null for `keepThroughId` to drop every stop (the line becomes direct
-    // Cause/Outcome-to-TLE). Always acts on exactly one Line — there is no
+    // Threat/Consequence-to-TLE). Always acts on exactly one Line — there is no
     // barrier-level variant of this, matching how reattachment generally
     // must be scoped to a specific Line, not every Line a barrier carries.
     connectLineDirectlyToTle(lineId, keepThroughId) {
@@ -333,7 +333,7 @@
     // it recomputes every position from topology alone and had no idea
     // anything had changed).
     //
-    // `Line.stops` is nearest-origin-first for BOTH Cause and Outcome
+    // `Line.stops` is nearest-origin-first for BOTH Threat and Consequence
     // lines -- increasing index always means "closer to the TLE", for
     // either barrier kind (see _addBarrierChainedFrom: each newly-appended
     // barrier lands one index further toward the TLE than the one before
@@ -416,7 +416,7 @@
     // --- Attachment of existing nodes (fan-in / chaining) ------------------
 
     // The stops (if any) that continue on past `barrierId`, toward the TLE
-    // (for a PB) or the Outcome (for an MB), on some OTHER line already
+    // (for a PB) or the Consequence (for an MB), on some OTHER line already
     // passing through it (not `excludeLineId`, so a line about to be
     // replaced never answers its own question) — the first such line
     // found, an accepted scope boundary for the rare case where
@@ -433,20 +433,20 @@
       return donor.stops.slice(idx + 1);
     }
 
-    // Attaches an existing Cause/Outcome (`originId`) to `barrierId`'s
+    // Attaches an existing Threat/Consequence (`originId`) to `barrierId`'s
     // origin-facing side. The origin's own Line is replaced wholesale — it
     // now enters directly at barrierId — but what happens AFTER barrierId
     // depends on `inheritDownstream`:
     //   - true (default): follow whatever continuation toward the TLE
     //     already exists on barrierId for some other line
     //     (_donorContinuation above) — the original, only-ever behavior
-    //     before this option existed, e.g. attaching a bare Cause to a
+    //     before this option existed, e.g. attaching a bare Threat to a
     //     barrier that already continues on to a further shared barrier
     //     before the TLE.
     //   - false: stop caring what barrierId's OTHER lines do, and instead
     //     keep whatever THIS origin's own line already had beyond
     //     barrierId (if it had any barriers of its own before this call)
-    //     — or, if it had none (the common bare-Cause/-Outcome case), the
+    //     — or, if it had none (the common bare-Threat/-Consequence case), the
     //     line simply ends at barrierId and connects directly to the TLE
     //     from there, exactly as if barrierId were freshly added rather
     //     than an existing, possibly-further-chained barrier.
@@ -454,8 +454,8 @@
     // _donorContinuation is non-empty (only then does the choice actually
     // change anything); it's silently irrelevant otherwise, and model-level
     // callers (tests included) that don't pass it at all keep today's
-    // always-inherit behavior. Always single-line by construction (a Cause
-    // or Outcome has exactly one Line), unlike reattaching an existing
+    // always-inherit behavior. Always single-line by construction (a Threat
+    // or Consequence has exactly one Line), unlike reattaching an existing
     // barrier's own output — which must be done from the specific Line
     // segment instead (see attachExistingBarrier), since a barrier can
     // carry more than one Line and there is no "which one" to ask here.

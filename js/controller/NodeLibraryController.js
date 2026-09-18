@@ -1,7 +1,7 @@
 (function (Bowtie) {
   const TYPES = [
-    { id: 'cause', label: 'Causes', singular: 'cause' },
-    { id: 'outcome', label: 'Outcomes', singular: 'outcome' },
+    { id: 'threat', label: 'Threats', singular: 'threat' },
+    { id: 'consequence', label: 'Consequences', singular: 'consequence' },
     { id: 'preventativeBarrier', label: 'Preventative', singular: 'preventative barrier' },
     { id: 'mitigativeBarrier', label: 'Mitigative', singular: 'mitigative barrier' },
   ];
@@ -38,7 +38,7 @@
       this.model = model;
       this.openProperties = openProperties;
       this.modal = null;
-      this._activeType = 'cause';
+      this._activeType = 'threat';
       this._retiredOpen = {};
       // Design review finding 04 -- which node's row (if any) should be
       // highlighted on the next open. Cleared on every ordinary open so it

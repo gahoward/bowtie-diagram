@@ -36,15 +36,15 @@ def _quantitative(page):
 
 
 def _one_chain(page):
-    """A cause with two preventative barriers, and an outcome with one
+    """A threat with two preventative barriers, and an consequence with one
     mitigative barrier."""
     page.evaluate("""() => {
       const m = window.__lastModel;
-      const c = m.addCause({x: 150, y: 200, name: 'Corrosion'});
+      const c = m.addThreat({x: 150, y: 200, name: 'Corrosion'});
       m.getNode(c.nodeId).frequency = { value: '1E-2' };
       const b1 = m.addPreventativeControl(c.id, { name: 'Inspection' });
       const b2 = m.addPreventativeControl(c.id, { name: 'Coating' });
-      const o = m.addOutcome({x: 1200, y: 200, name: 'Release'});
+      const o = m.addConsequence({x: 1200, y: 200, name: 'Release'});
       const b3 = m.addMitigativeControl(o.id, { name: 'Bunding' });
       window.__ids = { c: c.id, b1: b1.id, b2: b2.id, o: o.id, b3: b3.id };
       m._emitChange();
@@ -84,21 +84,21 @@ def test_every_barrier_placement_is_a_row_with_its_metadata(page):
     assert [r["rank"] for r in rows] == [1, 2, 3]
 
 
-def test_protects_names_the_causes_or_outcomes_whose_lines_run_through_it(page):
+def test_protects_names_the_threats_or_consequences_whose_lines_run_through_it(page):
     """A shared barrier is the case that matters: it has to list every
     origin it stands in the way of, not just the first."""
     _one_chain(page)
     page.evaluate("""() => {
       const m = window.__lastModel;
-      const c2 = m.addCause({x: 150, y: 400, name: 'Erosion'});
-      // Route the second cause through the barrier the first already uses.
+      const c2 = m.addThreat({x: 150, y: 400, name: 'Erosion'});
+      // Route the second threat through the barrier the first already uses.
       m.attachInputToPreventativeControl(c2.id, window.__ids.b1, false);
       m._emitChange();
     }""")
     page.wait_for_timeout(120)
     rows = {r["name"]: r for r in _rows(page)}
-    assert rows["Inspection"]["protects"] == ["C_1", "C_2"]
-    assert rows["Bunding"]["protects"] == ["O_1"]
+    assert rows["Inspection"]["protects"] == ["T_1", "T_2"]
+    assert rows["Bunding"]["protects"] == ["C_1"]
 
 
 def test_a_warned_barrier_outranks_an_unknown_one_which_outranks_a_weak_one(page):
@@ -144,7 +144,7 @@ def test_scoping_to_a_page_returns_only_that_pages_barriers(page):
     page.evaluate("""() => {
       const m = window.__lastModel;
       const p2 = m.addPage({ name: 'Second' });
-      const c = m.addCause({x: 150, y: 200, pageId: p2.id, name: 'Other cause'});
+      const c = m.addThreat({x: 150, y: 200, pageId: p2.id, name: 'Other threat'});
       m.addPreventativeControl(c.id, { name: 'Second-page barrier' });
       m._emitChange();
     }""")
@@ -168,7 +168,7 @@ def test_the_demand_rate_is_the_rate_reaching_the_barrier(page):
     _quantitative(page)
     _one_chain(page)
     rows = {r["name"]: r for r in _rows(page)}
-    # The first preventative barrier sees the cause's own frequency.
+    # The first preventative barrier sees the threat's own frequency.
     assert rows["Inspection"]["demandRate"] is not None
     assert page.evaluate(
         "() => window.__lastModel.computeDemandRateAt(window.__ids.b1).toExactDecimal().toDecimalString()"
@@ -229,7 +229,7 @@ def test_a_row_reads_the_way_the_canvas_does(page):
     assert cells[4] == "Ops"
     assert cells[5] == "High"
     assert cells[6] == "RRF: 10", "the same short form the canvas prints under the barrier"
-    assert cells[8] == "C_1"
+    assert cells[8] == "T_1"
     _close(page)
 
 
@@ -301,5 +301,5 @@ def test_export_writes_one_row_per_barrier_with_its_figures(page):
     assert inspection[8] == "rrf"
     assert inspection[9] == "10"
     assert inspection[10] == "0.01" and inspection[11] == "events/hour"
-    assert inspection[12] == "C_1"
+    assert inspection[12] == "T_1"
     _close(page)

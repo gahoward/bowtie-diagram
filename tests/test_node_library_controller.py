@@ -23,16 +23,16 @@ def _row(page, name):
 def test_library_is_tabbed_per_type_with_counts(page):
     page.evaluate("""() => {
       const m = window.__lastModel;
-      m.addCause({ x: 150, y: 200, name: 'Gas Release' });
-      m.addCause({ x: 150, y: 400, name: 'Flange Leak' });
-      m.addOutcome({ x: 1200, y: 200, name: 'Fire' });
+      m.addThreat({ x: 150, y: 200, name: 'Gas Release' });
+      m.addThreat({ x: 150, y: 400, name: 'Flange Leak' });
+      m.addConsequence({ x: 1200, y: 200, name: 'Fire' });
     }""")
     page.wait_for_timeout(80)
     _open_node_library(page)
 
     assert page.locator(".modal-dialog-xwide").count() == 1
     tabs = page.locator(".node-library .settings-tab")
-    assert tabs.all_text_contents() == ["Causes (2)", "Outcomes (1)", "Preventative (0)", "Mitigative (0)"]
+    assert tabs.all_text_contents() == ["Threats (2)", "Consequences (1)", "Preventative (0)", "Mitigative (0)"]
     assert page.locator(".node-library-row").count() == 2
     assert page.locator(".node-library-name").all_text_contents() == ["Gas Release", "Flange Leak"]
 
@@ -46,42 +46,42 @@ def test_library_is_tabbed_per_type_with_counts(page):
 
 
 def test_edit_opens_the_shared_properties_modal_and_saves_through_rename_node(page):
-    page.evaluate("() => { window.__lastModel.addCause({x: 150, y: 200, name: 'Gas Release'}); }")
+    page.evaluate("() => { window.__lastModel.addThreat({x: 150, y: 200, name: 'Gas Release'}); }")
     page.wait_for_timeout(80)
     _open_node_library(page)
 
     _row(page, "Gas Release").get_by_role("button", name="Edit", exact=True).click()
     page.wait_for_timeout(80)
     props = page.locator(".modal-overlay").last
-    assert props.locator(".modal-title").text_content() == "C_1 — Cause"
+    assert props.locator(".modal-title").text_content() == "T_1 — Threat"
     props.locator(".modal-section:has-text('Identity') input[type=text]").fill("Gas Release (Revised)")
     props.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_timeout(80)
 
     assert page.locator(".modal-overlay").count() == 1, "back to the library, which re-rendered"
     assert _row(page, "Gas Release (Revised)").locator(".node-library-name").text_content() == "Gas Release (Revised)"
-    node_name = page.evaluate("() => { const m = window.__lastModel; return m.getNode(m.causes[0].nodeId).name; }")
+    node_name = page.evaluate("() => { const m = window.__lastModel; return m.getNode(m.threats[0].nodeId).name; }")
     assert node_name == "Gas Release (Revised)"
 
 
 def test_edit_works_for_a_node_with_no_placement(page):
-    page.evaluate("() => { window.__lastModel.addNode('outcome', { name: 'Staged Outcome' }); }")
+    page.evaluate("() => { window.__lastModel.addNode('consequence', { name: 'Staged Consequence' }); }")
     page.wait_for_timeout(80)
     _open_node_library(page)
-    page.locator(".node-library .settings-tab[data-type=outcome]").click()
+    page.locator(".node-library .settings-tab[data-type=consequence]").click()
     page.wait_for_timeout(80)
 
-    row = _row(page, "Staged Outcome")
+    row = _row(page, "Staged Consequence")
     assert row.locator(".node-library-tag").text_content() == "Not placed yet"
     row.get_by_role("button", name="Edit", exact=True).click()
     page.wait_for_timeout(80)
     props = page.locator(".modal-overlay").last
-    assert props.locator(".modal-title").text_content() == "O_1 — Outcome"
+    assert props.locator(".modal-title").text_content() == "C_1 — Consequence"
     assert props.locator(".modal-section:has-text('Computed')").count() == 0, "nothing computed without a placement"
     props.locator(".modal-section:has-text('Identity') input[type=text]").fill("Staged (Renamed)")
     props.get_by_role("button", name="Save", exact=True).click()
     page.wait_for_timeout(80)
-    assert page.evaluate("() => window.__lastModel.library.outcome[0].name") == "Staged (Renamed)"
+    assert page.evaluate("() => window.__lastModel.library.consequence[0].name") == "Staged (Renamed)"
 
 
 def test_delete_cascades_across_pages_and_retires_the_id(page):
@@ -89,8 +89,8 @@ def test_delete_cascades_across_pages_and_retires_the_id(page):
       const m = window.__lastModel;
       m.renamePage(m.pages[0].id, { name: 'Page A' });
       const p2 = m.addPage({ name: 'Page B' });
-      const c1 = m.addCause({ x: 150, y: 200, name: 'Shared Threat', pageId: m.pages[0].id });
-      m.addCause({ nodeId: c1.nodeId, pageId: p2.id, x: 150, y: 200 });
+      const c1 = m.addThreat({ x: 150, y: 200, name: 'Shared Threat', pageId: m.pages[0].id });
+      m.addThreat({ nodeId: c1.nodeId, pageId: p2.id, x: 150, y: 200 });
       return { nodeId: c1.nodeId };
     }""")
     node_id = result["nodeId"]
@@ -110,7 +110,7 @@ def test_delete_cascades_across_pages_and_retires_the_id(page):
     remaining = page.evaluate(f"() => window.__lastModel.placementsForNode('{node_id}').length")
     assert remaining == 0
     retired_entry = page.evaluate(f"""() => {{
-      const entry = window.__lastModel.retiredIds.cause.find((e) => e.id === '{node_id}');
+      const entry = window.__lastModel.retiredIds.threat.find((e) => e.id === '{node_id}');
       return entry ? {{ id: entry.id, reEnabled: entry.reEnabled }} : null;
     }}""")
     assert retired_entry == {"id": node_id, "reEnabled": False}
@@ -128,11 +128,11 @@ def test_add_to_library_creates_a_node_with_zero_placements(page):
 
     row = _row(page, "Staged Threat")
     assert row.locator(".node-library-tag").text_content() == "Not placed yet"
-    assert page.locator(".node-library .settings-tab[data-type=cause]").text_content() == "Causes (1)"
+    assert page.locator(".node-library .settings-tab[data-type=threat]").text_content() == "Threats (1)"
 
     placements = page.evaluate("""() => {
       const m = window.__lastModel;
-      const node = m.library.cause.find((n) => n.name === 'Staged Threat');
+      const node = m.library.threat.find((n) => n.name === 'Staged Threat');
       return m.placementsForNode(node.id).length;
     }""")
     assert placements == 0
@@ -142,7 +142,7 @@ def test_library_row_page_list_reflects_placements_as_they_are_added(page):
     page.evaluate("""() => {
       const m = window.__lastModel;
       m.renamePage(m.pages[0].id, { name: 'Page A' });
-      m.addCause({ x: 150, y: 200, name: 'Reused Threat' });
+      m.addThreat({ x: 150, y: 200, name: 'Reused Threat' });
     }""")
     page.wait_for_timeout(80)
     _open_node_library(page)
@@ -152,8 +152,8 @@ def test_library_row_page_list_reflects_placements_as_they_are_added(page):
     page.evaluate("""() => {
       const m = window.__lastModel;
       const p2 = m.addPage({ name: 'Page B' });
-      const node = m.library.cause.find((n) => n.name === 'Reused Threat');
-      m.addCause({ nodeId: node.id, pageId: p2.id, x: 150, y: 200 });
+      const node = m.library.threat.find((n) => n.name === 'Reused Threat');
+      m.addThreat({ nodeId: node.id, pageId: p2.id, x: 150, y: 200 });
     }""")
     page.wait_for_timeout(80)
 
@@ -169,8 +169,8 @@ def test_delete_from_library_context_menu_item_opens_straight_to_the_node(page):
     highlighted."""
     page.evaluate("""() => {
       const m = window.__lastModel;
-      m.addCause({ x: 150, y: 200, name: 'Gas Release' });
-      const o = m.addOutcome({ x: 1200, y: 200, name: 'Fire' });
+      m.addThreat({ x: 150, y: 200, name: 'Gas Release' });
+      const o = m.addConsequence({ x: 1200, y: 200, name: 'Fire' });
       m.addMitigativeControl(o.id);
     }""")
     page.wait_for_timeout(80)
@@ -189,10 +189,10 @@ def test_delete_from_library_context_menu_item_opens_straight_to_the_node(page):
 
 
 def test_focused_node_does_not_leak_into_a_later_ordinary_open(page):
-    page.evaluate("() => { window.__lastModel.addCause({ x: 150, y: 200, name: 'Gas Release' }); }")
+    page.evaluate("() => { window.__lastModel.addThreat({ x: 150, y: 200, name: 'Gas Release' }); }")
     page.wait_for_timeout(80)
 
-    page.locator('#bowtie-canvas .node.cause[data-id="C_1"]').click(button="right")
+    page.locator('#bowtie-canvas .node.threat[data-id="T_1"]').click(button="right")
     click_menu_item(page, "Delete from Library")
     page.wait_for_timeout(100)
     assert page.locator(".node-library-row.focused").count() == 1

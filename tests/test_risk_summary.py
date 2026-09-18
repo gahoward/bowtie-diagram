@@ -3,8 +3,8 @@
 (BowtieModel.assessConsequence / computeRiskSummary) and in the View >
 "Risk Summary..." modal (RiskSummaryController) that tabulates it.
 
-Leaflet 5 facts these tests lean on: a catastrophic outcome fed by a
-frequent (>= ~0.1/year) cause is class A; the same outcome pushed down into
+Leaflet 5 facts these tests lean on: a catastrophic consequence fed by a
+frequent (>= ~0.1/year) threat is class A; the same consequence pushed down into
 the bottom likelihood band (cells[0]) is class C.
 """
 
@@ -22,9 +22,9 @@ def test_assess_consequence_reports_pre_and_post_mitigation_classes(page):
       const m = window.__lastModel;
       m.setMode('quantitative');
       m.setRiskMatrix({LEAFLET5});
-      const c = m.addCause({{}});
+      const c = m.addThreat({{}});
       m.getNode(c.nodeId).frequency = {{ value: '1' }};
-      const o = m.addOutcome({{}});
+      const o = m.addConsequence({{}});
       m.getNode(o.nodeId).severityClassId = 'catastrophic';
       const mb = m.addMitigativeControl(o.id);
       m.getNode(mb.nodeId).protection = {{ measure: 'rrf', value: '1E12' }};
@@ -50,11 +50,11 @@ def test_assess_consequence_pre_mitigation_ignores_preventative_barriers_too(pag
       const m = window.__lastModel;
       m.setMode('quantitative');
       m.setRiskMatrix({LEAFLET5});
-      const c = m.addCause({{}});
+      const c = m.addThreat({{}});
       m.getNode(c.nodeId).frequency = {{ value: '0.01' }};
       const pb = m.addPreventativeControl(c.id);
       m.getNode(pb.nodeId).protection = {{ measure: 'rrf', value: '10' }};
-      const o = m.addOutcome({{}});
+      const o = m.addConsequence({{}});
       m.getNode(o.nodeId).severityClassId = 'major';
       const mb = m.addMitigativeControl(o.id);
       m.getNode(mb.nodeId).protection = {{ measure: 'rrf', value: '2' }};
@@ -72,7 +72,7 @@ def test_assess_consequence_has_no_pre_mitigation_half_in_qualitative_mode(page)
       const m = window.__lastModel;
       m.setMode('qualitative');
       m.setRiskMatrix({LEAFLET5});
-      const o = m.addOutcome({{}});
+      const o = m.addConsequence({{}});
       const node = m.getNode(o.nodeId);
       node.severityClassId = 'catastrophic';
       node.likelihoodClassId = 'frequent';
@@ -89,7 +89,7 @@ def test_assess_consequence_has_no_pre_mitigation_half_in_qualitative_mode(page)
 def test_assess_consequence_is_null_in_simple_mode_or_without_a_matrix(page):
     result = page.evaluate("""() => {
       const m = window.__lastModel;
-      const o = m.addOutcome({});
+      const o = m.addConsequence({});
       const simple = m.assessConsequence(o.id);
       m.setMode('quantitative');
       const noMatrix = m.assessConsequence(o.id);
@@ -103,9 +103,9 @@ def test_assess_consequence_leaves_classes_null_until_determinable(page):
       const m = window.__lastModel;
       m.setMode('quantitative');
       m.setRiskMatrix({LEAFLET5});
-      const c = m.addCause({{}});
+      const c = m.addThreat({{}});
       m.getNode(c.nodeId).frequency = {{ value: '1' }};
-      const o = m.addOutcome({{}}); // no severity picked yet
+      const o = m.addConsequence({{}}); // no severity picked yet
       const a = m.assessConsequence(o.id);
       return {{ severity: a.severity, preRisk: a.pre.riskClass, postRisk: a.post.riskClass,
                 preBand: a.pre.likelihoodClass.id, hasLikelihood: a.post.likelihood !== null }};
@@ -120,46 +120,46 @@ def test_assess_consequence_leaves_classes_null_until_determinable(page):
 # --- Model: computeRiskSummary ranking --------------------------------------
 
 def _build_ranked_scenario(page):
-    """Three outcomes on page one plus one on a second page:
-      O_1 catastrophic, no barrier          -> A / A
-      O_2 catastrophic, RRF 1E12 barrier    -> A / C
-      O_3 no severity                        -> undetermined
-      O_4 (page 2) marginal, own cause 1/hr -> A / A (Leaflet 5: frequent x
+    """Three consequences on page one plus one on a second page:
+      C_1 catastrophic, no barrier          -> A / A
+      C_2 catastrophic, RRF 1E12 barrier    -> A / C
+      C_3 no severity                        -> undetermined
+      C_4 (page 2) marginal, own threat 1/hr -> A / A (Leaflet 5: frequent x
                                                marginal is A)
     """
     page.evaluate(f"""() => {{
       const m = window.__lastModel;
       m.setMode('quantitative');
       m.setRiskMatrix({LEAFLET5});
-      const c = m.addCause({{}});
+      const c = m.addThreat({{}});
       m.getNode(c.nodeId).frequency = {{ value: '1' }};
-      const o1 = m.addOutcome({{ name: 'Worst' }});
+      const o1 = m.addConsequence({{ name: 'Worst' }});
       m.getNode(o1.nodeId).severityClassId = 'catastrophic';
-      const o2 = m.addOutcome({{ name: 'Mitigated' }});
+      const o2 = m.addConsequence({{ name: 'Mitigated' }});
       m.getNode(o2.nodeId).severityClassId = 'catastrophic';
       const mb = m.addMitigativeControl(o2.id);
       m.getNode(mb.nodeId).protection = {{ measure: 'rrf', value: '1E12' }};
-      m.addOutcome({{ name: 'Unrated' }});
+      m.addConsequence({{ name: 'Unrated' }});
       const p2 = m.addPage({{ name: 'Second' }});
-      const c2 = m.addCause({{ pageId: p2.id }});
+      const c2 = m.addThreat({{ pageId: p2.id }});
       m.getNode(c2.nodeId).frequency = {{ value: '1' }};
-      const o4 = m.addOutcome({{ pageId: p2.id, name: 'Elsewhere' }});
+      const o4 = m.addConsequence({{ pageId: p2.id, name: 'Elsewhere' }});
       m.getNode(o4.nodeId).severityClassId = 'marginal';
       m._emitChange();
     }}""")
     page.wait_for_timeout(100)
 
 
-def test_risk_summary_ranks_every_outcome_worst_first_across_pages(page):
+def test_risk_summary_ranks_every_consequence_worst_first_across_pages(page):
     _build_ranked_scenario(page)
     rows = page.evaluate("""() => window.__lastModel.computeRiskSummary().map((r) => ({
       rank: r.rank, name: r.name, page: r.pageName,
       pre: r.pre.riskClass && r.pre.riskClass.id, post: r.post.riskClass && r.post.riskClass.id,
     }))""")
     assert [r["rank"] for r in rows] == [1, 2, 3, 4]
-    # Post-mitigation class leads; within the two residual-A outcomes the
-    # worse severity (catastrophic over marginal) wins; the A -> C outcome
-    # comes after both; an undetermined outcome always sorts last.
+    # Post-mitigation class leads; within the two residual-A consequences the
+    # worse severity (catastrophic over marginal) wins; the A -> C consequence
+    # comes after both; an undetermined consequence always sorts last.
     assert [r["name"] for r in rows] == ["Worst", "Elsewhere", "Mitigated", "Unrated"]
     assert [(r["pre"], r["post"]) for r in rows] == [("A", "A"), ("A", "A"), ("A", "C"), (None, None)]
     assert rows[1]["page"] == "Second"
@@ -177,24 +177,24 @@ def test_risk_summary_can_be_scoped_to_one_page_with_ranks_restarting(page):
 
 
 def test_risk_summary_tie_breaks_equal_residual_class_by_pre_mitigation_class(page):
-    # Two catastrophic outcomes both residual C: the one that got there
+    # Two catastrophic consequences both residual C: the one that got there
     # from A (relying on a barrier) is more fragile than one that started
     # lower, so it ranks first.
     rows = page.evaluate(f"""() => {{
       const m = window.__lastModel;
       m.setMode('quantitative');
       m.setRiskMatrix({LEAFLET5});
-      const c = m.addCause({{}});
+      const c = m.addThreat({{}});
       m.getNode(c.nodeId).frequency = {{ value: '1' }};
-      const fragile = m.addOutcome({{ name: 'Fragile' }});
+      const fragile = m.addConsequence({{ name: 'Fragile' }});
       m.getNode(fragile.nodeId).severityClassId = 'catastrophic';
       const mb = m.addMitigativeControl(fragile.id);
       m.getNode(mb.nodeId).protection = {{ measure: 'rrf', value: '1E12' }};
-      // Same residual band via a cause that is already negligible on page 2.
+      // Same residual band via a threat that is already negligible on page 2.
       const p2 = m.addPage({{ name: 'Second' }});
-      const c2 = m.addCause({{ pageId: p2.id }});
+      const c2 = m.addThreat({{ pageId: p2.id }});
       m.getNode(c2.nodeId).frequency = {{ value: '1E-12' }};
-      const inherent = m.addOutcome({{ pageId: p2.id, name: 'Inherently low' }});
+      const inherent = m.addConsequence({{ pageId: p2.id, name: 'Inherently low' }});
       m.getNode(inherent.nodeId).severityClassId = 'catastrophic';
       return m.computeRiskSummary().map((r) => [r.name, r.pre.riskClass.id, r.post.riskClass.id]);
     }}""")
@@ -204,7 +204,7 @@ def test_risk_summary_tie_breaks_equal_residual_class_by_pre_mitigation_class(pa
 def test_ranking_follows_explicit_risk_class_rank_not_array_order(page):
     """proposals/05: a matrix that lists its risk classes least-severe-
     first (legal -- the validator imposes no array order) must still rank
-    the intolerable outcome first."""
+    the intolerable consequence first."""
     rows = page.evaluate("""() => {
       const m = window.__lastModel;
       m.setMode('quantitative');
@@ -213,11 +213,11 @@ def test_ranking_follows_explicit_risk_class_rank_not_array_order(page):
       const matrix = JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5));
       matrix.riskClasses = matrix.riskClasses.slice().reverse();
       m.setRiskMatrix(matrix);
-      const c = m.addCause({});
+      const c = m.addThreat({});
       m.getNode(c.nodeId).frequency = { value: '1' };
-      const worst = m.addOutcome({ name: 'Worst' });
+      const worst = m.addConsequence({ name: 'Worst' });
       m.getNode(worst.nodeId).severityClassId = 'catastrophic';
-      const mild = m.addOutcome({ name: 'Mild' });
+      const mild = m.addConsequence({ name: 'Mild' });
       m.getNode(mild.nodeId).severityClassId = 'negligible';
       return m.computeRiskSummary().map((r) => [r.name, r.post.riskClass.id, r.post.riskClass.rank]);
     }""")
@@ -260,17 +260,17 @@ def test_risk_summary_modal_explains_it_needs_a_risk_mode(page):
     page.get_by_role("button", name="Close", exact=True).click()
 
 
-def test_risk_summary_modal_tabulates_ranked_outcomes(page):
+def test_risk_summary_modal_tabulates_ranked_consequences(page):
     _build_ranked_scenario(page)
     _open_summary(page)
     rows = _table_rows(page)
-    # One table per page: page one's three outcomes ranked 1-3, then page
-    # two's single outcome starting again at 1.
+    # One table per page: page one's three consequences ranked 1-3, then page
+    # two's single consequence starting again at 1.
     assert [r["rank"] for r in rows] == ["1", "2", "3", "1"]
-    # rank, outcome, severity, then the two (likelihood, risk class) pairs.
+    # rank, consequence, severity, then the two (likelihood, risk class) pairs.
     assert len(rows[0]["cells"]) == 7
     first = rows[0]["cells"]
-    assert first[1].startswith("O_1") and "Worst" in first[1]
+    assert first[1].startswith("C_1") and "Worst" in first[1]
     assert first[2] == "Catastrophic"
     assert first[3].startswith("1/hr") and "Frequent" in first[3]
     assert "A - Intolerable" in first[4]
@@ -303,7 +303,7 @@ def test_risk_summary_modal_has_one_section_per_page_in_page_order(page):
     assert [s["title"] for s in sections] == ["Untitled Page", "Second", "Empty"]
     assert [s["rows"] for s in sections] == [3, 1, 0]
     assert sections[2]["tables"] == 0
-    assert sections[2]["empty"] == "No outcomes on this page."
+    assert sections[2]["empty"] == "No consequences on this page."
     page.get_by_role("button", name="Close", exact=True).click()
 
 
@@ -312,7 +312,7 @@ def test_risk_summary_modal_shows_dashes_for_pre_mitigation_in_qualitative_mode(
       const m = window.__lastModel;
       m.setMode('qualitative');
       m.setRiskMatrix({LEAFLET5});
-      const o = m.addOutcome({{ name: 'Picked' }});
+      const o = m.addConsequence({{ name: 'Picked' }});
       const node = m.getNode(o.nodeId);
       node.severityClassId = 'catastrophic';
       node.likelihoodClassId = 'frequent';
@@ -328,16 +328,16 @@ def test_risk_summary_modal_shows_dashes_for_pre_mitigation_in_qualitative_mode(
     page.get_by_role("button", name="Close", exact=True).click()
 
 
-def test_risk_summary_modal_flags_excluded_unknown_causes(page):
+def test_risk_summary_modal_flags_excluded_unknown_threats(page):
     page.evaluate(f"""() => {{
       const m = window.__lastModel;
       m.setMode('quantitative');
       m.setRiskMatrix({LEAFLET5});
-      const c1 = m.addCause({{}});
+      const c1 = m.addThreat({{}});
       m.getNode(c1.nodeId).frequency = {{ value: '1' }};
-      const c2 = m.addCause({{}});
+      const c2 = m.addThreat({{}});
       m.getNode(c2.nodeId).frequency = {{ unknown: true }};
-      const o = m.addOutcome({{}});
+      const o = m.addConsequence({{}});
       m.getNode(o.nodeId).severityClassId = 'major';
       m._emitChange();
     }}""")
@@ -364,7 +364,7 @@ def test_export_actions_are_offered_only_when_there_is_a_table(page):
     page.get_by_role("button", name="Close", exact=True).click()
 
 
-def test_export_csv_writes_every_page_with_one_row_per_outcome(page):
+def test_export_csv_writes_every_page_with_one_row_per_consequence(page):
     _build_ranked_scenario(page)
     page.evaluate("""() => {
       window.__written = null;
@@ -396,18 +396,18 @@ def test_export_csv_writes_every_page_with_one_row_per_outcome(page):
         "page", "rank", "id", "name", "severity",
         "pre_likelihood", "pre_likelihood_unit", "pre_likelihood_class", "pre_risk_class",
         "post_likelihood", "post_likelihood_unit", "post_likelihood_class", "post_risk_class",
-        "excluded_causes",
+        "excluded_threats",
     ]
-    assert len(lines) == 5, "header + four outcomes across both pages"
+    assert len(lines) == 5, "header + four consequences across both pages"
     worst = lines[1].split(",")
-    assert worst[0] == "Untitled Page" and worst[1] == "1" and worst[2] == "O_1"
+    assert worst[0] == "Untitled Page" and worst[1] == "1" and worst[2] == "C_1"
     assert worst[4] == "catastrophic", "class ids, not labels"
     assert worst[5] == "1" and worst[6] == "events/hour", "value and unit in separate columns"
     assert worst[7] == "frequent" and worst[8] == "A", "pre-mitigation band and class, as ids"
     assert worst[11] == "frequent" and worst[12] == "A", "post-mitigation band and class"
     assert lines[2].split(",")[0] == "Untitled Page", "page one's rows, then page two's"
     assert lines[4].split(",")[0] == "Second"
-    # The unrated outcome's class columns are empty, not a dash.
+    # The unrated consequence's class columns are empty, not a dash.
     unrated = [line for line in lines if ",Unrated," in line][0].split(",")
     assert unrated[4] == "" and unrated[8] == "" and unrated[12] == ""
     assert "risk summary.csv" in page.evaluate("() => window.__suggested")
@@ -481,14 +481,14 @@ def test_risk_summary_modal_refreshes_while_open(page):
       const m = window.__lastModel;
       m.setMode('quantitative');
       m.setRiskMatrix({LEAFLET5});
-      const c = m.addCause({{}});
+      const c = m.addThreat({{}});
       m.getNode(c.nodeId).frequency = {{ value: '1' }};
-      m.addOutcome({{ name: 'First' }});
+      m.addConsequence({{ name: 'First' }});
     }}""")
     page.wait_for_timeout(80)
     _open_summary(page)
     assert len(_table_rows(page)) == 1
-    page.evaluate("() => { window.__lastUndo.model.addOutcome({ name: 'Second' }); }")
+    page.evaluate("() => { window.__lastUndo.model.addConsequence({ name: 'Second' }); }")
     page.wait_for_timeout(80)
     assert len(_table_rows(page)) == 2
     page.get_by_role("button", name="Close", exact=True).click()

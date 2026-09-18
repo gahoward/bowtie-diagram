@@ -46,7 +46,7 @@ def _seed(pg, **overrides):
             savedAt: new Date().toISOString(),
             name: m.name,
             pages: m.pages.length,
-            nodes: m.causes.length + m.outcomes.length
+            nodes: m.threats.length + m.consequences.length
               + m.preventativeBarriers.length + m.mitigativeBarriers.length,
             document: m.toJSON(),
           }, overrides);
@@ -61,7 +61,7 @@ def _seed(pg, **overrides):
 def test_editing_a_dirty_document_stores_a_snapshot_after_the_debounce(browser, base_url):
     pg = _started(browser, base_url)
     try:
-        pg.evaluate("() => window.__lastUndo.model.addCause({x: 150, y: 200, name: 'Corrosion'})")
+        pg.evaluate("() => window.__lastUndo.model.addThreat({x: 150, y: 200, name: 'Corrosion'})")
         assert _snapshot(pg) is None, "not written on the change itself -- a drag fires dozens a second"
 
         pg.wait_for_timeout(SETTLE_MS)
@@ -71,7 +71,7 @@ def test_editing_a_dirty_document_stores_a_snapshot_after_the_debounce(browser, 
         assert stored["document"]["version"] == pg.evaluate("() => Bowtie.BowtieModel.SCHEMA_VERSION")
         # A placement has no name of its own -- it is the library node's
         # (node_library_proposal.md "Two id spaces").
-        assert any(n["name"] == "Corrosion" for n in stored["document"]["library"]["cause"])
+        assert any(n["name"] == "Corrosion" for n in stored["document"]["library"]["threat"])
     finally:
         assert pg.errors == []
         pg.close()
@@ -93,7 +93,7 @@ def test_a_completed_export_clears_the_snapshot(browser, base_url):
     pg = _started(browser, base_url)
     try:
         pg.evaluate("""() => {
-          window.__lastUndo.model.addCause({x: 150, y: 200, name: 'Corrosion'});
+          window.__lastUndo.model.addThreat({x: 150, y: 200, name: 'Corrosion'});
           delete window.showSaveFilePicker; // force the download fallback
         }""")
         pg.wait_for_timeout(SETTLE_MS)
@@ -114,7 +114,7 @@ def test_a_completed_export_clears_the_snapshot(browser, base_url):
 def test_the_start_screen_offers_the_snapshot_back(browser, base_url):
     pg = _started(browser, base_url)
     try:
-        pg.evaluate("() => window.__lastUndo.model.addCause({x: 150, y: 200, name: 'Corrosion'})")
+        pg.evaluate("() => window.__lastUndo.model.addThreat({x: 150, y: 200, name: 'Corrosion'})")
         _seed(pg)
         pg.reload()
         pg.wait_for_timeout(200)
@@ -133,7 +133,7 @@ def test_the_start_screen_offers_the_snapshot_back(browser, base_url):
 def test_recover_restores_the_document_and_leaves_it_dirty(browser, base_url):
     pg = _started(browser, base_url)
     try:
-        pg.evaluate("() => window.__lastUndo.model.addCause({x: 150, y: 200, name: 'Corrosion'})")
+        pg.evaluate("() => window.__lastUndo.model.addThreat({x: 150, y: 200, name: 'Corrosion'})")
         _seed(pg)
         pg.reload()
         pg.wait_for_timeout(200)
@@ -143,7 +143,7 @@ def test_recover_restores_the_document_and_leaves_it_dirty(browser, base_url):
 
         assert pg.locator(".welcome-overlay").count() == 0, "the start screen is done with"
         assert pg.evaluate(
-            "() => window.__lastModel.causes.map((c) => window.__lastModel.getNode(c.nodeId).name)"
+            "() => window.__lastModel.threats.map((c) => window.__lastModel.getNode(c.nodeId).name)"
         ) == ["Corrosion"]
         assert pg.evaluate("() => window.__lastUnsavedChanges.dirty") is True, "recovered is not saved"
         assert _snapshot(pg) is not None, "and still recoverable if this session dies too"
@@ -155,7 +155,7 @@ def test_recover_restores_the_document_and_leaves_it_dirty(browser, base_url):
 def test_discard_removes_the_card_and_the_snapshot(browser, base_url):
     pg = _started(browser, base_url)
     try:
-        pg.evaluate("() => window.__lastUndo.model.addCause({x: 150, y: 200, name: 'Corrosion'})")
+        pg.evaluate("() => window.__lastUndo.model.addThreat({x: 150, y: 200, name: 'Corrosion'})")
         _seed(pg)
         pg.reload()
         pg.wait_for_timeout(200)
@@ -189,7 +189,7 @@ def test_a_snapshot_from_an_older_schema_fails_the_way_a_stale_export_does(brows
     second, laxer validation path into the model."""
     pg = _started(browser, base_url)
     try:
-        pg.evaluate("() => window.__lastUndo.model.addCause({x: 150, y: 200, name: 'Corrosion'})")
+        pg.evaluate("() => window.__lastUndo.model.addThreat({x: 150, y: 200, name: 'Corrosion'})")
         _seed(pg)
         pg.evaluate(f"""() => {{
           const stored = JSON.parse(window.localStorage.getItem('{KEY}'));

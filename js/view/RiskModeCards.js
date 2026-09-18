@@ -11,11 +11,11 @@
     },
     {
       id: 'qualitative', label: 'Qualitative', gloss: 'pick likelihood & severity',
-      description: 'Pick a likelihood and severity class per cause/outcome; the matrix gives the risk class.',
+      description: 'Pick a likelihood and severity class per threat/consequence; the matrix gives the risk class.',
     },
     {
       id: 'quantitative', label: 'Quantitative', gloss: 'compute from frequencies',
-      description: 'Enter cause frequencies and barrier measures (RRF, PFD, PFH…); likelihood and risk class are computed.',
+      description: 'Enter threat frequencies and barrier measures (RRF, PFD, PFH…); likelihood and risk class are computed.',
     },
   ];
 

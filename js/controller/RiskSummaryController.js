@@ -17,7 +17,7 @@
     return `${likelihoodNumber(value, displayUnit)}${unitSuffix(displayUnit)}`;
   }
 
-  // The flat shape the CSV/clipboard export writes: one row per outcome
+  // The flat shape the CSV/clipboard export writes: one row per consequence
   // across every page. Ids rather than labels for the classes (the label
   // is matrix-specific prose; the id is what a spreadsheet filters on),
   // the likelihood as a bare number with its unit in its own column, so
@@ -26,7 +26,7 @@
     'page', 'rank', 'id', 'name', 'severity',
     'pre_likelihood', 'pre_likelihood_unit', 'pre_likelihood_class', 'pre_risk_class',
     'post_likelihood', 'post_likelihood_unit', 'post_likelihood_class', 'post_risk_class',
-    'excluded_causes',
+    'excluded_threats',
   ];
 
   function el(tag, className, text) {
@@ -37,7 +37,7 @@
   }
 
   // View > "Risk Summary…": one table per page, in document page order,
-  // each ranking that page's Outcomes worst-first with their pre-
+  // each ranking that page's Consequences worst-first with their pre-
   // mitigation (every barrier removed) and post-mitigation (residual)
   // likelihood and risk class side by side -- the ALARP before/after
   // picture quantitative_mode_proposal.md asks for, as a table rather
@@ -79,7 +79,7 @@
     }
 
     _hasRows() {
-      return this.model.mode !== 'simple' && Boolean(this.model.riskMatrix) && this.model.outcomes.length > 0;
+      return this.model.mode !== 'simple' && Boolean(this.model.riskMatrix) && this.model.consequences.length > 0;
     }
 
     // The same body the modal shows, for File › Print…'s whole-document
@@ -163,11 +163,11 @@
 
     _buildIntro(quantitative) {
       return el('p', 'risk-summary-intro',
-        "Each page's outcomes, ranked worst-first by post-mitigation risk class, then "
+        "Each page's consequences, ranked worst-first by post-mitigation risk class, then "
         + 'pre-mitigation class, severity and likelihood. '
         + (quantitative
           ? 'Pre-mitigation figures are the same calculation with every barrier removed; severity is a '
-            + 'property of the outcome itself and is never changed by barriers.'
+            + 'property of the consequence itself and is never changed by barriers.'
           : 'Pre-mitigation figures need Quantitative mode — a Qualitative likelihood is picked by hand, '
             + 'with no barrier arithmetic to remove.'));
     }
@@ -185,8 +185,8 @@
           'No risk matrix selected — pick one in Project Settings.'));
         return wrap;
       }
-      if (model.outcomes.length === 0) {
-        wrap.appendChild(el('p', 'risk-summary-empty', 'No outcomes yet.'));
+      if (model.consequences.length === 0) {
+        wrap.appendChild(el('p', 'risk-summary-empty', 'No consequences yet.'));
         return wrap;
       }
 
@@ -205,7 +205,7 @@
         section.appendChild(el('h3', 'risk-summary-page-title', page.name));
         const rows = model.computeRiskSummary(page.id);
         if (rows.length === 0) {
-          section.appendChild(el('p', 'risk-summary-empty', 'No outcomes on this page.'));
+          section.appendChild(el('p', 'risk-summary-empty', 'No consequences on this page.'));
           wrap.appendChild(section);
           return;
         }
@@ -225,7 +225,7 @@
 
       if (anyExcluded) {
         wrap.appendChild(el('p', 'risk-summary-note',
-          '* One or more contributing causes excluded (frequency Unknown) — this figure is not the full picture.'));
+          '* One or more contributing threats excluded (frequency Unknown) — this figure is not the full picture.'));
       }
       return wrap;
     }
@@ -240,7 +240,7 @@
         top.appendChild(th);
       };
       rowSpan('#');
-      rowSpan('Outcome');
+      rowSpan('Consequence');
       rowSpan('Severity');
       ['Pre-mitigation', 'Post-mitigation'].forEach((label) => {
         const th = el('th', 'risk-summary-group', label);
@@ -256,16 +256,16 @@
 
     _buildRow(row) {
       const tr = document.createElement('tr');
-      tr.dataset.outcomeId = row.outcomeId;
+      tr.dataset.consequenceId = row.consequenceId;
       tr.dataset.rank = String(row.rank);
       tr.appendChild(el('td', 'risk-summary-rank', String(row.rank)));
 
-      const outcomeCell = el('td', null);
-      outcomeCell.appendChild(el('span', 'risk-summary-id', row.displayId));
+      const consequenceCell = el('td', null);
+      consequenceCell.appendChild(el('span', 'risk-summary-id', row.displayId));
       if (row.name && row.name !== row.displayId) {
-        outcomeCell.appendChild(el('span', 'risk-summary-sub', row.name));
+        consequenceCell.appendChild(el('span', 'risk-summary-sub', row.name));
       }
-      tr.appendChild(outcomeCell);
+      tr.appendChild(consequenceCell);
       tr.appendChild(el('td', null, row.severity ? row.severity.label : '—'));
 
       [row.pre, row.post].forEach((assessment) => {
@@ -277,7 +277,7 @@
 
     // Quantitative mode: the computed figure, with the band it lands in
     // underneath; Qualitative mode: just the manually-picked band. An
-    // undetermined half (no known cause frequency yet, or -- for the pre-
+    // undetermined half (no known threat frequency yet, or -- for the pre-
     // mitigation column in Qualitative mode -- no calculation at all)
     // reads as a dash rather than an empty cell.
     _likelihoodCell(assessment) {

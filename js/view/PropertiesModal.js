@@ -1,7 +1,7 @@
 (function (Bowtie) {
   const TYPE_LABELS = {
-    cause: 'Cause',
-    outcome: 'Outcome',
+    threat: 'Threat',
+    consequence: 'Consequence',
     preventativeBarrier: 'Preventative Barrier',
     mitigativeBarrier: 'Mitigative Barrier',
     topLevelEvent: 'Top-Level Event',
@@ -124,7 +124,7 @@
     if (!excludedThreatCount) return;
     const note = document.createElement('p');
     note.className = 'modal-computed-note';
-    note.textContent = `${excludedThreatCount} contributing cause(s) excluded (frequency Unknown) -- `
+    note.textContent = `${excludedThreatCount} contributing threat(s) excluded (frequency Unknown) -- `
       + 'this figure is not the full picture.';
     container.appendChild(note);
   }
@@ -140,7 +140,7 @@
     return row;
   }
 
-  // The Computed section for an Outcome: risk class chip (either risk
+  // The Computed section for an Consequence: risk class chip (either risk
   // mode) plus, in Quantitative mode, the pre-mitigation (inherent, no
   // barriers) and post-mitigation (residual) pair of both the class and
   // the computed likelihood, and any excluded-threat note
@@ -148,7 +148,7 @@
   // never stored"). Qualitative mode has no pre-mitigation half -- see
   // Quantitative.assessConsequence -- so it keeps the single unlabelled
   // "Risk class" row.
-  function buildOutcomeComputedSection(model, el, displayUnit) {
+  function buildConsequenceComputedSection(model, el, displayUnit) {
     const assessment = model.assessConsequence(el.id);
     if (!assessment) return null;
     const section = makeSection('Computed');
@@ -202,11 +202,11 @@
     return section;
   }
 
-  // The Computed section for the TLE: the highest contributing cause's
+  // The Computed section for the TLE: the highest contributing threat's
   // frequency x its own known preventative barriers (BowtieModel.
   // computeTleLikelihoodForActivePage), residual and inherent (before any
   // barriers), Quantitative mode only -- Qualitative mode has no arithmetic
-  // combination defined for causes at all (each is a direct class pick).
+  // combination defined for threats at all (each is a direct class pick).
   function buildTleComputedSection(model, displayUnit) {
     if (model.mode !== 'quantitative') return null;
     const residual = model.computeTleLikelihoodForActivePage();
@@ -223,7 +223,7 @@
   }
 
   // Bowtie.openPropertiesModal({model, el, displayUnit}) -- the single
-  // modal every node type (Cause/Outcome/Barrier/TLE/Hazard) opens on
+  // modal every node type (Threat/Consequence/Barrier/TLE/Hazard) opens on
   // double-click or the context menu's "Properties" item. Replaces the old
   // ad hoc rename-only modal: Identity (name/description, + identifier for
   // library nodes in custom-identifier mode, + barrier type/owner/
@@ -232,7 +232,7 @@
   // mode), and a read-only Computed section wherever BowtieModel has
   // something derived to show.
   function openPropertiesModal({ model, el, displayUnit = 'hour' }) {
-    const isNode = ['cause', 'outcome', 'preventativeBarrier', 'mitigativeBarrier'].includes(el.type);
+    const isNode = ['threat', 'consequence', 'preventativeBarrier', 'mitigativeBarrier'].includes(el.type);
     const isBarrier = el.type === 'preventativeBarrier' || el.type === 'mitigativeBarrier';
     const node = isNode ? model.getNode(el.nodeId) : null;
     const currentName = isNode ? node.name : el.name;
@@ -282,7 +282,7 @@
     }
 
     let computedSection = null;
-    if (el.type === 'outcome') computedSection = buildOutcomeComputedSection(model, el, displayUnit);
+    if (el.type === 'consequence') computedSection = buildConsequenceComputedSection(model, el, displayUnit);
     else if (el.type === 'topLevelEvent') computedSection = buildTleComputedSection(model, displayUnit);
     else if (isBarrier && model.mode === 'quantitative') computedSection = buildBarrierComputedSection(model, el, displayUnit);
     if (computedSection) body.appendChild(computedSection);

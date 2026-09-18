@@ -11,7 +11,7 @@
   // Read-only: this class never mutates the model it's given. It holds onto
   // the model reference (rather than being a set of free functions) only
   // because every method here needs several of the model's own lookups
-  // (causesForPage, getNode, riskMatrix, ...) -- there's no state of its
+  // (threatsForPage, getNode, riskMatrix, ...) -- there's no state of its
   // own to own.
   //
   // BowtieModel keeps computeTleLikelihood/computeConsequenceLikelihood/
@@ -41,10 +41,10 @@
     // known barrier found in `barrierCollection` via BarrierMeasures.apply
     // and skipping any stop that isn't one (a shared barrier of the other
     // kind, or one since deleted). `reverseOrder` is what
-    // barrier_measures_proposal.md's fix actually is: a Cause's own Line
-    // already stores stops cause-first, i.e. in the same direction demand
+    // barrier_measures_proposal.md's fix actually is: a Threat's own Line
+    // already stores stops threat-first, i.e. in the same direction demand
     // flows toward the TLE, so the preventative fold reads `stops` as-is;
-    // an Outcome's Line stores stops OUTCOME-first (nearest the Outcome),
+    // an Consequence's Line stores stops CONSEQUENCE-first (nearest the Consequence),
     // the opposite of how the TLE's likelihood actually propagates
     // outward through mitigative barriers toward it -- so the mitigative
     // fold must walk `stops` in reverse. This was harmless before `limit`
@@ -71,11 +71,11 @@
       return value;
     }
 
-    // Max, over every Cause on `pageId` with a KNOWN frequency, of
-    // `frequency / product(known preventive barriers on that Cause's own
+    // Max, over every Threat on `pageId` with a KNOWN frequency, of
+    // `frequency / product(known preventive barriers on that Threat's own
     // Line)` -- barriers marked Unknown are skipped from the product
     // entirely (conservative: an unknown barrier is credited with no risk
-    // reduction). Causes marked Unknown are excluded from the max
+    // reduction). Threats marked Unknown are excluded from the max
     // (non-conservative) and counted in `excludedThreatCount`, which
     // callers must surface visibly rather than silently drop (see "Modes"
     // in the design doc). `includeBarriers: false` computes the INHERENT
@@ -93,8 +93,8 @@
       const model = this.model;
       let excludedThreatCount = 0;
       const contributions = [];
-      model.causesForPage(pageId).forEach((cause) => {
-        const node = model.getNode(cause.nodeId);
+      model.threatsForPage(pageId).forEach((threat) => {
+        const node = model.getNode(threat.nodeId);
         const freq = Bowtie.RiskMatrix.quantityToDecimal(node.frequency);
         if (freq === null) {
           excludedThreatCount += 1;
@@ -102,7 +102,7 @@
         }
         let contribution = Bowtie.Rational.fromDecimal(freq);
         if (includeBarriers) {
-          const line = model._lineFor(cause.id);
+          const line = model._lineFor(threat.id);
           contribution = this._foldBarriers(contribution, line.stops, model.preventativeBarriers, false);
         }
         contributions.push(contribution);
@@ -122,22 +122,22 @@
       return { value, excludedThreatCount };
     }
 
-    // One consequence's (Outcome's) likelihood = the TLE likelihood (on
-    // that Outcome's own page) folded through its own Line's known
+    // One consequence's (Consequence's) likelihood = the TLE likelihood (on
+    // that Consequence's own page) folded through its own Line's known
     // mitigative barriers, TLE-first -- see `_foldBarriers` above for why
     // that's a REVERSE walk of `line.stops`. Same Unknown-barrier skip
     // rule, and the same measure normalisation, as the preventative side.
     // `excludedThreatCount` is inherited from the TLE calculation, since a
     // consequence's likelihood derives from the exact same threat set.
-    computeConsequenceLikelihood(outcomeId, { includeBarriers = true } = {}) {
+    computeConsequenceLikelihood(consequenceId, { includeBarriers = true } = {}) {
       const model = this.model;
-      const outcome = model.outcomes.find((o) => o.id === outcomeId);
-      if (!outcome) return { value: null, excludedThreatCount: 0 };
-      const tle = this.computeTleLikelihood(outcome.pageId, { includeBarriers });
+      const consequence = model.consequences.find((o) => o.id === consequenceId);
+      if (!consequence) return { value: null, excludedThreatCount: 0 };
+      const tle = this.computeTleLikelihood(consequence.pageId, { includeBarriers });
       if (tle.value === null) return { value: null, excludedThreatCount: tle.excludedThreatCount };
       let contribution = tle.value;
       if (includeBarriers) {
-        const line = model._lineFor(outcomeId);
+        const line = model._lineFor(consequenceId);
         contribution = this._foldBarriers(contribution, line.stops, model.mitigativeBarriers, true);
       }
       return { value: contribution, excludedThreatCount: tle.excludedThreatCount };
@@ -149,14 +149,14 @@
     // bands the COMPUTED likelihood against the active matrix instead.
     // Returns null whenever there's no active matrix, no severity picked,
     // or (Quantitative mode) every contributing threat was Unknown.
-    getConsequenceRiskClass(outcomeId, opts = {}) {
+    getConsequenceRiskClass(consequenceId, opts = {}) {
       const model = this.model;
       if (!model.riskMatrix) return null;
-      const outcome = model.outcomes.find((o) => o.id === outcomeId);
-      if (!outcome) return null;
-      const node = model.getNode(outcome.nodeId);
+      const consequence = model.consequences.find((o) => o.id === consequenceId);
+      if (!consequence) return null;
+      const node = model.getNode(consequence.nodeId);
       if (!node.severityClassId) return null;
-      const likelihoodClassId = this._consequenceLikelihoodClassId(outcomeId, node, opts);
+      const likelihoodClassId = this._consequenceLikelihoodClassId(consequenceId, node, opts);
       if (!likelihoodClassId) return null;
       return Bowtie.RiskMatrix.cellRiskClassId(model.riskMatrix, likelihoodClassId, node.severityClassId);
     }
@@ -168,16 +168,16 @@
     // behind it to strip out, which is why assessConsequence below reports
     // no pre-mitigation picture at all in that mode rather than echoing the
     // manual pick twice.
-    _consequenceLikelihoodClassId(outcomeId, node, opts) {
+    _consequenceLikelihoodClassId(consequenceId, node, opts) {
       const model = this.model;
       if (model.mode === 'qualitative') return node.likelihoodClassId || null;
       if (model.mode !== 'quantitative') return null;
-      const computed = this.computeConsequenceLikelihood(outcomeId, opts);
+      const computed = this.computeConsequenceLikelihood(consequenceId, opts);
       if (computed.value === null) return null;
       return Bowtie.RiskMatrix.bandForValue(model.riskMatrix, computed.value).id;
     }
 
-    // One Outcome's full before/after picture -- quantitative_mode_
+    // One Consequence's full before/after picture -- quantitative_mode_
     // proposal.md's "computed twice, inherent and residual" ALARP pair,
     // resolved to matrix classes:
     //
@@ -193,20 +193,20 @@
     // Every class is the resolved matrix object (or null), so callers
     // never need a second lookup. Returns null outside the two risk modes
     // or without an active matrix, matching getConsequenceRiskClass.
-    assessConsequence(outcomeId) {
+    assessConsequence(consequenceId) {
       const model = this.model;
       if (model.mode === 'simple' || !model.riskMatrix) return null;
-      const outcome = model.outcomes.find((o) => o.id === outcomeId);
-      if (!outcome) return null;
-      const node = model.getNode(outcome.nodeId);
+      const consequence = model.consequences.find((o) => o.id === consequenceId);
+      if (!consequence) return null;
+      const node = model.getNode(consequence.nodeId);
       const matrix = model.riskMatrix;
       const severity = Bowtie.RiskMatrix.severityClass(matrix, node.severityClassId);
 
       const assess = (includeBarriers) => {
         const likelihood = model.mode === 'quantitative'
-          ? this.computeConsequenceLikelihood(outcomeId, { includeBarriers })
+          ? this.computeConsequenceLikelihood(consequenceId, { includeBarriers })
           : null;
-        const likelihoodClassId = this._consequenceLikelihoodClassId(outcomeId, node, { includeBarriers });
+        const likelihoodClassId = this._consequenceLikelihoodClassId(consequenceId, node, { includeBarriers });
         const riskClassId = severity && likelihoodClassId
           ? Bowtie.RiskMatrix.cellRiskClassId(matrix, likelihoodClassId, severity.id)
           : null;
@@ -224,7 +224,7 @@
       };
     }
 
-    // Every Outcome placement on `pageId` (or, with no pageId, in the whole
+    // Every Consequence placement on `pageId` (or, with no pageId, in the whole
     // document), each with its assessConsequence picture, ranked worst-
     // first with `rank` numbered 1..n over the returned set. Rows carry
     // the display id/name/page a table needs so the summary UI stays a
@@ -235,7 +235,7 @@
     // Ranking (each key a tie-break for the one before it):
     //   1. post-mitigation risk class -- the residual risk is what's
     //      actually being carried today, so it leads;
-    //   2. pre-mitigation risk class -- of two outcomes carrying the same
+    //   2. pre-mitigation risk class -- of two consequences carrying the same
     //      residual class, the one relying on more barrier credit to get
     //      there is the more fragile;
     //   3. severity (worst first); 4. post-mitigation likelihood (highest
@@ -243,12 +243,12 @@
     // Risk classes rank by their own `rank` field (0 = worst; see
     // RiskMatrixValidator.withRiskClassRanks, which back-fills it from
     // array order for a matrix authored before the field existed). An
-    // outcome whose class can't be determined yet sorts after every one
+    // consequence whose class can't be determined yet sorts after every one
     // whose class can.
     computeRiskSummary(pageId = null) {
       const model = this.model;
       if (model.mode === 'simple' || !model.riskMatrix) return null;
-      const outcomes = pageId === null ? model.outcomes : model.outcomesForPage(pageId);
+      const consequences = pageId === null ? model.consequences : model.consequencesForPage(pageId);
       const riskRank = (riskClass) => {
         if (!riskClass || riskClass.rank === undefined || riskClass.rank === null) return Infinity;
         return riskClass.rank;
@@ -265,17 +265,17 @@
         return compareRank(bo, ao);
       };
 
-      const rows = outcomes.map((outcome) => {
-        const node = model.getNode(outcome.nodeId);
-        const page = model.getPage(outcome.pageId);
+      const rows = consequences.map((consequence) => {
+        const node = model.getNode(consequence.nodeId);
+        const page = model.getPage(consequence.pageId);
         return {
-          outcomeId: outcome.id,
+          consequenceId: consequence.id,
           nodeId: node.id,
           displayId: model.displayIdentifierFor(node),
           name: node.name,
           pageId: page.id,
           pageName: page.name,
-          ...this.assessConsequence(outcome.id),
+          ...this.assessConsequence(consequence.id),
         };
       });
 
@@ -295,7 +295,7 @@
     }
 
     // Every barrier placement as one row, worst-first (proposals/09).
-    // The Risk Summary is the outcome owner's view; this is the barrier
+    // The Risk Summary is the consequence owner's view; this is the barrier
     // owner's -- barriers carry more data than anything else in the
     // document (type, owner, effectiveness, the protection measure and
     // its value, a computed demand rate, and up to two advisory
@@ -321,7 +321,7 @@
         warningsById.get(warning.id).push(warning);
       });
 
-      // Which causes (preventative) or outcomes (mitigative) this barrier
+      // Which threats (preventative) or consequences (mitigative) this barrier
       // actually stands in the way of, by the display ids a user reads on
       // the canvas rather than the internal placement ids.
       const protectedOrigins = (barrierId) => model.linesThrough(barrierId)
@@ -436,8 +436,8 @@
           rates.push(upToBarrier);
         });
       };
-      collectSide(model.causes, model.preventativeBarriers, false);
-      collectSide(model.outcomes, model.mitigativeBarriers, true);
+      collectSide(model.threats, model.preventativeBarriers, false);
+      collectSide(model.consequences, model.mitigativeBarriers, true);
       return rates.length > 0 ? Bowtie.Rational.sum(rates) : null;
     }
 
@@ -498,17 +498,17 @@
         }
       };
 
-      model.causes.forEach((cause) => {
-        const node = model.getNode(cause.nodeId);
+      model.threats.forEach((threat) => {
+        const node = model.getNode(threat.nodeId);
         const freq = Bowtie.RiskMatrix.quantityToDecimal(node.frequency);
         if (freq === null) return;
-        const line = model._lineFor(cause.id);
+        const line = model._lineFor(threat.id);
         this._foldBarriers(Bowtie.Rational.fromDecimal(freq), line.stops, model.preventativeBarriers, false, check);
       });
-      model.outcomes.forEach((outcome) => {
-        const tle = this.computeTleLikelihood(outcome.pageId);
+      model.consequences.forEach((consequence) => {
+        const tle = this.computeTleLikelihood(consequence.pageId);
         if (tle.value === null) return;
-        const line = model._lineFor(outcome.id);
+        const line = model._lineFor(consequence.id);
         this._foldBarriers(tle.value, line.stops, model.mitigativeBarriers, true, check);
       });
       return warnings;

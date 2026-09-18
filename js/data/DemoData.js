@@ -10,20 +10,20 @@
 (function (Bowtie) {
   Bowtie.DEMO_DATA_VARIANTS = {
   "simple": {
-    "version": 10,
+    "version": 11,
     "name": "Demo: Pipeline Overpressure Release",
     "idCounters": {
       "page": 2,
-      "cause": 5,
-      "outcome": 5,
+      "threat": 5,
+      "consequence": 5,
       "preventativeBarrier": 4,
       "mitigativeBarrier": 4,
       "line": 10,
       "placement": 18
     },
     "retiredIds": {
-      "cause": [],
-      "outcome": [],
+      "threat": [],
+      "consequence": [],
       "preventativeBarrier": [],
       "mitigativeBarrier": []
     },
@@ -61,10 +61,10 @@
         }
       }
     ],
-    "causes": [
+    "threats": [
       {
         "id": "PLACEMENT_1",
-        "nodeId": "C_1",
+        "nodeId": "T_1",
         "x": 150,
         "y": 90,
         "w": 140,
@@ -73,7 +73,7 @@
       },
       {
         "id": "PLACEMENT_2",
-        "nodeId": "C_2",
+        "nodeId": "T_2",
         "x": 150,
         "y": 310,
         "w": 140,
@@ -82,7 +82,7 @@
       },
       {
         "id": "PLACEMENT_3",
-        "nodeId": "C_3",
+        "nodeId": "T_3",
         "x": 150,
         "y": 530,
         "w": 140,
@@ -91,7 +91,7 @@
       },
       {
         "id": "PLACEMENT_4",
-        "nodeId": "C_4",
+        "nodeId": "T_4",
         "x": 150,
         "y": 750,
         "w": 140,
@@ -100,7 +100,7 @@
       },
       {
         "id": "PLACEMENT_5",
-        "nodeId": "C_5",
+        "nodeId": "T_5",
         "x": 150,
         "y": 200,
         "w": 140,
@@ -108,10 +108,10 @@
         "pageId": "PAGE_2"
       }
     ],
-    "outcomes": [
+    "consequences": [
       {
         "id": "PLACEMENT_6",
-        "nodeId": "O_1",
+        "nodeId": "C_1",
         "x": 2070,
         "y": 90,
         "w": 140,
@@ -120,7 +120,7 @@
       },
       {
         "id": "PLACEMENT_7",
-        "nodeId": "O_2",
+        "nodeId": "C_2",
         "x": 2070,
         "y": 310,
         "w": 140,
@@ -129,7 +129,7 @@
       },
       {
         "id": "PLACEMENT_8",
-        "nodeId": "O_3",
+        "nodeId": "C_3",
         "x": 2070,
         "y": 530,
         "w": 140,
@@ -138,7 +138,7 @@
       },
       {
         "id": "PLACEMENT_9",
-        "nodeId": "O_4",
+        "nodeId": "C_4",
         "x": 2070,
         "y": 750,
         "w": 140,
@@ -147,7 +147,7 @@
       },
       {
         "id": "PLACEMENT_10",
-        "nodeId": "O_5",
+        "nodeId": "C_5",
         "x": 1550,
         "y": 200,
         "w": 140,
@@ -234,7 +234,7 @@
     "lines": [
       {
         "id": "LINE_1",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_1",
         "stops": [
           "PLACEMENT_11",
@@ -244,7 +244,7 @@
       },
       {
         "id": "LINE_2",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_2",
         "stops": [
           "PLACEMENT_12",
@@ -254,7 +254,7 @@
       },
       {
         "id": "LINE_3",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_3",
         "stops": [
           "PLACEMENT_13"
@@ -263,14 +263,14 @@
       },
       {
         "id": "LINE_4",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_4",
         "stops": [],
         "pageId": "PAGE_1"
       },
       {
         "id": "LINE_5",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_6",
         "stops": [
           "PLACEMENT_15",
@@ -280,7 +280,7 @@
       },
       {
         "id": "LINE_6",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_7",
         "stops": [
           "PLACEMENT_16"
@@ -289,7 +289,7 @@
       },
       {
         "id": "LINE_7",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_8",
         "stops": [
           "PLACEMENT_17"
@@ -298,14 +298,14 @@
       },
       {
         "id": "LINE_8",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_9",
         "stops": [],
         "pageId": "PAGE_1"
       },
       {
         "id": "LINE_9",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_5",
         "stops": [
           "PLACEMENT_14"
@@ -314,7 +314,7 @@
       },
       {
         "id": "LINE_10",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_10",
         "stops": [
           "PLACEMENT_18"
@@ -323,10 +323,10 @@
       }
     ],
     "library": {
-      "cause": [
+      "threat": [
         {
-          "id": "C_1",
-          "type": "cause",
+          "id": "T_1",
+          "type": "threat",
           "name": "Valve Inadvertently Opened",
           "description": "",
           "identifier": "",
@@ -336,8 +336,8 @@
           "protection": null
         },
         {
-          "id": "C_2",
-          "type": "cause",
+          "id": "T_2",
+          "type": "threat",
           "name": "Flange Leak",
           "description": "",
           "identifier": "",
@@ -347,8 +347,8 @@
           "protection": null
         },
         {
-          "id": "C_3",
-          "type": "cause",
+          "id": "T_3",
+          "type": "threat",
           "name": "Corrosion or Erosion",
           "description": "",
           "identifier": "",
@@ -358,8 +358,8 @@
           "protection": null
         },
         {
-          "id": "C_4",
-          "type": "cause",
+          "id": "T_4",
+          "type": "threat",
           "name": "Dropped Object or Vehicle Collision",
           "description": "",
           "identifier": "",
@@ -369,8 +369,8 @@
           "protection": null
         },
         {
-          "id": "C_5",
-          "type": "cause",
+          "id": "T_5",
+          "type": "threat",
           "name": "Bund Wall Cracking",
           "description": "",
           "identifier": "",
@@ -380,10 +380,10 @@
           "protection": null
         }
       ],
-      "outcome": [
+      "consequence": [
         {
-          "id": "O_1",
-          "type": "outcome",
+          "id": "C_1",
+          "type": "consequence",
           "name": "Pool Fire",
           "description": "",
           "identifier": "",
@@ -393,8 +393,8 @@
           "protection": null
         },
         {
-          "id": "O_2",
-          "type": "outcome",
+          "id": "C_2",
+          "type": "consequence",
           "name": "Flash Fire",
           "description": "",
           "identifier": "",
@@ -404,8 +404,8 @@
           "protection": null
         },
         {
-          "id": "O_3",
-          "type": "outcome",
+          "id": "C_3",
+          "type": "consequence",
           "name": "Explosion",
           "description": "",
           "identifier": "",
@@ -415,8 +415,8 @@
           "protection": null
         },
         {
-          "id": "O_4",
-          "type": "outcome",
+          "id": "C_4",
+          "type": "consequence",
           "name": "Release, No Ignition",
           "description": "",
           "identifier": "",
@@ -426,8 +426,8 @@
           "protection": null
         },
         {
-          "id": "O_5",
-          "type": "outcome",
+          "id": "C_5",
+          "type": "consequence",
           "name": "Ground/Water Contamination",
           "description": "",
           "identifier": "",
@@ -559,20 +559,20 @@
     "riskMatrix": null
   },
   "qualitative": {
-    "version": 10,
+    "version": 11,
     "name": "Demo: Pipeline Overpressure Release",
     "idCounters": {
       "page": 2,
-      "cause": 5,
-      "outcome": 5,
+      "threat": 5,
+      "consequence": 5,
       "preventativeBarrier": 4,
       "mitigativeBarrier": 4,
       "line": 10,
       "placement": 18
     },
     "retiredIds": {
-      "cause": [],
-      "outcome": [],
+      "threat": [],
+      "consequence": [],
       "preventativeBarrier": [],
       "mitigativeBarrier": []
     },
@@ -610,10 +610,10 @@
         }
       }
     ],
-    "causes": [
+    "threats": [
       {
         "id": "PLACEMENT_1",
-        "nodeId": "C_1",
+        "nodeId": "T_1",
         "x": 150,
         "y": 90,
         "w": 140,
@@ -622,7 +622,7 @@
       },
       {
         "id": "PLACEMENT_2",
-        "nodeId": "C_2",
+        "nodeId": "T_2",
         "x": 150,
         "y": 310,
         "w": 140,
@@ -631,7 +631,7 @@
       },
       {
         "id": "PLACEMENT_3",
-        "nodeId": "C_3",
+        "nodeId": "T_3",
         "x": 150,
         "y": 530,
         "w": 140,
@@ -640,7 +640,7 @@
       },
       {
         "id": "PLACEMENT_4",
-        "nodeId": "C_4",
+        "nodeId": "T_4",
         "x": 150,
         "y": 750,
         "w": 140,
@@ -649,7 +649,7 @@
       },
       {
         "id": "PLACEMENT_5",
-        "nodeId": "C_5",
+        "nodeId": "T_5",
         "x": 150,
         "y": 200,
         "w": 140,
@@ -657,10 +657,10 @@
         "pageId": "PAGE_2"
       }
     ],
-    "outcomes": [
+    "consequences": [
       {
         "id": "PLACEMENT_6",
-        "nodeId": "O_1",
+        "nodeId": "C_1",
         "x": 2070,
         "y": 90,
         "w": 140,
@@ -669,7 +669,7 @@
       },
       {
         "id": "PLACEMENT_7",
-        "nodeId": "O_2",
+        "nodeId": "C_2",
         "x": 2070,
         "y": 310,
         "w": 140,
@@ -678,7 +678,7 @@
       },
       {
         "id": "PLACEMENT_8",
-        "nodeId": "O_3",
+        "nodeId": "C_3",
         "x": 2070,
         "y": 530,
         "w": 140,
@@ -687,7 +687,7 @@
       },
       {
         "id": "PLACEMENT_9",
-        "nodeId": "O_4",
+        "nodeId": "C_4",
         "x": 2070,
         "y": 750,
         "w": 140,
@@ -696,7 +696,7 @@
       },
       {
         "id": "PLACEMENT_10",
-        "nodeId": "O_5",
+        "nodeId": "C_5",
         "x": 1550,
         "y": 200,
         "w": 140,
@@ -783,7 +783,7 @@
     "lines": [
       {
         "id": "LINE_1",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_1",
         "stops": [
           "PLACEMENT_11",
@@ -793,7 +793,7 @@
       },
       {
         "id": "LINE_2",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_2",
         "stops": [
           "PLACEMENT_12",
@@ -803,7 +803,7 @@
       },
       {
         "id": "LINE_3",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_3",
         "stops": [
           "PLACEMENT_13"
@@ -812,14 +812,14 @@
       },
       {
         "id": "LINE_4",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_4",
         "stops": [],
         "pageId": "PAGE_1"
       },
       {
         "id": "LINE_5",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_6",
         "stops": [
           "PLACEMENT_15",
@@ -829,7 +829,7 @@
       },
       {
         "id": "LINE_6",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_7",
         "stops": [
           "PLACEMENT_16"
@@ -838,7 +838,7 @@
       },
       {
         "id": "LINE_7",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_8",
         "stops": [
           "PLACEMENT_17"
@@ -847,14 +847,14 @@
       },
       {
         "id": "LINE_8",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_9",
         "stops": [],
         "pageId": "PAGE_1"
       },
       {
         "id": "LINE_9",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_5",
         "stops": [
           "PLACEMENT_14"
@@ -863,7 +863,7 @@
       },
       {
         "id": "LINE_10",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_10",
         "stops": [
           "PLACEMENT_18"
@@ -872,10 +872,10 @@
       }
     ],
     "library": {
-      "cause": [
+      "threat": [
         {
-          "id": "C_1",
-          "type": "cause",
+          "id": "T_1",
+          "type": "threat",
           "name": "Valve Inadvertently Opened",
           "description": "",
           "identifier": "",
@@ -885,8 +885,8 @@
           "protection": null
         },
         {
-          "id": "C_2",
-          "type": "cause",
+          "id": "T_2",
+          "type": "threat",
           "name": "Flange Leak",
           "description": "",
           "identifier": "",
@@ -896,8 +896,8 @@
           "protection": null
         },
         {
-          "id": "C_3",
-          "type": "cause",
+          "id": "T_3",
+          "type": "threat",
           "name": "Corrosion or Erosion",
           "description": "",
           "identifier": "",
@@ -907,8 +907,8 @@
           "protection": null
         },
         {
-          "id": "C_4",
-          "type": "cause",
+          "id": "T_4",
+          "type": "threat",
           "name": "Dropped Object or Vehicle Collision",
           "description": "",
           "identifier": "",
@@ -918,8 +918,8 @@
           "protection": null
         },
         {
-          "id": "C_5",
-          "type": "cause",
+          "id": "T_5",
+          "type": "threat",
           "name": "Bund Wall Cracking",
           "description": "",
           "identifier": "",
@@ -929,10 +929,10 @@
           "protection": null
         }
       ],
-      "outcome": [
+      "consequence": [
         {
-          "id": "O_1",
-          "type": "outcome",
+          "id": "C_1",
+          "type": "consequence",
           "name": "Pool Fire",
           "description": "",
           "identifier": "",
@@ -942,8 +942,8 @@
           "protection": null
         },
         {
-          "id": "O_2",
-          "type": "outcome",
+          "id": "C_2",
+          "type": "consequence",
           "name": "Flash Fire",
           "description": "",
           "identifier": "",
@@ -953,8 +953,8 @@
           "protection": null
         },
         {
-          "id": "O_3",
-          "type": "outcome",
+          "id": "C_3",
+          "type": "consequence",
           "name": "Explosion",
           "description": "",
           "identifier": "",
@@ -964,8 +964,8 @@
           "protection": null
         },
         {
-          "id": "O_4",
-          "type": "outcome",
+          "id": "C_4",
+          "type": "consequence",
           "name": "Release, No Ignition",
           "description": "",
           "identifier": "",
@@ -975,8 +975,8 @@
           "protection": null
         },
         {
-          "id": "O_5",
-          "type": "outcome",
+          "id": "C_5",
+          "type": "consequence",
           "name": "Ground/Water Contamination",
           "description": "",
           "identifier": "",
@@ -1290,20 +1290,20 @@
     }
   },
   "quantitative": {
-    "version": 10,
+    "version": 11,
     "name": "Demo: Pipeline Overpressure Release",
     "idCounters": {
       "page": 2,
-      "cause": 5,
-      "outcome": 5,
+      "threat": 5,
+      "consequence": 5,
       "preventativeBarrier": 4,
       "mitigativeBarrier": 4,
       "line": 10,
       "placement": 18
     },
     "retiredIds": {
-      "cause": [],
-      "outcome": [],
+      "threat": [],
+      "consequence": [],
       "preventativeBarrier": [],
       "mitigativeBarrier": []
     },
@@ -1341,10 +1341,10 @@
         }
       }
     ],
-    "causes": [
+    "threats": [
       {
         "id": "PLACEMENT_1",
-        "nodeId": "C_1",
+        "nodeId": "T_1",
         "x": 150,
         "y": 90,
         "w": 140,
@@ -1353,7 +1353,7 @@
       },
       {
         "id": "PLACEMENT_2",
-        "nodeId": "C_2",
+        "nodeId": "T_2",
         "x": 150,
         "y": 310,
         "w": 140,
@@ -1362,7 +1362,7 @@
       },
       {
         "id": "PLACEMENT_3",
-        "nodeId": "C_3",
+        "nodeId": "T_3",
         "x": 150,
         "y": 530,
         "w": 140,
@@ -1371,7 +1371,7 @@
       },
       {
         "id": "PLACEMENT_4",
-        "nodeId": "C_4",
+        "nodeId": "T_4",
         "x": 150,
         "y": 750,
         "w": 140,
@@ -1380,7 +1380,7 @@
       },
       {
         "id": "PLACEMENT_5",
-        "nodeId": "C_5",
+        "nodeId": "T_5",
         "x": 150,
         "y": 200,
         "w": 140,
@@ -1388,10 +1388,10 @@
         "pageId": "PAGE_2"
       }
     ],
-    "outcomes": [
+    "consequences": [
       {
         "id": "PLACEMENT_6",
-        "nodeId": "O_1",
+        "nodeId": "C_1",
         "x": 2070,
         "y": 90,
         "w": 140,
@@ -1400,7 +1400,7 @@
       },
       {
         "id": "PLACEMENT_7",
-        "nodeId": "O_2",
+        "nodeId": "C_2",
         "x": 2070,
         "y": 310,
         "w": 140,
@@ -1409,7 +1409,7 @@
       },
       {
         "id": "PLACEMENT_8",
-        "nodeId": "O_3",
+        "nodeId": "C_3",
         "x": 2070,
         "y": 530,
         "w": 140,
@@ -1418,7 +1418,7 @@
       },
       {
         "id": "PLACEMENT_9",
-        "nodeId": "O_4",
+        "nodeId": "C_4",
         "x": 2070,
         "y": 750,
         "w": 140,
@@ -1427,7 +1427,7 @@
       },
       {
         "id": "PLACEMENT_10",
-        "nodeId": "O_5",
+        "nodeId": "C_5",
         "x": 1550,
         "y": 200,
         "w": 140,
@@ -1514,7 +1514,7 @@
     "lines": [
       {
         "id": "LINE_1",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_1",
         "stops": [
           "PLACEMENT_11",
@@ -1524,7 +1524,7 @@
       },
       {
         "id": "LINE_2",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_2",
         "stops": [
           "PLACEMENT_12",
@@ -1534,7 +1534,7 @@
       },
       {
         "id": "LINE_3",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_3",
         "stops": [
           "PLACEMENT_13"
@@ -1543,14 +1543,14 @@
       },
       {
         "id": "LINE_4",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_4",
         "stops": [],
         "pageId": "PAGE_1"
       },
       {
         "id": "LINE_5",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_6",
         "stops": [
           "PLACEMENT_15",
@@ -1560,7 +1560,7 @@
       },
       {
         "id": "LINE_6",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_7",
         "stops": [
           "PLACEMENT_16"
@@ -1569,7 +1569,7 @@
       },
       {
         "id": "LINE_7",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_8",
         "stops": [
           "PLACEMENT_17"
@@ -1578,14 +1578,14 @@
       },
       {
         "id": "LINE_8",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_9",
         "stops": [],
         "pageId": "PAGE_1"
       },
       {
         "id": "LINE_9",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_5",
         "stops": [
           "PLACEMENT_14"
@@ -1594,7 +1594,7 @@
       },
       {
         "id": "LINE_10",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_10",
         "stops": [
           "PLACEMENT_18"
@@ -1603,10 +1603,10 @@
       }
     ],
     "library": {
-      "cause": [
+      "threat": [
         {
-          "id": "C_1",
-          "type": "cause",
+          "id": "T_1",
+          "type": "threat",
           "name": "Valve Inadvertently Opened",
           "description": "Typical LOPA initiating event frequency, ~0.1/yr.",
           "identifier": "",
@@ -1618,8 +1618,8 @@
           "protection": null
         },
         {
-          "id": "C_2",
-          "type": "cause",
+          "id": "T_2",
+          "type": "threat",
           "name": "Flange Leak",
           "description": "Typical LOPA initiating event frequency, ~0.01/yr.",
           "identifier": "",
@@ -1631,8 +1631,8 @@
           "protection": null
         },
         {
-          "id": "C_3",
-          "type": "cause",
+          "id": "T_3",
+          "type": "threat",
           "name": "Corrosion or Erosion",
           "description": "Typical LOPA initiating event frequency, ~0.01/yr.",
           "identifier": "",
@@ -1644,8 +1644,8 @@
           "protection": null
         },
         {
-          "id": "C_4",
-          "type": "cause",
+          "id": "T_4",
+          "type": "threat",
           "name": "Dropped Object or Vehicle Collision",
           "description": "",
           "identifier": "",
@@ -1657,8 +1657,8 @@
           "protection": null
         },
         {
-          "id": "C_5",
-          "type": "cause",
+          "id": "T_5",
+          "type": "threat",
           "name": "Bund Wall Cracking",
           "description": "Typical LOPA initiating event frequency, ~0.05/yr.",
           "identifier": "",
@@ -1670,10 +1670,10 @@
           "protection": null
         }
       ],
-      "outcome": [
+      "consequence": [
         {
-          "id": "O_1",
-          "type": "outcome",
+          "id": "C_1",
+          "type": "consequence",
           "name": "Pool Fire",
           "description": "",
           "identifier": "",
@@ -1683,8 +1683,8 @@
           "protection": null
         },
         {
-          "id": "O_2",
-          "type": "outcome",
+          "id": "C_2",
+          "type": "consequence",
           "name": "Flash Fire",
           "description": "",
           "identifier": "",
@@ -1694,8 +1694,8 @@
           "protection": null
         },
         {
-          "id": "O_3",
-          "type": "outcome",
+          "id": "C_3",
+          "type": "consequence",
           "name": "Explosion",
           "description": "",
           "identifier": "",
@@ -1705,8 +1705,8 @@
           "protection": null
         },
         {
-          "id": "O_4",
-          "type": "outcome",
+          "id": "C_4",
+          "type": "consequence",
           "name": "Release, No Ignition",
           "description": "",
           "identifier": "",
@@ -1716,8 +1716,8 @@
           "protection": null
         },
         {
-          "id": "O_5",
-          "type": "outcome",
+          "id": "C_5",
+          "type": "consequence",
           "name": "Ground/Water Contamination",
           "description": "",
           "identifier": "",

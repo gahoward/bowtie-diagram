@@ -49,7 +49,7 @@
         savedAt: new Date().toISOString(),
         name: this.model.name,
         pages: this.model.pages.length,
-        nodes: this.model.causes.length + this.model.outcomes.length
+        nodes: this.model.threats.length + this.model.consequences.length
           + this.model.preventativeBarriers.length + this.model.mitigativeBarriers.length,
         document: doc,
       };

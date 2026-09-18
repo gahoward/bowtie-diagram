@@ -9,7 +9,7 @@
   // Screen-pixel movement (from the pointerdown point) required before a
   // pointerdown-on-a-node is treated as an actual drag gesture, rather than
   // a plain click. Without this, EVERY click on a node — including
-  // FocusController's "click a Cause/Outcome to dim unrelated elements",
+  // FocusController's "click a Threat/Consequence to dim unrelated elements",
   // which is explicitly non-mutating — fired `onDragStart` (undo.snapshot())
   // unconditionally on pointerdown, before any movement was observed. That
   // silently pushed a spurious snapshot AND cleared the entire redo stack on
@@ -102,11 +102,11 @@
       this.model.moveElement(this.dragging.id, x, y);
     }
 
-    // Causes and Preventative Barriers may never be dragged right of the
-    // TLE's x-midpoint; Mitigative Barriers and Outcomes may never be
+    // Threats and Preventative Barriers may never be dragged right of the
+    // TLE's x-midpoint; Mitigative Barriers and Consequences may never be
     // dragged left of it. On top of that, nothing may be dragged past
     // whatever Line.stops says comes immediately before/after it — a
-    // barrier (or the Cause/Outcome feeding it) visually resequencing past
+    // barrier (or the Threat/Consequence feeding it) visually resequencing past
     // its neighbour would contradict what the model says its order is
     // (bugs.md). The TopLevelEvent itself is unconstrained either way.
     _clampX(el, x) {
@@ -114,8 +114,8 @@
       let min = -Infinity;
       let max = Infinity;
 
-      if (el.type === 'cause' || el.type === 'preventativeBarrier') max = tleX;
-      if (el.type === 'outcome' || el.type === 'mitigativeBarrier') min = tleX;
+      if (el.type === 'threat' || el.type === 'preventativeBarrier') max = tleX;
+      if (el.type === 'consequence' || el.type === 'mitigativeBarrier') min = tleX;
 
       const seq = this._sequenceBounds(el);
       min = Math.max(min, seq.min);
@@ -124,7 +124,7 @@
       return Math.min(Math.max(x, min), max);
     }
 
-    // Every node type here has a fixed, never-resized `w` (Cause/Outcome:
+    // Every node type here has a fixed, never-resized `w` (Threat/Consequence:
     // 140, both barrier kinds: 36 — see BowtieModel's add*/`_makeBarrierNear`),
     // so half-widths can be read straight off the model instead of guessing.
     _clearance(a, b) {
@@ -133,18 +133,18 @@
 
     // The [min, max] x-range `el` may occupy without resequencing past — or
     // overlapping the box of — a neighbour its own Line.stops (or, for a
-    // Cause/Outcome, its line's first stop) says comes immediately
+    // Threat/Consequence, its line's first stop) says comes immediately
     // before/after it. A barrier can be shared by more than one Line, each
     // potentially with a different neighbour — its bounds are the tightest
     // constraint any of them impose.
     _sequenceBounds(el) {
-      if (el.type === 'cause') {
+      if (el.type === 'threat') {
         const nextId = this.model._lineFor(el.id).stops[0];
         if (!nextId) return { min: -Infinity, max: Infinity };
         const next = this.model.findById(nextId);
         return { min: -Infinity, max: next.x - this._clearance(el, next) };
       }
-      if (el.type === 'outcome') {
+      if (el.type === 'consequence') {
         const nextId = this.model._lineFor(el.id).stops[0];
         if (!nextId) return { min: -Infinity, max: Infinity };
         const next = this.model.findById(nextId);
@@ -165,8 +165,8 @@
         return { min, max };
       }
       if (el.type === 'mitigativeBarrier') {
-        // Stored nearest-Outcome-first: the stop before this one in the
-        // array (idx - 1) sits closer to the Outcome (larger x, so it's
+        // Stored nearest-Consequence-first: the stop before this one in the
+        // array (idx - 1) sits closer to the Consequence (larger x, so it's
         // this barrier's right-hand bound); the one after (idx + 1) sits
         // closer to the TLE (smaller x, its left-hand bound) — the
         // opposite of the Preventative side's array-vs-x relationship.

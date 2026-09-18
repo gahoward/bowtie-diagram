@@ -138,8 +138,8 @@
     );
 
     new Bowtie.ToolbarController(pageScopedModel, {
-      addCauseBtn: document.getElementById('btn-add-cause'),
-      addOutcomeBtn: document.getElementById('btn-add-outcome'),
+      addThreatBtn: document.getElementById('btn-add-threat'),
+      addConsequenceBtn: document.getElementById('btn-add-consequence'),
       nameEl: document.getElementById('bowtie-name'),
       // One place to rename the analysis: the title opens Project
       // Settings › General with Name focused, rather than its own dialog.
@@ -287,7 +287,7 @@
       },
     });
 
-    // Document-wide (every page's outcomes), so constructed with `model`
+    // Document-wide (every page's consequences), so constructed with `model`
     // rather than `pageScopedModel`, like WarningsController above.
     const riskSummary = new Bowtie.RiskSummaryController(
       model, document.getElementById('btn-risk-summary'), () => preferences.getDisplayUnit(),
@@ -341,7 +341,7 @@
     renderAll();
 
     const TOOLBAR_BUTTON_IDS = [
-      'btn-add-cause', 'btn-add-outcome', 'btn-auto-arrange', 'btn-reset-view', 'btn-risk-summary',
+      'btn-add-threat', 'btn-add-consequence', 'btn-auto-arrange', 'btn-reset-view', 'btn-risk-summary',
       'btn-barrier-register', 'btn-shortcuts',
       'btn-manage-ids', 'btn-preferences', 'btn-export-all-svg', 'btn-export-all-png', 'btn-print',
       'btn-project-settings', 'btn-export-png', 'btn-export-svg', 'btn-export-json', 'btn-import-json',
@@ -363,10 +363,10 @@
       // export even though the loop above just unconditionally enabled it.
       warnings.refresh();
       // A fresh "New" bowtie is just a TLE+Hazard — keep the roomy default
-      // view so the first Cause/Outcome (placed at a fixed default position)
+      // view so the first Threat/Consequence (placed at a fixed default position)
       // doesn't land outside a tightly-fitted viewport. An imported diagram
       // has real content, so fitting to it is the right call.
-      const hasContent = model.causes.length > 0 || model.outcomes.length > 0
+      const hasContent = model.threats.length > 0 || model.consequences.length > 0
         || model.preventativeBarriers.length > 0 || model.mitigativeBarriers.length > 0;
       if (hasContent) panZoom.fitToBounds(view.getContentBounds());
       // The welcome flow's own name/page/TLE/Hazard renames (or a completed

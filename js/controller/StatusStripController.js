@@ -12,7 +12,7 @@
   // strip (ui_fitness_proposal.md 07): which mode it's in, which risk
   // matrix is active with its class letters, the unit every computed
   // figure on the canvas is in, and -- in Quantitative mode -- how the
-  // TLE combines its causes. All of it was previously invisible until
+  // TLE combines its threats. All of it was previously invisible until
   // the user opened Settings, which made "Likelihood: 1.67e-7/hr (max)"
   // under a node a figure with no stated frame of reference.
   //
@@ -84,7 +84,7 @@
         strip.appendChild(this._segment(
           model.tleAggregation === 'sum' ? 'sum' : 'max',
           'quantitative',
-          'How multiple causes combine at the top event — click to change',
+          'How multiple threats combine at the top event — click to change',
         ));
       }
 

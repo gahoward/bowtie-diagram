@@ -1,7 +1,7 @@
 (function (Bowtie) {
   const TYPE_LABELS = {
-    cause: 'Cause',
-    outcome: 'Outcome',
+    threat: 'Threat',
+    consequence: 'Consequence',
     preventativeBarrier: 'Preventative Barrier',
     mitigativeBarrier: 'Mitigative Barrier',
   };

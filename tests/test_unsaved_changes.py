@@ -13,7 +13,7 @@ def test_fresh_document_is_not_dirty(page):
 
 
 def test_editing_the_model_marks_it_dirty(page):
-    page.evaluate("() => window.__lastUndo.model.addCause({x: 150, y: 200, name: 'A cause'})")
+    page.evaluate("() => window.__lastUndo.model.addThreat({x: 150, y: 200, name: 'A threat'})")
     assert _is_dirty(page) is True
 
 
@@ -22,14 +22,14 @@ def test_undo_of_the_only_change_leaves_it_dirty(page):
     # exported/imported -- it is not the same state as a clean load, so this
     # deliberately does NOT special-case "back to a prior on-disk snapshot"
     # as clean again.
-    page.evaluate("() => window.__lastUndo.model.addCause({x: 150, y: 200, name: 'A cause'})")
+    page.evaluate("() => window.__lastUndo.model.addThreat({x: 150, y: 200, name: 'A threat'})")
     page.click("#btn-undo")
     assert _is_dirty(page) is True
 
 
 def test_exporting_json_marks_it_clean_again(page):
     page.evaluate("""() => {
-      window.__lastUndo.model.addCause({x: 150, y: 200, name: 'A cause'});
+      window.__lastUndo.model.addThreat({x: 150, y: 200, name: 'A threat'});
       // Force the legacy download-link fallback path -- otherwise this
       // Chromium's real File System Access API would open a native "Save
       // As" dialog nothing here drives, and neither the download nor the
@@ -47,7 +47,7 @@ def test_exporting_json_marks_it_clean_again(page):
 
 def test_cancelling_the_save_dialog_leaves_it_dirty(page):
     page.evaluate("""() => {
-      window.__lastUndo.model.addCause({x: 150, y: 200, name: 'A cause'});
+      window.__lastUndo.model.addThreat({x: 150, y: 200, name: 'A threat'});
       class AbortError extends Error {}
       AbortError.prototype.name = 'AbortError';
       window.showSaveFilePicker = async () => { throw new AbortError('cancelled'); };
@@ -60,7 +60,7 @@ def test_cancelling_the_save_dialog_leaves_it_dirty(page):
 
 
 def test_importing_a_document_marks_it_clean(page):
-    page.evaluate("() => window.__lastUndo.model.addCause({x: 150, y: 200, name: 'A cause'})")
+    page.evaluate("() => window.__lastUndo.model.addThreat({x: 150, y: 200, name: 'A threat'})")
     assert _is_dirty(page) is True
 
     # Reuse the live document itself as the "imported" file so this doesn't
@@ -79,7 +79,7 @@ def test_beforeunload_warns_only_when_dirty(page):
       return evt.defaultPrevented;
     }""") is False
 
-    page.evaluate("() => window.__lastUndo.model.addCause({x: 150, y: 200, name: 'A cause'})")
+    page.evaluate("() => window.__lastUndo.model.addThreat({x: 150, y: 200, name: 'A threat'})")
 
     assert page.evaluate("""() => {
       const evt = new Event('beforeunload', { cancelable: true });

@@ -90,7 +90,7 @@
     }
 
     // "At a glance" text under a node -- one or more short lines (severity/
-    // likelihood on an Outcome, computed likelihood on the TLE), centered
+    // likelihood on an Consequence, computed likelihood on the TLE), centered
     // below its shape. Distinct from the risk-class badge above: the badge
     // is a compact glanceable chip, this is the actual labeled figures
     // (quantitative_mode_proposal.md's own "Node Library/rename modal is
@@ -98,7 +98,7 @@
     // out of the canvas, not a plain summary of the picks already made).
     // `emphasized` (design review finding 03): Quantitative mode's frequency/
     // RRF/likelihood figures are the actual deliverable of that mode, not
-    // secondary chrome the way a Simple-mode Cause/Outcome name's plain
+    // secondary chrome the way a Simple-mode Threat/Consequence name's plain
     // label is -- rendering them at the same quiet 11px/muted-gray weight
     // as everything else meant every diagram's headline numbers were also
     // its smallest, least contrasted text, and one that only gets smaller
@@ -141,7 +141,7 @@
     // for this text (never fed back into a calculation), same rule as
     // PropertiesModal.js's own formatLikelihood. Accepts either the
     // Bowtie.Rational a computed likelihood arrives as, or the plain
-    // Decimal a Cause's own entered frequency is.
+    // Decimal a Threat's own entered frequency is.
     _formatLikelihood(value, displayUnit) {
       if (value === null) return null;
       const rational = value instanceof Bowtie.Rational ? value : Bowtie.Rational.fromDecimal(value);
@@ -160,7 +160,7 @@
     // equivalent (BarrierMeasures.describe) goes in the hover title
     // instead, following the risk-badge tooltip precedent. An explicit
     // "Unknown" line matters here too: an Unknown barrier isn't excluded
-    // like an Unknown cause, it's silently SKIPPED from the fold instead
+    // like an Unknown threat, it's silently SKIPPED from the fold instead
     // (Quantitative.js's own "conservative" skip rule) -- worth flagging
     // on the barrier itself since nothing else surfaces it.
     _barrierInfoLines(model, node) {
@@ -197,9 +197,9 @@
       extend(model.topLevelEvent.x, model.topLevelEvent.y, tleResult.bounds.r, tleResult.bounds.r);
 
       // TLE computed-likelihood summary (quantitative_mode_proposal.md
-      // "Canvas badges"): the highest contributing cause's frequency times
+      // "Canvas badges"): the highest contributing threat's frequency times
       // its own known preventative barriers, Quantitative mode only --
-      // Qualitative mode has no arithmetic combination defined for causes
+      // Qualitative mode has no arithmetic combination defined for threats
       // (each is a direct class pick, nothing to combine at the TLE).
       if (model.mode === 'quantitative') {
         const residual = model.computeTleLikelihoodForActivePage();
@@ -242,56 +242,56 @@
       // internal id (what ConnectionRenderer's Line.stops/originId-based
       // lookups below actually key on -- unaffected by any of this) AND
       // the resolved node's stable id (what a caller reasoning about "the
-      // thing labeled C_1" -- including every test in this suite written
+      // thing labeled T_1" -- including every test in this suite written
       // before the node library existed -- would naturally look up
       // instead). Both keys always describe the exact same bounds, since
       // "at most one placement per node per page" holds.
-      model.causes.forEach((cause) => {
-        const { stableId, displayId, displayName } = displayFor(cause);
-        const result = Bowtie.ShapeRenderer.renderCause(this.svgRoot, cause, stableId, displayId, displayName);
-        boundsById[cause.id] = result.bounds;
+      model.threats.forEach((threat) => {
+        const { stableId, displayId, displayName } = displayFor(threat);
+        const result = Bowtie.ShapeRenderer.renderThreat(this.svgRoot, threat, stableId, displayId, displayName);
+        boundsById[threat.id] = result.bounds;
         boundsById[stableId] = result.bounds;
         nodeGroups.push(result.g);
-        extend(cause.x, cause.y, result.bounds.w / 2, result.bounds.h / 2);
+        extend(threat.x, threat.y, result.bounds.w / 2, result.bounds.h / 2);
 
         // Likelihood/frequency "at a glance" summary, underneath the
-        // Cause's own box -- mirrors the Outcome summary below. An explicit
+        // Threat's own box -- mirrors the Consequence summary below. An explicit
         // "Unknown" line (rather than silence) matters here: an Unknown
-        // frequency isn't just "not shown", it EXCLUDES this cause from the
+        // frequency isn't just "not shown", it EXCLUDES this threat from the
         // TLE's max-of-known-frequencies calculation entirely (BowtieModel.
-        // computeTleLikelihood) -- worth flagging on the cause itself, not
+        // computeTleLikelihood) -- worth flagging on the threat itself, not
         // just as an aggregate count at the TLE.
         if (model.mode !== 'simple') {
-          const causeNode = model.getNode(cause.nodeId);
+          const threatNode = model.getNode(threat.nodeId);
           const infoLines = [];
-          if (model.mode === 'qualitative' && model.riskMatrix && causeNode.likelihoodClassId) {
-            const likelihood = Bowtie.RiskMatrix.likelihoodClass(model.riskMatrix, causeNode.likelihoodClassId);
+          if (model.mode === 'qualitative' && model.riskMatrix && threatNode.likelihoodClassId) {
+            const likelihood = Bowtie.RiskMatrix.likelihoodClass(model.riskMatrix, threatNode.likelihoodClassId);
             if (likelihood) infoLines.push(`Likelihood: ${likelihood.label}`);
-          } else if (model.mode === 'quantitative' && causeNode.frequency) {
-            if (causeNode.frequency.unknown) {
+          } else if (model.mode === 'quantitative' && threatNode.frequency) {
+            if (threatNode.frequency.unknown) {
               infoLines.push('Frequency: Unknown');
             } else {
-              const freq = Bowtie.RiskMatrix.quantityToDecimal(causeNode.frequency);
+              const freq = Bowtie.RiskMatrix.quantityToDecimal(threatNode.frequency);
               const text = this._formatLikelihood(freq, displayUnit);
               if (text) infoLines.push(`Frequency: ${text}`);
             }
           }
           if (infoLines.length > 0) {
             const emphasized = model.mode === 'quantitative';
-            const infoY = cause.y + result.bounds.h / 2 + 14;
-            nodeGroups.push(this._renderInfoText(cause.x, infoY, infoLines, { emphasized }));
-            extend(cause.x, infoY + infoLines.length * (emphasized ? 15 : 13), result.bounds.w / 2, 10);
+            const infoY = threat.y + result.bounds.h / 2 + 14;
+            nodeGroups.push(this._renderInfoText(threat.x, infoY, infoLines, { emphasized }));
+            extend(threat.x, infoY + infoLines.length * (emphasized ? 15 : 13), result.bounds.w / 2, 10);
           }
         }
       });
 
-      model.outcomes.forEach((outcome) => {
-        const { stableId, displayId, displayName } = displayFor(outcome);
-        const result = Bowtie.ShapeRenderer.renderOutcome(this.svgRoot, outcome, stableId, displayId, displayName);
-        boundsById[outcome.id] = result.bounds;
+      model.consequences.forEach((consequence) => {
+        const { stableId, displayId, displayName } = displayFor(consequence);
+        const result = Bowtie.ShapeRenderer.renderConsequence(this.svgRoot, consequence, stableId, displayId, displayName);
+        boundsById[consequence.id] = result.bounds;
         boundsById[stableId] = result.bounds;
         nodeGroups.push(result.g);
-        extend(outcome.x, outcome.y, result.bounds.w / 2, result.bounds.h / 2);
+        extend(consequence.x, consequence.y, result.bounds.w / 2, result.bounds.h / 2);
 
         // Risk-class badge (quantitative_mode_proposal.md "Canvas badges"):
         // a small colour-coded chip at the consequence's own risk class,
@@ -309,11 +309,11 @@
         // mitigation one minus the barriers, so it's never determinable
         // when the post-mitigation class isn't.
         if (model.mode !== 'simple' && model.riskMatrix) {
-          const assessment = model.assessConsequence(outcome.id);
+          const assessment = model.assessConsequence(consequence.id);
           const postClass = assessment ? assessment.post.riskClass : null;
           const preClass = assessment && assessment.pre ? assessment.pre.riskClass : null;
-          const badgeX = outcome.x + result.bounds.w / 2;
-          const badgeY = outcome.y - result.bounds.h / 2;
+          const badgeX = consequence.x + result.bounds.w / 2;
+          const badgeY = consequence.y - result.bounds.h / 2;
           if (postClass && preClass) {
             nodeGroups.push(this._renderRiskBadge(badgeX - 46, badgeY, preClass, { phase: 'pre' }));
             nodeGroups.push(this._renderBadgeArrow(badgeX - 23, badgeY));
@@ -324,22 +324,22 @@
         }
 
         // Severity/likelihood "at a glance" summary, underneath the
-        // Outcome's own box: whichever of severity/likelihood is actually
+        // Consequence's own box: whichever of severity/likelihood is actually
         // set, mode-aware (qualitative = the manual likelihood pick,
         // quantitative = the computed residual likelihood) -- silent when
-        // this outcome's node has nothing set yet.
+        // this consequence's node has nothing set yet.
         if (model.mode !== 'simple') {
-          const outcomeNode = model.getNode(outcome.nodeId);
+          const consequenceNode = model.getNode(consequence.nodeId);
           const infoLines = [];
-          if (model.riskMatrix && outcomeNode.severityClassId) {
-            const severity = Bowtie.RiskMatrix.severityClass(model.riskMatrix, outcomeNode.severityClassId);
+          if (model.riskMatrix && consequenceNode.severityClassId) {
+            const severity = Bowtie.RiskMatrix.severityClass(model.riskMatrix, consequenceNode.severityClassId);
             if (severity) infoLines.push(`Severity: ${severity.label}`);
           }
-          if (model.mode === 'qualitative' && model.riskMatrix && outcomeNode.likelihoodClassId) {
-            const likelihood = Bowtie.RiskMatrix.likelihoodClass(model.riskMatrix, outcomeNode.likelihoodClassId);
+          if (model.mode === 'qualitative' && model.riskMatrix && consequenceNode.likelihoodClassId) {
+            const likelihood = Bowtie.RiskMatrix.likelihoodClass(model.riskMatrix, consequenceNode.likelihoodClassId);
             if (likelihood) infoLines.push(`Likelihood: ${likelihood.label}`);
           } else if (model.mode === 'quantitative') {
-            const residual = model.computeConsequenceLikelihood(outcome.id);
+            const residual = model.computeConsequenceLikelihood(consequence.id);
             const text = this._formatLikelihood(residual.value, displayUnit);
             // Same finding-11 labeling as the TLE badge above -- this
             // figure is derived from the TLE's own aggregated likelihood
@@ -348,15 +348,15 @@
             if (text) infoLines.push(`Likelihood: ${text} (${model.tleAggregation})`);
             // The same figure with every barrier removed -- the "before"
             // half of the badge pair above, as an actual number.
-            const inherent = model.computeConsequenceLikelihood(outcome.id, { includeBarriers: false });
+            const inherent = model.computeConsequenceLikelihood(consequence.id, { includeBarriers: false });
             const inherentText = this._formatLikelihood(inherent.value, displayUnit);
             if (inherentText) infoLines.push(`Pre-mitigation: ${inherentText}`);
           }
           if (infoLines.length > 0) {
             const emphasized = model.mode === 'quantitative';
-            const infoY = outcome.y + result.bounds.h / 2 + 14;
-            nodeGroups.push(this._renderInfoText(outcome.x, infoY, infoLines, { emphasized }));
-            extend(outcome.x, infoY + infoLines.length * (emphasized ? 15 : 13), result.bounds.w / 2, 10);
+            const infoY = consequence.y + result.bounds.h / 2 + 14;
+            nodeGroups.push(this._renderInfoText(consequence.x, infoY, infoLines, { emphasized }));
+            extend(consequence.x, infoY + infoLines.length * (emphasized ? 15 : 13), result.bounds.w / 2, 10);
           }
         }
       });

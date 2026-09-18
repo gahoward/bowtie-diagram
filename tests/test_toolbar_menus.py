@@ -1,7 +1,7 @@
 """toolbar.md: the toolbar is restructured into File/Add/View/Settings
 dropdown menus (Undo/Redo stay as always-visible icon buttons), and a
-context menu reachable from empty canvas or the TLE offers Add Cause/Add
-Outcome — not just from an existing Cause/Outcome node."""
+context menu reachable from empty canvas or the TLE offers Add Threat/Add
+Consequence — not just from an existing Threat/Consequence node."""
 from helpers import click_svg_point, create_via_modal, menu_items
 
 
@@ -13,7 +13,7 @@ def test_each_toolbar_menu_opens_with_its_expected_items(page):
     cases = {
         "file": ["Import from JSON", "Export to JSON", "Export to SVG", "Export to PNG",
                  "Export all pages as SVG", "Export all pages as PNG", "Print"],
-        "add": ["Add Cause", "Add Outcome", "Node Library"],
+        "add": ["Add Threat", "Add Consequence", "Node Library"],
         "view": ["Auto-arrange", "Reset view", "Risk Summary", "Barrier Register", "Keyboard shortcuts"],
         "settings": ["Project Settings", "Preferences"],
     }
@@ -39,10 +39,10 @@ def test_clicking_outside_closes_the_open_menu(page):
 
 def test_clicking_a_menu_item_runs_its_action_and_closes_the_menu(page):
     _open_menu(page, "add")
-    page.click("#btn-add-cause")
+    page.click("#btn-add-threat")
     assert page.locator("#menu-dropdown-add").is_hidden()
-    create_via_modal(page, "New Cause")
-    count = page.evaluate("() => window.__lastModel.causes.length")
+    create_via_modal(page, "New Threat")
+    count = page.evaluate("() => window.__lastModel.threats.length")
     assert count == 1
 
 
@@ -57,77 +57,77 @@ def test_undo_redo_remain_icon_buttons_outside_any_menu(page):
     assert redo.locator("svg").count() == 1
 
 
-def test_right_click_empty_canvas_offers_add_cause_and_add_outcome(page):
+def test_right_click_empty_canvas_offers_add_threat_and_add_consequence(page):
     click_svg_point(page, 150, 700)  # far from the TLE/Hazard at (700, 400)
     items = menu_items(page)
-    assert "Add Cause" in items
-    assert "Add Outcome" in items
+    assert "Add Threat" in items
+    assert "Add Consequence" in items
 
 
-def test_add_cause_from_empty_canvas_menu_places_it_at_the_clicked_point(page):
+def test_add_threat_from_empty_canvas_menu_places_it_at_the_clicked_point(page):
     click_svg_point(page, 150, 700)
-    page.locator(".context-menu-item", has_text="Add Cause").click()
+    page.locator(".context-menu-item", has_text="Add Threat").click()
     page.wait_for_timeout(80)
-    create_via_modal(page, "New Cause")
+    create_via_modal(page, "New Threat")
     pos = page.evaluate("""() => {
       const m = window.__lastModel;
-      const c = m.causes[0];
+      const c = m.threats[0];
       return { x: c.x, y: c.y };
     }""")
     assert abs(pos["x"] - 150) < 1
     assert abs(pos["y"] - 700) < 1
 
 
-def test_right_click_the_tle_offers_add_cause_and_add_outcome(page):
+def test_right_click_the_tle_offers_add_threat_and_add_consequence(page):
     click_svg_point(page, 700, 400)  # TLE's default position
     items = menu_items(page)
-    assert "Add Cause" in items
-    assert "Add Outcome" in items
+    assert "Add Threat" in items
+    assert "Add Consequence" in items
     assert "Properties" in items
 
 
-def test_add_cause_from_wrong_side_falls_back_to_toolbar_placement(page):
-    """wishlist.md: right-clicking on the Outcome side (right of the TLE at
-    x=700) and choosing "Add Cause" must not place the Cause there — it
-    should land exactly where the toolbar's own Add Cause button would put
-    it (BowtieModel.addCause's fixed default x=150, auto y), not at the
+def test_add_threat_from_wrong_side_falls_back_to_toolbar_placement(page):
+    """wishlist.md: right-clicking on the Consequence side (right of the TLE at
+    x=700) and choosing "Add Threat" must not place the Threat there — it
+    should land exactly where the toolbar's own Add Threat button would put
+    it (BowtieModel.addThreat's fixed default x=150, auto y), not at the
     wrong-side click point."""
-    click_svg_point(page, 1100, 700)  # right of the TLE (700, 400) -- Outcome side
-    page.locator(".context-menu-item", has_text="Add Cause").click()
+    click_svg_point(page, 1100, 700)  # right of the TLE (700, 400) -- Consequence side
+    page.locator(".context-menu-item", has_text="Add Threat").click()
     page.wait_for_timeout(80)
-    create_via_modal(page, "New Cause")
+    create_via_modal(page, "New Threat")
     pos = page.evaluate("""() => {
-      const c = window.__lastModel.causes[0];
+      const c = window.__lastModel.threats[0];
       return { x: c.x, y: c.y };
     }""")
     assert abs(pos["x"] - 150) < 1
     assert pos["y"] != 700  # auto-placed (findClearY), not the click's y
 
 
-def test_add_outcome_from_wrong_side_falls_back_to_toolbar_placement(page):
-    """Mirrors the Cause case: right-clicking the Cause side and choosing
-    "Add Outcome" must not land it left of the TLE."""
-    click_svg_point(page, 150, 700)  # left of the TLE (700, 400) -- Cause side
-    page.locator(".context-menu-item", has_text="Add Outcome").click()
+def test_add_consequence_from_wrong_side_falls_back_to_toolbar_placement(page):
+    """Mirrors the Threat case: right-clicking the Threat side and choosing
+    "Add Consequence" must not land it left of the TLE."""
+    click_svg_point(page, 150, 700)  # left of the TLE (700, 400) -- Threat side
+    page.locator(".context-menu-item", has_text="Add Consequence").click()
     page.wait_for_timeout(80)
-    create_via_modal(page, "New Outcome")
+    create_via_modal(page, "New Consequence")
     pos = page.evaluate("""() => {
-      const o = window.__lastModel.outcomes[0];
+      const o = window.__lastModel.consequences[0];
       return { x: o.x, y: o.y };
     }""")
     assert pos["x"] > 700  # right of the TLE, not the wrong-side click's x=150
     assert pos["y"] != 700
 
 
-def test_add_cause_from_correct_side_still_uses_the_click_point(page):
+def test_add_threat_from_correct_side_still_uses_the_click_point(page):
     """The existing "place it exactly where clicked" behavior must survive
     for the already-correct side."""
-    click_svg_point(page, 150, 700)  # left of the TLE -- Cause side, correct
-    page.locator(".context-menu-item", has_text="Add Cause").click()
+    click_svg_point(page, 150, 700)  # left of the TLE -- Threat side, correct
+    page.locator(".context-menu-item", has_text="Add Threat").click()
     page.wait_for_timeout(80)
-    create_via_modal(page, "New Cause")
+    create_via_modal(page, "New Threat")
     pos = page.evaluate("""() => {
-      const c = window.__lastModel.causes[0];
+      const c = window.__lastModel.threats[0];
       return { x: c.x, y: c.y };
     }""")
     assert abs(pos["x"] - 150) < 1

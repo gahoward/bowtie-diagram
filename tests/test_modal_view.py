@@ -44,10 +44,10 @@ def test_closing_a_modal_restores_focus_to_its_trigger(page):
     # (a dropdown item's own post-click hide is a separate concern).
     page.evaluate("""() => {
       const m = window.__lastModel;
-      m.addCause({x: 150, y: 200});
-      const cause = m.causes[0];
-      m.addPreventativeControl(cause.id);
-      const line = m._lineFor(cause.id);
+      m.addThreat({x: 150, y: 200});
+      const threat = m.threats[0];
+      m.addPreventativeControl(threat.id);
+      const line = m._lineFor(threat.id);
       m.connectLineDirectlyToTle(line.id, null);
     }""")
     page.wait_for_timeout(80)

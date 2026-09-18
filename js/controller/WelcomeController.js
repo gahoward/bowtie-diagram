@@ -128,7 +128,7 @@
       const main = el('div', 'welcome-start-main');
       const recoveryCard = this._buildRecoveryCard();
       if (recoveryCard) main.appendChild(recoveryCard);
-      main.appendChild(el('p', 'welcome-headline', 'Map the causes, barriers and outcomes around one top event.'));
+      main.appendChild(el('p', 'welcome-headline', 'Map the threats, barriers and consequences around one top event.'));
       const illustration = el('div', 'welcome-illustration');
       illustration.appendChild(Bowtie.WelcomeIllustration.full());
       main.appendChild(illustration);
@@ -363,7 +363,7 @@
     _buildIdentifierField() {
       const field = el('div', 'modal-field');
       field.appendChild(el('span', null, 'Show identifiers as'));
-      const hint = el('p', 'welcome-hint', "You'll set an identifier for each Cause, Outcome, and Barrier yourself as you "
+      const hint = el('p', 'welcome-hint', "You'll set an identifier for each Threat, Consequence, and Barrier yourself as you "
         + 'create them — nothing is generated for you.');
       const options = [
         { value: 'internal', text: 'Generated IDs' },

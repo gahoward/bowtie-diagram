@@ -1,7 +1,7 @@
 """The status strip at the end of the bottom bar (proposals/07): which
 mode the document is in, which risk matrix is active (with its class
 letters), the unit computed figures are shown in, and how the top event
-combines its causes -- all of which used to be invisible until the user
+combines its threats -- all of which used to be invisible until the user
 opened Settings. Every segment opens the setting it names.
 """
 

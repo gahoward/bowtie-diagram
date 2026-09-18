@@ -12,7 +12,7 @@ lives in test_migrations.py (proposals/12)."""
 # JSON.stringify(restored.toJSON()), where `before` was ALSO produced by
 # toJSON(): a field toJSON() forgot to serialize would be equally absent
 # from both sides, so the comparison would pass vacuously. Reading "before"
-# off the original live model's own in-memory state (built by addCause/
+# off the original live model's own in-memory state (built by addThreat/
 # renameNode/etc., never round-tripped) means a genuinely dropped field
 # shows up here as a real mismatch against the restored model's default.
 _SNAPSHOT_JS = """
@@ -59,8 +59,8 @@ _SNAPSHOT_JS = """
     hazardName: p.hazard.name,
     hazardDescription: p.hazard.description,
   })),
-  causes: m.causes.map((c) => ({ nodeId: c.nodeId, x: c.x, y: c.y, w: c.w, h: c.h })),
-  outcomes: m.outcomes.map((o) => ({ nodeId: o.nodeId, x: o.x, y: o.y, w: o.w, h: o.h })),
+  threats: m.threats.map((c) => ({ nodeId: c.nodeId, x: c.x, y: c.y, w: c.w, h: c.h })),
+  consequences: m.consequences.map((o) => ({ nodeId: o.nodeId, x: o.x, y: o.y, w: o.w, h: o.h })),
   preventativeBarriers: m.preventativeBarriers.map((p) => ({ nodeId: p.nodeId, x: p.x, y: p.y, w: p.w, h: p.h })),
   mitigativeBarriers: m.mitigativeBarriers.map((b) => ({ nodeId: b.nodeId, x: b.x, y: b.y, w: b.w, h: b.h })),
   lines: m.lines.map((l) => ({
@@ -91,27 +91,27 @@ def test_export_then_import_round_trips_every_persisted_field(page):
       m.renameElement(m.pages[0].topLevelEvent.id, 'Distinctive TLE', 'TLE description');
       m.renameElement(m.pages[0].hazard.id, 'Distinctive Hazard', 'Hazard description');
 
-      const cause = m.addCause({ name: 'Distinctive Cause', description: 'Cause description', x: 321, y: 87 });
-      m.renameNode(cause.nodeId, { identifier: 'CUSTOM-CAUSE', frequency: { value: '1E-3' } });
-      const pb = m.addPreventativeControl(cause.id);
+      const threat = m.addThreat({ name: 'Distinctive Threat', description: 'Threat description', x: 321, y: 87 });
+      m.renameNode(threat.nodeId, { identifier: 'CUSTOM-THREAT', frequency: { value: '1E-3' } });
+      const pb = m.addPreventativeControl(threat.id);
       m.renameNode(pb.nodeId, {
         protection: { measure: 'rrf', value: '10' },
         barrierType: 'hardware', owner: 'Ops Team', effectiveness: 'high',
       });
 
-      const outcome = m.addOutcome({ name: 'Distinctive Outcome', pageId: page2.id, x: 999, y: 111 });
-      m.renameNode(outcome.nodeId, {
+      const consequence = m.addConsequence({ name: 'Distinctive Consequence', pageId: page2.id, x: 999, y: 111 });
+      m.renameNode(consequence.nodeId, {
         severityClassId: m.riskMatrix.severityClasses[1].id,
         likelihoodClassId: m.riskMatrix.likelihoodClasses[1].id,
       });
-      const mb = m.addMitigativeControl(outcome.id);
+      const mb = m.addMitigativeControl(consequence.id);
       m.renameNode(mb.nodeId, { protection: { unknown: true } });
 
       // Populate retiredIds with a distinctive, re-enabled entry.
-      const doomed = m.addCause({ name: 'Doomed' });
+      const doomed = m.addThreat({ name: 'Doomed' });
       const doomedNodeId = doomed.nodeId;
       m.deleteNode(doomedNodeId);
-      m.reEnableId('cause', doomedNodeId);
+      m.reEnableId('threat', doomedNodeId);
     }""")
     page.wait_for_timeout(100)
 
@@ -140,4 +140,4 @@ def test_a_version_older_than_the_upgrade_path_is_rejected_with_a_message(page):
     assert loaded is False
     assert page.locator(".modal-title").last.text_content() == "Unsupported File Version"
     assert "version 5" in page.locator(".modal-body").text_content()
-    assert page.evaluate("() => Bowtie.BowtieModel.SCHEMA_VERSION") == 10
+    assert page.evaluate("() => Bowtie.BowtieModel.SCHEMA_VERSION") == 11

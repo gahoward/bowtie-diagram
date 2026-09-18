@@ -20,7 +20,7 @@
     getWarnings() {
       const model = this.model;
       const warnings = [];
-      const usedPb = new Set(model.lines.filter((l) => l.originType === 'cause').flatMap((l) => l.stops));
+      const usedPb = new Set(model.lines.filter((l) => l.originType === 'threat').flatMap((l) => l.stops));
       model.preventativeBarriers.forEach((pb) => {
         if (!usedPb.has(pb.id)) {
           // Always safe: a live barrier's page can't have been deleted,
@@ -34,12 +34,12 @@
           warnings.push({
             id: pb.id, type: 'orphaned-preventative-control', severity: 'blocking',
             pageId: page.id, pageName: page.name,
-            message: `${node.id} (${node.name}) on page "${page.name}" is not connected to any Cause.`,
-            detail: 'Not connected to any Cause — nothing flows through it.',
+            message: `${node.id} (${node.name}) on page "${page.name}" is not connected to any Threat.`,
+            detail: 'Not connected to any Threat — nothing flows through it.',
           });
         }
       });
-      const usedMb = new Set(model.lines.filter((l) => l.originType === 'outcome').flatMap((l) => l.stops));
+      const usedMb = new Set(model.lines.filter((l) => l.originType === 'consequence').flatMap((l) => l.stops));
       model.mitigativeBarriers.forEach((mb) => {
         if (!usedMb.has(mb.id)) {
           const page = model.getPage(mb.pageId);
@@ -47,8 +47,8 @@
           warnings.push({
             id: mb.id, type: 'orphaned-mitigative-control', severity: 'blocking',
             pageId: page.id, pageName: page.name,
-            message: `${node.id} (${node.name}) on page "${page.name}" is not connected to any Outcome.`,
-            detail: 'Not connected to any Outcome — nothing flows through it.',
+            message: `${node.id} (${node.name}) on page "${page.name}" is not connected to any Consequence.`,
+            detail: 'Not connected to any Consequence — nothing flows through it.',
           });
         }
       });

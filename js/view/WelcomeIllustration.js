@@ -3,7 +3,7 @@
   let patternSeq = 0;
 
   // The two small "what a bowtie is" pictures the welcome flow shows --
-  // the full causes -> barriers -> top event -> barriers -> outcomes
+  // the full threats -> barriers -> top event -> barriers -> consequences
   // strip on the start screen, and just the hazard-over-TLE centre with
   // live labels on the wizard's names step. Built from the same CSS
   // colour tokens ExportUtil.buildExportStyle reads (and the Hazard's own
@@ -14,8 +14,8 @@
     const root = getComputedStyle(document.documentElement);
     const v = (name) => root.getPropertyValue(`--${name}`).trim() || '#888';
     return {
-      causeFill: v('cause-fill'), causeStroke: v('cause-stroke'),
-      outcomeFill: v('outcome-fill'), outcomeStroke: v('outcome-stroke'),
+      threatFill: v('threat-fill'), threatStroke: v('threat-stroke'),
+      consequenceFill: v('consequence-fill'), consequenceStroke: v('consequence-stroke'),
       tleFill: v('tle-fill'), tleStroke: v('tle-stroke'),
       controlFill: v('control-fill'), controlStroke: v('control-stroke'),
       connection: v('connection'), text: v('node-text'), label: v('connection-label'),
@@ -73,8 +73,8 @@
 
   function node(t, kind, x, y, w, h, labelText) {
     const g = el('g');
-    const fill = kind === 'cause' ? t.causeFill : t.outcomeFill;
-    const stroke = kind === 'cause' ? t.causeStroke : t.outcomeStroke;
+    const fill = kind === 'threat' ? t.threatFill : t.consequenceFill;
+    const stroke = kind === 'threat' ? t.threatStroke : t.consequenceStroke;
     g.appendChild(el('rect', { x, y, width: w, height: h, rx: 4, fill, stroke, 'stroke-width': 1.4 }));
     g.appendChild(el('text', {
       x: x + w / 2, y: y + h / 2, 'text-anchor': 'middle', 'dominant-baseline': 'central', 'font-size': 8, fill: t.text,
@@ -93,8 +93,8 @@
   function full() {
     const t = tokens();
     const svg = el('svg', { viewBox: '0 0 420 150', role: 'img', class: 'welcome-illustration-svg' });
-    svg.appendChild(el('title', {}, 'A bowtie: causes on the left pass through preventative barriers to the top event, '
-      + 'which sits under its hazard; from there mitigative barriers lead to the outcomes on the right.'));
+    svg.appendChild(el('title', {}, 'A bowtie: threats on the left pass through preventative barriers to the top event, '
+      + 'which sits under its hazard; from there mitigative barriers lead to the consequences on the right.'));
 
     const lines = el('g', { stroke: t.connection, 'stroke-width': 1.4, fill: 'none' });
     lines.appendChild(el('path', { d: 'M62 52 H126 M62 98 H126 M136 52 L192 72 M136 98 L192 78' }));
@@ -104,10 +104,10 @@
     [126, 290].forEach((x) => {
       svg.appendChild(el('rect', { x, y: 30, width: 10, height: 90, rx: 2, fill: t.controlFill, stroke: t.controlStroke, 'stroke-width': 1.4 }));
     });
-    svg.appendChild(node(t, 'cause', 14, 40, 48, 24, 'Cause'));
-    svg.appendChild(node(t, 'cause', 14, 86, 48, 24, 'Cause'));
-    svg.appendChild(node(t, 'outcome', 358, 40, 48, 24, 'Outcome'));
-    svg.appendChild(node(t, 'outcome', 358, 86, 48, 24, 'Outcome'));
+    svg.appendChild(node(t, 'threat', 14, 40, 48, 24, 'Threat'));
+    svg.appendChild(node(t, 'threat', 14, 86, 48, 24, 'Threat'));
+    svg.appendChild(node(t, 'consequence', 358, 40, 48, 24, 'Consequence'));
+    svg.appendChild(node(t, 'consequence', 358, 86, 48, 24, 'Consequence'));
 
     svg.appendChild(hazardBox(svg, t, 182, 8, 56, 24, 'Hazard').g);
     svg.appendChild(el('line', { x1: 210, y1: 32, x2: 210, y2: 54, stroke: t.connection, 'stroke-width': 1.4 }));
@@ -115,11 +115,11 @@
     tle.label.setAttribute('font-size', 7);
     svg.appendChild(tle.g);
 
-    svg.appendChild(columnLabel(t, 38, 140, 'CAUSES'));
+    svg.appendChild(columnLabel(t, 38, 140, 'THREATS'));
     svg.appendChild(columnLabel(t, 131, 140, 'PREVENT'));
     svg.appendChild(columnLabel(t, 210, 140, 'TOP EVENT'));
     svg.appendChild(columnLabel(t, 295, 140, 'MITIGATE'));
-    svg.appendChild(columnLabel(t, 382, 140, 'OUTCOMES'));
+    svg.appendChild(columnLabel(t, 382, 140, 'CONSEQUENCES'));
     return svg;
   }
 

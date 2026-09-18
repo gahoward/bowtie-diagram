@@ -84,7 +84,7 @@ def create_via_modal(page, name):
     modal (node_library_proposal.md ask 3 -- every "Add ..." entry point
     opens this modal now instead of creating immediately) and submits it.
     Assumes the modal is already open (e.g. right after clicking "Add
-    Cause"/"Add Preventative Barrier"/etc.)."""
+    Threat"/"Add Preventative Barrier"/etc.)."""
     dialog = page.locator(".modal-dialog", has=page.locator(".create-or-choose-modal"))
     dialog.locator(".create-or-choose-section .modal-field:has-text('Name') input").first.fill(name)
     dialog.get_by_role("button", name="Create", exact=False).click()

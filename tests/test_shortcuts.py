@@ -19,8 +19,8 @@ def _no_save_picker(page):
     page.evaluate("() => { delete window.showSaveFilePicker; }")
 
 
-def _add_cause(page, name="A cause"):
-    page.evaluate(f"() => {{ window.__lastModel.addCause({{x: 150, y: 200, name: '{name}'}}); }}")
+def _add_threat(page, name="A threat"):
+    page.evaluate(f"() => {{ window.__lastModel.addThreat({{x: 150, y: 200, name: '{name}'}}); }}")
     page.wait_for_timeout(100)
 
 
@@ -29,9 +29,9 @@ def _orphan_a_barrier(page):
     disables every export button, and so must disable their keys."""
     page.evaluate("""() => {
       const m = window.__lastModel;
-      m.addCause({x: 150, y: 200});
-      m.addPreventativeControl(m.causes[0].id);
-      m.connectLineDirectlyToTle(m._lineFor(m.causes[0].id).id, null);
+      m.addThreat({x: 150, y: 200});
+      m.addPreventativeControl(m.threats[0].id);
+      m.connectLineDirectlyToTle(m._lineFor(m.threats[0].id).id, null);
     }""")
     page.wait_for_timeout(80)
 
@@ -39,7 +39,7 @@ def _orphan_a_barrier(page):
 # --- The export/import keys ----------------------------------------------
 
 def test_ctrl_s_exports_json_and_clears_the_unsaved_flag(page):
-    _add_cause(page)
+    _add_threat(page)
     _no_save_picker(page)
     assert page.evaluate("() => window.__lastUnsavedChanges.dirty") is True
 
@@ -52,9 +52,9 @@ def test_ctrl_s_exports_json_and_clears_the_unsaved_flag(page):
 def test_ctrl_s_inside_a_text_field_does_not_export(page):
     """Typing a node name and reaching for Ctrl+S is the browser's own
     save-page shortcut, not ours -- and must not fire an export either."""
-    _add_cause(page)
+    _add_threat(page)
     _no_save_picker(page)
-    box = page.locator("#bowtie-canvas .node.cause").first.bounding_box()
+    box = page.locator("#bowtie-canvas .node.threat").first.bounding_box()
     page.mouse.dblclick(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     page.wait_for_timeout(100)
 
@@ -76,7 +76,7 @@ def test_a_blocking_warning_disables_the_export_keys_too(page):
 
 
 def test_shortcuts_are_inert_while_a_modal_is_open(page):
-    _add_cause(page)
+    _add_threat(page)
     _no_save_picker(page)
     page.click("#menu-trigger-view")
     page.click("#btn-risk-summary")
@@ -92,8 +92,8 @@ def test_shortcuts_are_inert_while_a_modal_is_open(page):
 # --- Selection and Delete -------------------------------------------------
 
 def test_clicking_a_node_selects_it_and_delete_removes_it_undoably(page):
-    _add_cause(page)
-    node = page.locator("#bowtie-canvas .node.cause").first
+    _add_threat(page)
+    node = page.locator("#bowtie-canvas .node.threat").first
     box = node.bounding_box()
     page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     page.wait_for_timeout(80)
@@ -101,20 +101,20 @@ def test_clicking_a_node_selects_it_and_delete_removes_it_undoably(page):
 
     page.keyboard.press("Delete")
     page.wait_for_timeout(120)
-    assert page.evaluate("() => window.__lastModel.causes.length") == 0
-    assert page.locator("#bowtie-canvas .node.cause").count() == 0
+    assert page.evaluate("() => window.__lastModel.threats.length") == 0
+    assert page.locator("#bowtie-canvas .node.threat").count() == 0
 
     page.click("#btn-undo")
     page.wait_for_timeout(120)
-    assert page.evaluate("() => window.__lastModel.causes.length") == 1
+    assert page.evaluate("() => window.__lastModel.threats.length") == 1
     assert page.locator("#bowtie-canvas .node.selected").count() == 0, "the restored node is not re-selected"
 
 
 def test_clicking_a_barrier_selects_it_and_escape_clears_the_selection(page):
     page.evaluate("""() => {
       const m = window.__lastModel;
-      m.addCause({x: 150, y: 200});
-      m.addPreventativeControl(m.causes[0].id);
+      m.addThreat({x: 150, y: 200});
+      m.addPreventativeControl(m.threats[0].id);
     }""")
     page.wait_for_timeout(120)
 
@@ -139,15 +139,15 @@ def test_the_top_event_and_hazard_are_never_selected(page):
 
 
 def test_delete_with_nothing_selected_changes_nothing(page):
-    _add_cause(page)
+    _add_threat(page)
     page.keyboard.press("Delete")
     page.wait_for_timeout(120)
-    assert page.evaluate("() => window.__lastModel.causes.length") == 1
+    assert page.evaluate("() => window.__lastModel.threats.length") == 1
 
 
 def test_clicking_empty_canvas_clears_the_selection(page):
-    _add_cause(page)
-    box = page.locator("#bowtie-canvas .node.cause").first.bounding_box()
+    _add_threat(page)
+    box = page.locator("#bowtie-canvas .node.threat").first.bounding_box()
     page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     page.wait_for_timeout(80)
     assert page.locator("#bowtie-canvas .node.selected").count() == 1

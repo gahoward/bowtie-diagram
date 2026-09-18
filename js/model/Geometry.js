@@ -9,7 +9,7 @@
   // file that cares what a shape actually measures, turns each of those
   // promises into an actual guarantee instead.
   Bowtie.Geometry = {
-    CAUSE_OUTCOME_W: 140,
+    THREAT_CONSEQUENCE_W: 140,
     TLE_DEFAULT_R: 70,
     HAZARD_W: 170,
     HAZARD_H: 70,

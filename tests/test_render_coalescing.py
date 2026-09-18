@@ -41,12 +41,12 @@ def test_dragging_coalesces_many_pointermoves_into_a_handful_of_renders(page):
     Dispatching synthetic PointerEvents directly, all within one synchronous
     script, reproduces that burst: DragController.moveElement fires 30
     times before the event loop gets anywhere near a paint."""
-    page.evaluate("() => { window.__lastModel.addCause({x: 150, y: 200}); }")
+    page.evaluate("() => { window.__lastModel.addThreat({x: 150, y: 200}); }")
     page.wait_for_timeout(100)
 
     def do_drag():
         page.evaluate("""() => {
-          const nodeEl = document.querySelector('#bowtie-canvas .node.cause');
+          const nodeEl = document.querySelector('#bowtie-canvas .node.threat');
           const rect = nodeEl.getBoundingClientRect();
           const startX = rect.left + rect.width / 2;
           const startY = rect.top + rect.height / 2;
@@ -67,10 +67,10 @@ def test_dragging_coalesces_many_pointermoves_into_a_handful_of_renders(page):
     )
     assert render_count >= 1, "the drag must still render at least once (the final drop position)"
 
-    final_x = page.evaluate("() => window.__lastModel.causes[0].x")
+    final_x = page.evaluate("() => window.__lastModel.threats[0].x")
     assert final_x > 150  # sanity: the drag actually moved it
 
-    node = page.locator("#bowtie-canvas .node.cause")
+    node = page.locator("#bowtie-canvas .node.threat")
     rendered_box = node.bounding_box()
     svg_x = page.evaluate("""() => {
       const svg = document.querySelector('#bowtie-canvas');
@@ -102,7 +102,7 @@ def test_minimap_reclone_is_debounced_across_a_mutation_burst(page):
     try:
         page.evaluate("""() => {
           const m = window.__lastModel;
-          for (let i = 0; i < 5; i += 1) m.addCause({x: 150 + i * 10, y: 200});
+          for (let i = 0; i < 5; i += 1) m.addThreat({x: 150 + i * 10, y: 200});
         }""")
         immediately_after = page.evaluate("() => window.__minimapRenderCount")
         page.wait_for_timeout(200)  # past CONTENT_DEBOUNCE_MS
@@ -119,10 +119,10 @@ def test_minimap_reclone_is_debounced_across_a_mutation_burst(page):
 
 def test_a_single_non_drag_mutation_still_renders_synchronously(page):
     """Only drag-driven renders coalesce -- an ordinary click-driven action
-    (Add Cause) must still paint on the very next microtask/frame boundary
+    (Add Threat) must still paint on the very next microtask/frame boundary
     with no artificial delay, matching every other test in this suite that
     asserts DOM state right after a short wait."""
     render_count = _count_renders_during(page, lambda: page.evaluate(
-        "() => { window.__lastModel.addCause({x: 150, y: 200}); }"
+        "() => { window.__lastModel.addThreat({x: 150, y: 200}); }"
     ))
     assert render_count == 1

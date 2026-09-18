@@ -56,7 +56,7 @@ def test_start_screen_has_one_primary_action_a_demo_chooser_and_one_open_zone(br
         # No developer shortcut or internal-id leak in first-run copy.
         text = pg.locator(".modal-dialog").text_content()
         assert "Ctrl+Alt+D" not in text
-        assert "C_1" not in text
+        assert "T_1" not in text
     finally:
         assert pg.errors == []
         pg.close()
@@ -92,11 +92,11 @@ def test_explore_the_demo_populates_the_editor_and_dismisses_the_modal(browser, 
         pg.wait_for_timeout(150)
         state = pg.evaluate("""() => {
           const m = window.__lastModel;
-          return { mode: m.mode, causeCount: m.causes.length, outcomeCount: m.outcomes.length, warnings: m.getWarnings().length };
+          return { mode: m.mode, threatCount: m.threats.length, consequenceCount: m.consequences.length, warnings: m.getWarnings().length };
         }""")
         assert state["mode"] == "simple", "the chooser's default variant"
-        assert state["causeCount"] > 0
-        assert state["outcomeCount"] > 0
+        assert state["threatCount"] > 0
+        assert state["consequenceCount"] > 0
         assert state["warnings"] == 0, "the shipped demo must not import with orphaned barriers"
         assert pg.locator(".modal-overlay").count() == 0
     finally:
@@ -107,9 +107,9 @@ def test_explore_the_demo_populates_the_editor_and_dismisses_the_modal(browser, 
 def test_every_demo_variant_loads_with_no_warnings(browser, base_url):
     """proposals/06: the demo is the first thing a new user sees, so it
     must not open with the warnings badge lit. The Quantitative variant's
-    cause frequencies are per-year magnitudes (~0.01-0.1/yr) precisely so
+    threat frequencies are per-year magnitudes (~0.01-0.1/yr) precisely so
     its low-demand barrier measures sit on the correct side of IEC
-    61511's ~1/year boundary. `C_4 Unknown` stays: the excluded-cause
+    61511's ~1/year boundary. `T_4 Unknown` stays: the excluded-threat
     rule is a deliberate teaching case and raises no warning."""
     pg = _fresh_page(browser, base_url)
     try:
@@ -175,7 +175,7 @@ def test_ctrl_alt_d_loads_the_demo_while_the_welcome_modal_is_open(browser, base
     pg = _fresh_page(browser, base_url)
     try:
         _press_ctrl_alt_d(pg)
-        assert pg.evaluate("() => window.__lastModel.causes.length") > 0
+        assert pg.evaluate("() => window.__lastModel.threats.length") > 0
         assert pg.locator(".modal-overlay").count() == 0
     finally:
         assert pg.errors == []
@@ -190,18 +190,18 @@ def test_ctrl_alt_d_does_nothing_once_the_welcome_modal_has_closed(browser, base
     try:
         complete_new_bowtie_wizard(pg)
         pg.wait_for_timeout(150)
-        pg.evaluate("() => { window.__lastModel.addCause({x: 150, y: 200, name: 'Real work'}); }")
+        pg.evaluate("() => { window.__lastModel.addThreat({x: 150, y: 200, name: 'Real work'}); }")
         pg.wait_for_timeout(80)
 
         _press_ctrl_alt_d(pg)
 
         state = pg.evaluate("""() => {
           const m = window.__lastModel;
-          const first = m.causes[0];
-          return { causeCount: m.causes.length, firstCauseName: first ? m.getNode(first.nodeId).name : null };
+          const first = m.threats[0];
+          return { threatCount: m.threats.length, firstThreatName: first ? m.getNode(first.nodeId).name : null };
         }""")
-        assert state["causeCount"] == 1
-        assert state["firstCauseName"] == "Real work"
+        assert state["threatCount"] == 1
+        assert state["firstThreatName"] == "Real work"
     finally:
         assert pg.errors == []
         pg.close()
@@ -238,7 +238,7 @@ _DROP_JS = """(selector) => {
       name: 'Dropped Bowtie',
       hazard: { id: 'H_1', name: 'Hazard' },
       topLevelEvent: { id: 'TLE_1', name: 'Top-Level Event' },
-      causes: [], outcomes: [], preventativeBarriers: [], mitigativeBarriers: [], lines: [],
+      threats: [], consequences: [], preventativeBarriers: [], mitigativeBarriers: [], lines: [],
     })],
     'dropped.json',
     { type: 'application/json' },

@@ -1,5 +1,5 @@
 (function (Bowtie) {
-  // "Focus": clicking a Cause, Outcome, or a specific line greys out
+  // "Focus": clicking a Threat, Consequence, or a specific line greys out
   // everything on that same side not connected to the selection. Purely a
   // transient UI/view concern — not diagram data, computed fresh from the
   // model's Lines each time, and re-applied after every render (since
@@ -78,7 +78,7 @@
       this.selectedId = null;
       if (nodeEl) {
         const nodeId = nodeEl.getAttribute('data-id');
-        const placement = [...this.model.causes, ...this.model.outcomes,
+        const placement = [...this.model.threats, ...this.model.consequences,
           ...this.model.preventativeBarriers, ...this.model.mitigativeBarriers]
           .find((p) => p.nodeId === nodeId);
         if (placement) this.selectedId = placement.id;
@@ -87,7 +87,7 @@
       let clickedLineIds = null;
       if (nodeEl) {
         const type = nodeEl.className.baseVal || nodeEl.getAttribute('class') || '';
-        if (type.includes('cause') || type.includes('outcome')) {
+        if (type.includes('threat') || type.includes('consequence')) {
           const id = nodeEl.getAttribute('data-id');
           const line = this.model._lineFor(id);
           if (line) clickedLineIds = [line.id];
@@ -117,7 +117,7 @@
     }
 
     // Programmatic focus on one placement (the Warnings modal's "Show"):
-    // a Cause/Outcome focuses its own Line, a barrier every Line through
+    // a Threat/Consequence focuses its own Line, a barrier every Line through
     // it -- the same effect as clicking the node, without the click. A
     // placement with no Line at all (an orphaned barrier -- exactly what
     // the blocking warnings are about) clears focus instead, since there
@@ -126,7 +126,7 @@
       const placement = this.model.findById(placementId);
       if (!placement) return;
       let lineIds = [];
-      if (placement.type === 'cause' || placement.type === 'outcome') {
+      if (placement.type === 'threat' || placement.type === 'consequence') {
         const line = this.model._lineFor(placementId);
         if (line) lineIds = [line.id];
       } else {
@@ -156,7 +156,7 @@
         .map((id) => this.model.lines.find((l) => l.id === id))
         .filter(Boolean);
       if (focusedLines.length === 0) return;
-      const side = focusedLines[0].originType; // 'cause' | 'outcome'
+      const side = focusedLines[0].originType; // 'threat' | 'consequence'
 
       // Line.originId/.stops are internal PLACEMENT ids (never rendered),
       // but a node's DOM element is keyed by its NODE id (`data-id` --
@@ -174,11 +174,11 @@
         const cls = n.getAttribute('class') || '';
         const id = n.getAttribute('data-id');
         let dim = false;
-        if (side === 'cause') {
-          if (cls.includes(' cause')) dim = !relatedOriginIds.has(id);
+        if (side === 'threat') {
+          if (cls.includes(' threat')) dim = !relatedOriginIds.has(id);
           else if (cls.includes('preventative-barrier')) dim = !relatedBarrierIds.has(id);
         } else {
-          if (cls.includes(' outcome')) dim = !relatedOriginIds.has(id);
+          if (cls.includes(' consequence')) dim = !relatedOriginIds.has(id);
           else if (cls.includes('mitigative-barrier')) dim = !relatedBarrierIds.has(id);
         }
         n.classList.toggle('dimmed', dim);
@@ -188,9 +188,9 @@
         const role = l.getAttribute('data-role');
         if (!role) { l.classList.remove('dimmed'); return; } // Hazard<->TLE: always visible
         const lineId = l.getAttribute('data-line-id');
-        const relevantSide = side === 'cause'
-          ? ['cause-line', 'cause-direct'].includes(role)
-          : ['outcome-line', 'outcome-direct'].includes(role);
+        const relevantSide = side === 'threat'
+          ? ['threat-line', 'threat-direct'].includes(role)
+          : ['consequence-line', 'consequence-direct'].includes(role);
         if (!relevantSide) { l.classList.remove('dimmed'); return; }
         l.classList.toggle('dimmed', !this.focusedLineIds.has(lineId));
       });

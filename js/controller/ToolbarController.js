@@ -5,11 +5,11 @@
     // (ui_fitness_proposal.md S1), so there is exactly one place the
     // analysis is renamed rather than a separate Rename dialog too.
     constructor(model, {
-      addCauseBtn, addOutcomeBtn, nameEl, onRename,
+      addThreatBtn, addConsequenceBtn, nameEl, onRename,
     }) {
       this.model = model;
-      addCauseBtn.addEventListener('click', () => this._openCreateOrChoose('cause', (opts) => this.model.addCause(opts)));
-      addOutcomeBtn.addEventListener('click', () => this._openCreateOrChoose('outcome', (opts) => this.model.addOutcome(opts)));
+      addThreatBtn.addEventListener('click', () => this._openCreateOrChoose('threat', (opts) => this.model.addThreat(opts)));
+      addConsequenceBtn.addEventListener('click', () => this._openCreateOrChoose('consequence', (opts) => this.model.addConsequence(opts)));
 
       this.nameEl = nameEl;
       nameEl.addEventListener('click', () => onRename());
@@ -21,8 +21,8 @@
       this.nameEl.textContent = this.model.name;
     }
 
-    // node_library_proposal.md ask 3: the toolbar's "Add Cause"/"Add
-    // Outcome" buttons go through the same shared create-or-choose modal
+    // node_library_proposal.md ask 3: the toolbar's "Add Threat"/"Add
+    // Consequence" buttons go through the same shared create-or-choose modal
     // as every other creation entry point.
     _openCreateOrChoose(type, addFn) {
       Bowtie.openCreateOrChooseNodeModal({

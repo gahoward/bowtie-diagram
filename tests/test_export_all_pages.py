@@ -9,14 +9,14 @@ the live canvas is never disturbed and the user never has to switch tabs.
 
 
 def _two_pages(page):
-    """Page one keeps the wizard's C_1; page two gets its own cause, so
+    """Page one keeps the wizard's T_1; page two gets its own threat, so
     each exported file can be told apart by its own node's name."""
     page.evaluate("""() => {
       const m = window.__lastModel;
       m.renamePage(m.pages[0].id, { name: 'Topside' });
-      m.addCause({ x: 150, y: 200, name: 'Topside Leak' });
+      m.addThreat({ x: 150, y: 200, name: 'Topside Leak' });
       const p2 = m.addPage({ name: 'Subsea' });
-      m.addCause({ x: 150, y: 200, pageId: p2.id, name: 'Subsea Leak' });
+      m.addThreat({ x: 150, y: 200, pageId: p2.id, name: 'Subsea Leak' });
     }""")
     page.wait_for_timeout(100)
 
@@ -122,9 +122,9 @@ def test_export_all_pages_as_png_writes_png_files(page):
 def test_all_page_exports_are_blocked_by_a_blocking_warning(page):
     page.evaluate("""() => {
       const m = window.__lastModel;
-      m.addCause({x: 150, y: 200});
-      m.addPreventativeControl(m.causes[0].id);
-      m.connectLineDirectlyToTle(m._lineFor(m.causes[0].id).id, null);
+      m.addThreat({x: 150, y: 200});
+      m.addPreventativeControl(m.threats[0].id);
+      m.connectLineDirectlyToTle(m._lineFor(m.threats[0].id).id, null);
     }""")
     page.wait_for_timeout(100)
     for btn in ("btn-export-all-svg", "btn-export-all-png", "btn-print"):
@@ -139,8 +139,8 @@ def test_print_builds_a_sheet_per_page_plus_the_risk_summary(page):
       const m = window.__lastModel;
       m.setMode('quantitative');
       m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
-      m.renameNode(m.causes[0].nodeId, { frequency: { value: '1E-5' } });
-      const o = m.addOutcome({ x: 1200, y: 200, name: 'Fire' });
+      m.renameNode(m.threats[0].nodeId, { frequency: { value: '1E-5' } });
+      const o = m.addConsequence({ x: 1200, y: 200, name: 'Fire' });
       m.renameNode(o.nodeId, { severityClassId: 'major' });
       window.__printed = 0;
       window.print = () => { window.__printed += 1; };

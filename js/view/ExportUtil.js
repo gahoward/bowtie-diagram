@@ -19,8 +19,8 @@
       .node .shape { stroke-width: 2; }
       .node.top-level-event .shape { stroke: ${v('tle-stroke')}; }
       .node.hazard .shape { stroke: ${v('hazard-stroke')}; }
-      .node.cause .shape { fill: ${v('cause-fill')}; stroke: ${v('cause-stroke')}; }
-      .node.outcome .shape { fill: ${v('outcome-fill')}; stroke: ${v('outcome-stroke')}; }
+      .node.threat .shape { fill: ${v('threat-fill')}; stroke: ${v('threat-stroke')}; }
+      .node.consequence .shape { fill: ${v('consequence-fill')}; stroke: ${v('consequence-stroke')}; }
       .node.preventative-barrier .shape, .node.mitigative-barrier .shape { fill: ${v('control-fill')}; stroke: ${v('control-stroke')}; }
       .connection-label { font-size: 10px; fill: ${v('connection-label')}; text-anchor: start; }
       .node text { font-family: system-ui, -apple-system, Segoe UI, Arial, sans-serif; font-size: 13px; fill: ${v('node-text')}; }
@@ -300,7 +300,7 @@
   // native-picker-then-download path every other export uses. The BOM
   // is what makes Excel open a UTF-8 CSV as UTF-8 rather than as the
   // system's legacy code page -- without it a degree sign or an en dash
-  // in an outcome name arrives mangled.
+  // in an consequence name arrives mangled.
   function exportText(text, filename, { mimeType = 'text/plain', description = 'Text File', extension = '.txt', bom = false } = {}) {
     const body = bom ? `\uFEFF${text}` : text;
     return saveBlob(
