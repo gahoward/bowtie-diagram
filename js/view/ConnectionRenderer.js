@@ -215,6 +215,37 @@
       }
     });
 
+    // Escalation lines (proposals/08): one per escalation factor, running
+    // VERTICALLY from the factor's top edge up into the bottom edge of the
+    // barrier it degrades, with its escalation barriers as flat bars
+    // across that line. Dashed, and in its own class, so it reads as
+    // "degrades" rather than as a path anything flows along -- the one
+    // edge on the canvas that is not part of a threat-to-consequence
+    // story.
+    //
+    // A factor whose barrier isn't on this page (or has just been
+    // deleted) draws nothing rather than a line to nowhere: the model's
+    // own cascade removes it a moment later.
+    model.escalationFactors.forEach((factor) => {
+      const barrier = model.findById(factor.barrierId);
+      if (!barrier) return;
+      const barrierBounds = boundsById[barrier.nodeId] || boundsById[barrier.id];
+      if (!barrierBounds) return;
+      const factorBounds = boundsById[factor.id];
+      const factorTop = {
+        x: factor.x,
+        y: factor.y - (factorBounds ? factorBounds.h : factor.h) / 2,
+      };
+      const barrierBottom = {
+        x: factor.x,
+        y: (barrierBounds.cy !== undefined ? barrierBounds.cy : barrier.y) + barrierBounds.h / 2,
+      };
+      frag.appendChild(makeLine(factorTop, barrierBottom, 'escalation', {
+        'data-role': 'escalation-line',
+        'data-line-id': (model.lines.find((l) => l.originId === factor.id) || {}).id || '',
+      }));
+    });
+
     return frag;
   }
 

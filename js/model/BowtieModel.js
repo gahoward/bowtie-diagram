@@ -516,7 +516,10 @@
         id: `PLACEMENT_${this.idCounters.placement}`,
         type: 'escalationFactor',
         nodeId: node.id,
-        x: opts.x ?? barrier.x + barrier.w / 2 - w / 2,
+        // A placement's `x`/`y` are its CENTRE (ShapeRenderer draws each
+        // rect at `x - w / 2`), so a factor centred under its barrier
+        // shares the barrier's x exactly -- no half-width arithmetic.
+        x: opts.x ?? barrier.x,
         y: opts.y ?? barrier.y + barrier.h + Bowtie.Geometry.ESCALATION_GAP
           + stack * (h + Bowtie.Geometry.ESCALATION_GAP),
         w,

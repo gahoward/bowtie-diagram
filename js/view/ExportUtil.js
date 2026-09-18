@@ -22,6 +22,9 @@
       .node.threat .shape { fill: ${v('threat-fill')}; stroke: ${v('threat-stroke')}; }
       .node.consequence .shape { fill: ${v('consequence-fill')}; stroke: ${v('consequence-stroke')}; }
       .node.preventative-barrier .shape, .node.mitigative-barrier .shape { fill: ${v('control-fill')}; stroke: ${v('control-stroke')}; }
+      .node.escalation-factor .shape { fill: ${v('escalation-fill')}; stroke: ${v('escalation-stroke')}; }
+      .node.escalation-barrier .shape { fill: ${v('control-fill')}; stroke: ${v('control-stroke')}; }
+      .connection.escalation { stroke: ${v('escalation-stroke')}; stroke-dasharray: 5 4; stroke-width: 1.5; }
       .connection-label { font-size: 10px; fill: ${v('connection-label')}; text-anchor: start; }
       .node text { font-family: system-ui, -apple-system, Segoe UI, Arial, sans-serif; font-size: 13px; fill: ${v('node-text')}; }
       .node-info-text-emphasized text { fill: ${v('node-text')}; }

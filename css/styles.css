@@ -11,6 +11,12 @@
   --consequence-stroke: #b45309;
   --control-fill: #e5e7eb;
   --control-stroke: #374151;
+  /* Escalation factors (proposals/08). A fourth hue is a real cost on a
+     canvas already using blue/amber/red/grey, so it is a muted purple
+     used for exactly one thing; escalation barriers stay in the barrier
+     grey, because that is what they are. */
+  --escalation-fill: #ede9fe;
+  --escalation-stroke: #6d28d9;
   --connection: #6b7280;
   --node-text: #111827;
   --connection-label: #4b5563;
@@ -410,6 +416,24 @@ html, body {
 .node.mitigative-barrier .shape {
   fill: var(--control-fill);
   stroke: var(--control-stroke);
+}
+
+.node.escalation-factor .shape {
+  fill: var(--escalation-fill);
+  stroke: var(--escalation-stroke);
+}
+
+.node.escalation-barrier .shape {
+  fill: var(--control-fill);
+  stroke: var(--control-stroke);
+}
+
+/* Dashed, and thinner than a path anything flows along: an escalation
+   line means "degrades", not "leads to". */
+.connection.escalation {
+  stroke: var(--escalation-stroke);
+  stroke-dasharray: 5 4;
+  stroke-width: 1.5;
 }
 
 .node text {

@@ -215,10 +215,11 @@
         id: `PLACEMENT_${model.idCounters.placement}`,
         type: 'escalationBarrier',
         nodeId: node.id,
-        // Centred on the factor's own vertical line, one gap above
-        // whatever it was chained from -- stops run factor-to-barrier,
-        // so each new one sits closer to the barrier.
-        x: opts.x ?? factor.x + factor.w / 2 - w / 2,
+        // Centred on the factor's own vertical line (a placement's x is
+        // its centre), one gap above whatever it was chained from --
+        // stops run factor-to-barrier, so each new one sits closer to
+        // the barrier.
+        x: opts.x ?? factor.x,
         y: opts.y ?? anchor.y - Bowtie.Geometry.ESCALATION_GAP,
         w,
         h,

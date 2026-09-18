@@ -162,6 +162,58 @@
     };
   }
 
+  // An escalation factor hangs BELOW the barrier it degrades, so unlike a
+  // Threat/Consequence its box is sized to its own text rather than to a
+  // fixed lane, and unlike a barrier it carries its label inside itself
+  // (there is no room under it -- the next factor in the stack is there).
+  //
+  // `stableId` for a factor is its PLACEMENT id, not its node id. Every
+  // other kind can rely on "at most one placement per node per page" to
+  // make the node id unambiguous in the DOM; a factor is the one kind
+  // that can legitimately appear twice on a page, degrading two different
+  // barriers (proposals/08), so the placement id is what makes each of
+  // those two boxes addressable. `displayId` is still the node's, so both
+  // read "EF_1" -- which is the point.
+  function renderEscalationFactor(svgRoot, node, stableId, displayId, displayName) {
+    const lines = Bowtie.TextWrap.wrapText(svgRoot, displayName, node.w - 16, FONT_SIZE);
+    const h = Math.max(node.h, (lines.length + 1) * LINE_HEIGHT + 14);
+    const g = el('g', { class: 'node escalation-factor', 'data-id': stableId });
+    g.appendChild(el('rect', {
+      x: node.x - node.w / 2, y: node.y - h / 2, width: node.w, height: h,
+      rx: 8, ry: 8, class: 'shape',
+    }));
+    g.appendChild(textBlock(node.x, node.y, displayId, lines));
+    return { g, bounds: { w: node.w, h } };
+  }
+
+  // The same bar a preventative/mitigative barrier draws, lying flat: an
+  // escalation barrier sits ON the vertical escalation line, so its long
+  // axis is horizontal. Its label sits to the right rather than below,
+  // for the same reason -- below is where the line continues.
+  function renderEscalationBarrier(svgRoot, node, stableId, displayId, displayName) {
+    const g = el('g', { class: 'node escalation-barrier', 'data-id': stableId });
+    g.appendChild(el('rect', {
+      x: node.x - node.w / 2, y: node.y - node.h / 2, width: node.w, height: node.h,
+      rx: 3, ry: 3, class: 'shape',
+    }));
+    const labelLines = Bowtie.TextWrap.wrapText(svgRoot, displayName, BARRIER_LABEL_MAX_WIDTH, FONT_SIZE);
+    const labelX = node.x + node.w / 2 + LABEL_GAP;
+    const labelBlockHeight = (labelLines.length + 1) * LINE_HEIGHT;
+    const label = textBlock(labelX, node.y, displayId, labelLines);
+    label.setAttribute('text-anchor', 'start');
+    g.appendChild(label);
+    return {
+      g,
+      bounds: {
+        w: node.w,
+        h: node.h,
+        labelCenterY: node.y,
+        labelRight: labelX + BARRIER_LABEL_MAX_WIDTH,
+        labelHalfHeight: labelBlockHeight / 2,
+      },
+    };
+  }
+
   Bowtie.ShapeRenderer = {
     renderTopLevelEvent,
     renderHazard,
@@ -177,5 +229,7 @@
     renderMitigativeBarrier: (svgRoot, node, laneYs, stableId, displayId, displayName) => renderControl(
       svgRoot, node, 'mitigative-barrier', laneYs, stableId, displayId, displayName,
     ),
+    renderEscalationFactor,
+    renderEscalationBarrier,
   };
 })(window.Bowtie = window.Bowtie || {});

@@ -408,6 +408,40 @@
         }
       });
 
+      // Escalation factors and their controls (proposals/08), rendered
+      // after the barriers so a factor's bounds can be measured against
+      // the barrier it hangs off. A factor is keyed in the DOM by its
+      // PLACEMENT id rather than its node id: it is the one kind that can
+      // appear twice on a page (degrading two barriers), so the node id
+      // would not be unique here -- see ShapeRenderer.
+      model.escalationFactors.forEach((factor) => {
+        const { displayId, displayName } = displayFor(factor);
+        const result = Bowtie.ShapeRenderer.renderEscalationFactor(
+          this.svgRoot, factor, factor.id, displayId, displayName,
+        );
+        boundsById[factor.id] = result.bounds;
+        nodeGroups.push(result.g);
+        extend(factor.x, factor.y, result.bounds.w / 2, result.bounds.h / 2);
+      });
+
+      model.escalationBarriers.forEach((eb) => {
+        const { stableId, displayId, displayName } = displayFor(eb);
+        const result = Bowtie.ShapeRenderer.renderEscalationBarrier(
+          this.svgRoot, eb, stableId, displayId, displayName,
+        );
+        boundsById[eb.id] = result.bounds;
+        boundsById[stableId] = result.bounds;
+        nodeGroups.push(result.g);
+        extend(eb.x, eb.y, result.bounds.w / 2, result.bounds.h / 2);
+        // Its label runs to the RIGHT rather than below (the line
+        // continues below it), so the content bounds have to follow it
+        // there or an export crops it.
+        extend(
+          (eb.x + result.bounds.labelRight) / 2, result.bounds.labelCenterY,
+          Math.abs(result.bounds.labelRight - eb.x) / 2, result.bounds.labelHalfHeight,
+        );
+      });
+
       const connectionsFragment = Bowtie.ConnectionRenderer.render(model, boundsById, hazardLayout, opts);
 
       this.connectionsLayer.replaceChildren(connectionsFragment);

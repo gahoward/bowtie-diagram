@@ -77,17 +77,28 @@
       // through the model rather than assuming the two are the same.
       this.selectedId = null;
       if (nodeEl) {
-        const nodeId = nodeEl.getAttribute('data-id');
+        const domId = nodeEl.getAttribute('data-id');
         const placement = [...this.model.threats, ...this.model.consequences,
-          ...this.model.preventativeBarriers, ...this.model.mitigativeBarriers]
-          .find((p) => p.nodeId === nodeId);
+          ...this.model.preventativeBarriers, ...this.model.mitigativeBarriers,
+          ...this.model.escalationBarriers]
+          .find((p) => p.nodeId === domId)
+          // An escalation factor is keyed by its own placement id, not its
+          // node id -- it is the one kind that can appear twice on a page.
+          || this.model.escalationFactors.find((f) => f.id === domId);
         if (placement) this.selectedId = placement.id;
       }
 
       let clickedLineIds = null;
       if (nodeEl) {
         const type = nodeEl.className.baseVal || nodeEl.getAttribute('class') || '';
-        if (type.includes('threat') || type.includes('consequence')) {
+        // An escalation factor focuses its own escalation line
+        // (proposals/08) -- checked first, because its class string also
+        // contains neither "threat" nor "consequence" but its data-id is
+        // a placement id rather than a node id.
+        if (type.includes('escalation-factor')) {
+          const line = this.model._lineFor(nodeEl.getAttribute('data-id'));
+          if (line) clickedLineIds = [line.id];
+        } else if (type.includes('threat') || type.includes('consequence')) {
           const id = nodeEl.getAttribute('data-id');
           const line = this.model._lineFor(id);
           if (line) clickedLineIds = [line.id];
@@ -142,8 +153,11 @@
       // Re-applied after every render, like the dimming below: CanvasView
       // replaces the whole node layer, so the class has to be put back.
       const selected = this.selectedId ? this.model.findById(this.selectedId) : null;
+      const selectedDomId = selected
+        ? (selected.type === 'escalationFactor' ? selected.id : selected.nodeId)
+        : null;
       nodes.forEach((n) => {
-        n.classList.toggle('selected', Boolean(selected) && n.getAttribute('data-id') === selected.nodeId);
+        n.classList.toggle('selected', Boolean(selected) && n.getAttribute('data-id') === selectedDomId);
       });
 
       if (!this.focusedLineIds) {
