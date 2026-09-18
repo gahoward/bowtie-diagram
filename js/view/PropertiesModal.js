@@ -4,6 +4,8 @@
     consequence: 'Consequence',
     preventativeBarrier: 'Preventative Barrier',
     mitigativeBarrier: 'Mitigative Barrier',
+    escalationFactor: 'Escalation Factor',
+    escalationBarrier: 'Escalation Barrier',
     topLevelEvent: 'Top-Level Event',
     hazard: 'Hazard',
   };
@@ -232,8 +234,17 @@
   // mode), and a read-only Computed section wherever BowtieModel has
   // something derived to show.
   function openPropertiesModal({ model, el, displayUnit = 'hour' }) {
-    const isNode = ['threat', 'consequence', 'preventativeBarrier', 'mitigativeBarrier'].includes(el.type);
-    const isBarrier = el.type === 'preventativeBarrier' || el.type === 'mitigativeBarrier';
+    const isNode = [
+      'threat', 'consequence', 'preventativeBarrier', 'mitigativeBarrier',
+      'escalationFactor', 'escalationBarrier',
+    ].includes(el.type);
+    // Escalation factors and their controls carry the same descriptive
+    // metadata a barrier does -- type, owner, effectiveness -- because the
+    // same questions apply ("whose job is this, and how well does it
+    // work?"). They carry no `protection`: an escalation factor is
+    // deliberately outside the quantitative fold (proposals/08), so the
+    // Risk Analysis section has nothing to offer them either.
+    const isBarrier = ['preventativeBarrier', 'mitigativeBarrier', 'escalationBarrier'].includes(el.type);
     const node = isNode ? model.getNode(el.nodeId) : null;
     const currentName = isNode ? node.name : el.name;
     const displayId = isNode ? model.displayIdentifierFor(node) : el.id;
@@ -272,6 +283,18 @@
       effectivenessField = makeSelectField('Effectiveness', EFFECTIVENESS_LEVELS, node.effectiveness);
       barrierSection.appendChild(effectivenessField.wrap);
       body.appendChild(barrierSection);
+    }
+    // An escalation factor gets an owner but no type or effectiveness
+    // (proposals/08 proposed all three). A factor is a PROBLEM, not a
+    // control: "how effective is this degradation?" has no answer, and
+    // "hardware or human?" describes the thing being degraded rather than
+    // the degradation. Who is accountable for it, though, is exactly what
+    // an escalation factor needs recorded against it.
+    if (el.type === 'escalationFactor') {
+      const ownerSection = makeSection('Ownership');
+      ownerField = makeTextField('Owner', node.owner);
+      ownerSection.appendChild(ownerField.wrap);
+      body.appendChild(ownerSection);
     }
 
     let riskFields = null;
@@ -333,6 +356,9 @@
                     owner: ownerField.input.value.trim(),
                     effectiveness: effectivenessField.select.value || null,
                   } : {}),
+                  // An escalation factor has an owner and nothing else
+                  // from that group -- see the Ownership section above.
+                  ...(el.type === 'escalationFactor' ? { owner: ownerField.input.value.trim() } : {}),
                   ...riskValues,
                 });
               } else {

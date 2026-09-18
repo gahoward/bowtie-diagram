@@ -18,14 +18,18 @@
       "consequence": 5,
       "preventativeBarrier": 4,
       "mitigativeBarrier": 4,
-      "line": 10,
-      "placement": 18
+      "line": 11,
+      "placement": 20,
+      "escalationFactor": 1,
+      "escalationBarrier": 1
     },
     "retiredIds": {
       "threat": [],
       "consequence": [],
       "preventativeBarrier": [],
-      "mitigativeBarrier": []
+      "mitigativeBarrier": [],
+      "escalationFactor": [],
+      "escalationBarrier": []
     },
     "pages": [
       {
@@ -320,6 +324,15 @@
           "PLACEMENT_18"
         ],
         "pageId": "PAGE_2"
+      },
+      {
+        "id": "LINE_11",
+        "originType": "escalationFactor",
+        "originId": "PLACEMENT_19",
+        "stops": [
+          "PLACEMENT_20"
+        ],
+        "pageId": "PAGE_1"
       }
     ],
     "library": {
@@ -552,11 +565,66 @@
           "owner": "Emergency Response",
           "effectiveness": "medium"
         }
+      ],
+      "escalationFactor": [
+        {
+          "id": "EF_1",
+          "type": "escalationFactor",
+          "name": "ESDV not proof tested on schedule",
+          "description": "Valve closure time drifts out of specification between overhauls.",
+          "identifier": "",
+          "likelihoodClassId": null,
+          "severityClassId": null,
+          "frequency": null,
+          "protection": null,
+          "barrierType": null,
+          "owner": "Maintenance",
+          "effectiveness": null
+        }
+      ],
+      "escalationBarrier": [
+        {
+          "id": "EB_1",
+          "type": "escalationBarrier",
+          "name": "Quarterly partial-stroke test",
+          "description": "Scheduled test regime with results trended against the closure-time limit.",
+          "identifier": "",
+          "likelihoodClassId": null,
+          "severityClassId": null,
+          "frequency": null,
+          "protection": null,
+          "barrierType": "human",
+          "owner": "Maintenance",
+          "effectiveness": "medium"
+        }
       ]
     },
     "identifierDisplayMode": "internal",
     "mode": "simple",
-    "riskMatrix": null
+    "riskMatrix": null,
+    "escalationFactors": [
+      {
+        "id": "PLACEMENT_19",
+        "nodeId": "EF_1",
+        "x": 470,
+        "y": 335,
+        "w": 120,
+        "h": 44,
+        "pageId": "PAGE_1",
+        "barrierId": "PLACEMENT_11"
+      }
+    ],
+    "escalationBarriers": [
+      {
+        "id": "PLACEMENT_20",
+        "nodeId": "EB_1",
+        "x": 470,
+        "y": 265,
+        "w": 55,
+        "h": 18,
+        "pageId": "PAGE_1"
+      }
+    ]
   },
   "qualitative": {
     "version": 12,
@@ -567,14 +635,18 @@
       "consequence": 5,
       "preventativeBarrier": 4,
       "mitigativeBarrier": 4,
-      "line": 10,
-      "placement": 18
+      "line": 11,
+      "placement": 20,
+      "escalationFactor": 1,
+      "escalationBarrier": 1
     },
     "retiredIds": {
       "threat": [],
       "consequence": [],
       "preventativeBarrier": [],
-      "mitigativeBarrier": []
+      "mitigativeBarrier": [],
+      "escalationFactor": [],
+      "escalationBarrier": []
     },
     "pages": [
       {
@@ -869,6 +941,15 @@
           "PLACEMENT_18"
         ],
         "pageId": "PAGE_2"
+      },
+      {
+        "id": "LINE_11",
+        "originType": "escalationFactor",
+        "originId": "PLACEMENT_19",
+        "stops": [
+          "PLACEMENT_20"
+        ],
+        "pageId": "PAGE_1"
       }
     ],
     "library": {
@@ -1101,6 +1182,38 @@
           "owner": "Emergency Response",
           "effectiveness": "medium"
         }
+      ],
+      "escalationFactor": [
+        {
+          "id": "EF_1",
+          "type": "escalationFactor",
+          "name": "ESDV not proof tested on schedule",
+          "description": "Valve closure time drifts out of specification between overhauls.",
+          "identifier": "",
+          "likelihoodClassId": null,
+          "severityClassId": null,
+          "frequency": null,
+          "protection": null,
+          "barrierType": null,
+          "owner": "Maintenance",
+          "effectiveness": null
+        }
+      ],
+      "escalationBarrier": [
+        {
+          "id": "EB_1",
+          "type": "escalationBarrier",
+          "name": "Quarterly partial-stroke test",
+          "description": "Scheduled test regime with results trended against the closure-time limit.",
+          "identifier": "",
+          "likelihoodClassId": null,
+          "severityClassId": null,
+          "frequency": null,
+          "protection": null,
+          "barrierType": "human",
+          "owner": "Maintenance",
+          "effectiveness": "medium"
+        }
       ]
     },
     "identifierDisplayMode": "internal",
@@ -1287,7 +1400,30 @@
           "A"
         ]
       ]
-    }
+    },
+    "escalationFactors": [
+      {
+        "id": "PLACEMENT_19",
+        "nodeId": "EF_1",
+        "x": 470,
+        "y": 335,
+        "w": 120,
+        "h": 44,
+        "pageId": "PAGE_1",
+        "barrierId": "PLACEMENT_11"
+      }
+    ],
+    "escalationBarriers": [
+      {
+        "id": "PLACEMENT_20",
+        "nodeId": "EB_1",
+        "x": 470,
+        "y": 265,
+        "w": 55,
+        "h": 18,
+        "pageId": "PAGE_1"
+      }
+    ]
   },
   "quantitative": {
     "version": 12,
@@ -1298,14 +1434,18 @@
       "consequence": 5,
       "preventativeBarrier": 4,
       "mitigativeBarrier": 4,
-      "line": 10,
-      "placement": 18
+      "line": 11,
+      "placement": 20,
+      "escalationFactor": 1,
+      "escalationBarrier": 1
     },
     "retiredIds": {
       "threat": [],
       "consequence": [],
       "preventativeBarrier": [],
-      "mitigativeBarrier": []
+      "mitigativeBarrier": [],
+      "escalationFactor": [],
+      "escalationBarrier": []
     },
     "pages": [
       {
@@ -1600,6 +1740,15 @@
           "PLACEMENT_18"
         ],
         "pageId": "PAGE_2"
+      },
+      {
+        "id": "LINE_11",
+        "originType": "escalationFactor",
+        "originId": "PLACEMENT_19",
+        "stops": [
+          "PLACEMENT_20"
+        ],
+        "pageId": "PAGE_1"
       }
     ],
     "library": {
@@ -1867,6 +2016,38 @@
           "owner": "Emergency Response",
           "effectiveness": "medium"
         }
+      ],
+      "escalationFactor": [
+        {
+          "id": "EF_1",
+          "type": "escalationFactor",
+          "name": "ESDV not proof tested on schedule",
+          "description": "Valve closure time drifts out of specification between overhauls.",
+          "identifier": "",
+          "likelihoodClassId": null,
+          "severityClassId": null,
+          "frequency": null,
+          "protection": null,
+          "barrierType": null,
+          "owner": "Maintenance",
+          "effectiveness": null
+        }
+      ],
+      "escalationBarrier": [
+        {
+          "id": "EB_1",
+          "type": "escalationBarrier",
+          "name": "Quarterly partial-stroke test",
+          "description": "Scheduled test regime with results trended against the closure-time limit.",
+          "identifier": "",
+          "likelihoodClassId": null,
+          "severityClassId": null,
+          "frequency": null,
+          "protection": null,
+          "barrierType": "human",
+          "owner": "Maintenance",
+          "effectiveness": "medium"
+        }
       ]
     },
     "identifierDisplayMode": "internal",
@@ -2053,7 +2234,30 @@
           "A"
         ]
       ]
-    }
+    },
+    "escalationFactors": [
+      {
+        "id": "PLACEMENT_19",
+        "nodeId": "EF_1",
+        "x": 470,
+        "y": 335,
+        "w": 120,
+        "h": 44,
+        "pageId": "PAGE_1",
+        "barrierId": "PLACEMENT_11"
+      }
+    ],
+    "escalationBarriers": [
+      {
+        "id": "PLACEMENT_20",
+        "nodeId": "EB_1",
+        "x": 470,
+        "y": 265,
+        "w": 55,
+        "h": 18,
+        "pageId": "PAGE_1"
+      }
+    ]
   }
 };
   // Back-compat alias for every existing call site written before demo

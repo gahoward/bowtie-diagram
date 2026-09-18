@@ -4,6 +4,8 @@
     { id: 'consequence', label: 'Consequences', singular: 'consequence' },
     { id: 'preventativeBarrier', label: 'Preventative', singular: 'preventative barrier' },
     { id: 'mitigativeBarrier', label: 'Mitigative', singular: 'mitigative barrier' },
+    { id: 'escalationFactor', label: 'Escalation', singular: 'escalation factor' },
+    { id: 'escalationBarrier', label: 'Esc. barriers', singular: 'escalation barrier' },
   ];
 
   function el(tag, className, text) {

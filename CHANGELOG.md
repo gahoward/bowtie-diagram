@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- Added **escalation factors** and **escalation barriers**
+  (`proposals/08`, schema v12) — the largest remaining gap between "a
+  bowtie diagram" and "a bowtie". An escalation factor is a condition
+  that degrades one specific barrier ("the ESDV isn't proof tested"); an
+  escalation barrier is the control on that ("a quarterly partial-stroke
+  test"). Add one from any barrier's context menu; it hangs below that
+  barrier, joined by a dashed line with its controls as bars across it.
+  Both are library node types, so the same factor can degrade barriers on
+  several pages. Two new warnings: an escalation barrier connected to
+  nothing blocks export, while a factor with no control is advisory —
+  "this barrier can be degraded and nothing is stopping that" is often
+  exactly what an analyst means to record. Auto-arrange reserves room for
+  the stack and pushes lower rows down; the demo ships with a worked
+  example. Escalation factors are structural only for now: they change no
+  computed figure, and the quantitative treatment is a separate proposal.
+
 - **Causes are now Threats and Outcomes are now Consequences**
   (`proposals/11`), the bowtie method's own terms, everywhere: labels,
   menus, the node library, model and JSON keys, CSS classes, and the

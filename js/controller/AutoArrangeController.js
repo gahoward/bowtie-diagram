@@ -85,6 +85,28 @@
   // no DOM/TextWrap access to measure any real label exactly.
   const LABEL_CLEARANCE = 96;
 
+  // Escalation factors (proposals/08) hang BELOW the barrier they degrade,
+  // in the one place nothing else on the canvas occupies -- but only if
+  // room is made for them, since every lane below that barrier would
+  // otherwise sit exactly where the stack wants to be.
+  const {
+    ESCALATION_GAP, ESCALATION_FACTOR_H, ESCALATION_BARRIER_H,
+  } = Bowtie.Geometry;
+  // What one barrier's whole escalation stack measures, top to bottom:
+  // its own label block first (the stack starts below that, or the
+  // vertical line would run straight through the barrier's name), then
+  // for each factor one gap per escalation barrier on its line, one more
+  // gap, and the factor's own box.
+  function escalationStackHeight(model, barrierId) {
+    const factors = model.escalationFactorsFor(barrierId);
+    if (factors.length === 0) return 0;
+    return LABEL_CLEARANCE + factors.reduce((total, factor) => {
+      const line = model._lineFor(factor.id);
+      const stops = line ? line.stops.length : 0;
+      return total + ((stops + 1) * ESCALATION_GAP) + ESCALATION_FACTOR_H + ESCALATION_GAP;
+    }, 0);
+  }
+
   // Minimum vertical gap between every OTHER pair of adjacent Threat/Consequence
   // leaf rows — i.e. between two different buildConsecutiveOrder blocks, or
   // between two singleton (unmerged) rows — sized so that no two
@@ -463,6 +485,77 @@
       });
     }
 
+    // Escalation factors hang off a barrier rather than sitting on a lane
+    // (proposals/08), so they are placed AFTER every lane is final: each
+    // barrier that has factors pushes everything below it further down by
+    // the height of its own stack, then the stack is laid out into the
+    // space that just opened.
+    //
+    // Mutates `updates` and `positionedY` in place, because the shift has
+    // to apply to positions this same arrange() already decided --
+    // including other barriers' -- rather than to the model's current
+    // (pre-arrange) ones.
+    _placeEscalationStacks(model, updates, positionedY) {
+      const withFactors = [...model.preventativeBarriers, ...model.mitigativeBarriers]
+        .filter((barrier) => model.escalationFactorsFor(barrier.id).length > 0);
+      if (withFactors.length === 0) return;
+
+      const yOf = (id) => {
+        const update = updates.find((u) => u.id === id);
+        return update ? update.y : positionedY.get(id);
+      };
+      const xOf = (id) => {
+        const update = updates.find((u) => u.id === id);
+        return update ? update.x : null;
+      };
+      // Top-down, so a stack that pushes rows below it has already been
+      // accounted for by the time the next one is measured.
+      const ordered = withFactors.slice().sort((a, b) => yOf(a.id) - yOf(b.id));
+
+      ordered.forEach((barrier) => {
+        const barrierY = yOf(barrier.id);
+        const stackHeight = escalationStackHeight(model, barrier.id);
+        // Everything whose lane sits below this barrier moves down by the
+        // whole stack height -- including the barrier's own label, which
+        // is why the stack starts below LABEL_CLEARANCE rather than at the
+        // box's edge.
+        updates.forEach((update) => {
+          if (update.id !== barrier.id && update.y > barrierY) update.y += stackHeight;
+        });
+        positionedY.forEach((y, id) => {
+          if (id !== barrier.id && y > barrierY) positionedY.set(id, y + stackHeight);
+        });
+
+        // The barrier's own box grows to cover every lane through it
+        // (Layout.controlBounds), so the stack starts below the BOTTOM of
+        // that grown box, not below the barrier's centre.
+        const laneYs = model.linesThrough(barrier.id)
+          .map((line) => yOf(line.originId))
+          .filter((y) => y !== undefined && y !== null);
+        const lanes = laneYs.length > 0 ? laneYs : [barrierY];
+        const boxBottom = Math.max(...lanes) + Math.max(barrier.h, Math.max(...lanes) - Math.min(...lanes)) / 2;
+        const columnX = xOf(barrier.id);
+
+        let cursor = boxBottom + LABEL_CLEARANCE;
+        model.escalationFactorsFor(barrier.id).forEach((factor) => {
+          const line = model._lineFor(factor.id);
+          const stops = line ? line.stops.slice() : [];
+          // Stops run factor-first, but they are laid out top-down from
+          // the barrier, so the LAST stop is the one nearest it.
+          stops.reverse().forEach((stopId, i) => {
+            updates.push({
+              id: stopId,
+              x: columnX,
+              y: cursor + ((i + 1) * ESCALATION_GAP) - (ESCALATION_BARRIER_H / 2),
+            });
+          });
+          const depth = (stops.length + 1) * ESCALATION_GAP;
+          updates.push({ id: factor.id, x: columnX, y: cursor + depth + (ESCALATION_FACTOR_H / 2) });
+          cursor += depth + ESCALATION_FACTOR_H + ESCALATION_GAP;
+        });
+      });
+    }
+
     arrange() {
       const { model } = this;
       const pcDepthCache = new Map();
@@ -627,6 +720,8 @@
       mcsByDepth.forEach((mcs, d) => placeWithPositionedY(mcs, mcColX(d)));
       placeWithPositionedY(consequenceCluster, pullChainsCloser ? consequenceOriginX : consequencesX);
       updates.push({ id: model.topLevelEvent.id, x: tleX, y: tleY });
+
+      this._placeEscalationStacks(model, updates, positionedY);
 
       model.setPositions(updates);
       if (this.onArranged) this.onArranged();

@@ -252,6 +252,22 @@ step for the app itself, so tests run directly against `index.html` as-is.
   banding either side of a boundary. Also proves the claim that adding a
   preset needs no UI change, by driving the wizard through to a document
   using it and checking the status strip names it.
+- **`test_model_escalation.py`** / **`test_escalation_rendering.py`** /
+  **`test_escalation_arrange.py`** / **`test_escalation_ui.py`** —
+  escalation factors (proposals/08), one file per layer. The model file
+  covers anchoring, the (node, barrier) uniqueness rule that lets one
+  factor degrade several barriers on a page, the cascades, both warnings
+  and their deliberately different severities, serialisation including
+  the per-page snapshot undo works from, and referential integrity.
+  Rendering covers the vertical dashed line, controls sitting on it, the
+  same factor drawn twice with distinct DOM ids, and the content bounds.
+  Arrange covers the stack landing under its barrier, rows below being
+  pushed down, two factors stacking without overlap, and — the
+  regression that matters — a barrier with no factors changing nothing.
+  The UI file drives the real menus rather than model methods, because
+  the point of that stage is that the existing create-or-choose, attach,
+  library and Properties machinery took the new types without parallel
+  versions of itself.
 - **`test_rename_terms.py`** — the Threats/Consequences rename
   (proposals/11). Not the mechanics of each layer but that the layers
   agree: new nodes get the rotated prefixes (`T_n` for a Threat, `C_n`

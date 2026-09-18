@@ -32,7 +32,12 @@ def test_library_is_tabbed_per_type_with_counts(page):
 
     assert page.locator(".modal-dialog-xwide").count() == 1
     tabs = page.locator(".node-library .settings-tab")
-    assert tabs.all_text_contents() == ["Threats (2)", "Consequences (1)", "Preventative (0)", "Mitigative (0)"]
+    assert tabs.all_text_contents() == [
+        "Threats (2)", "Consequences (1)", "Preventative (0)", "Mitigative (0)",
+        # Escalation factors and their barriers are library types too
+        # (proposals/08), so the manager lists them like any other.
+        "Escalation (0)", "Esc. barriers (0)",
+    ]
     assert page.locator(".node-library-row").count() == 2
     assert page.locator(".node-library-name").all_text_contents() == ["Gas Release", "Flange Leak"]
 

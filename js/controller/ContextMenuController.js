@@ -197,6 +197,24 @@
           });
         }
       }
+      if (el.type === 'escalationFactor') {
+        items.push({
+          label: 'Add Escalation Barrier',
+          action: () => this._openCreateOrChooseEscalation('escalationBarrier', el),
+        });
+        if (this.model.escalationBarriers.length > 0) {
+          items.push({
+            label: 'Attach to Existing Escalation Barrier…',
+            action: () => this.flows.openAttachModal(
+              'Attach Escalation Factor to Escalation Barrier',
+              this.model.escalationBarriers,
+              (eb) => this.flows.safeAttach(
+                () => this.model.attachExistingEscalationBarrier(el.id, eb.id),
+              ),
+            ),
+          });
+        }
+      }
       if (el.type === 'preventativeBarrier') {
         items.push({ label: 'Add Preventative Barrier', action: () => this._addPreventativeControlFrom(el) });
         // No "attach output to existing barrier" here: a barrier can carry
@@ -210,6 +228,15 @@
       if (el.type === 'mitigativeBarrier') {
         items.push({ label: 'Add Mitigative Barrier', action: () => this._addMitigativeControlFrom(el) });
         items.push(...this._buildShuntItems(el.id));
+      }
+      // Escalation factors hang off either kind of barrier (proposals/08)
+      // -- "what could stop this barrier working?" is the same question on
+      // both sides of the diagram.
+      if (el.type === 'preventativeBarrier' || el.type === 'mitigativeBarrier') {
+        items.push({
+          label: 'Add Escalation Factor…',
+          action: () => this._openCreateOrChooseEscalation('escalationFactor', el),
+        });
       }
       // Three groups, separated: create/rearrange (above), inspect, destroy.
       if (items.length > 0) items.push({ separator: true });
@@ -239,6 +266,21 @@
       const addFn = kind === 'preventativeBarrier'
         ? (opts) => this.model.addPreventativeControl(anchorEl.id, opts)
         : (opts) => this.model.addMitigativeControl(anchorEl.id, opts);
+      Bowtie.openCreateOrChooseNodeModal({
+        model: this.model,
+        type: kind,
+        onCreate: (fields) => addFn(fields),
+        onChooseExisting: (node) => addFn({ nodeId: node.id }),
+      });
+    }
+
+    // The escalation counterpart of _openCreateOrChooseBarrier: a factor
+    // is created on (or chosen for) the barrier it degrades, a control on
+    // the factor it answers.
+    _openCreateOrChooseEscalation(kind, anchorEl) {
+      const addFn = kind === 'escalationFactor'
+        ? (opts) => this.model.addEscalationFactor(anchorEl.id, opts)
+        : (opts) => this.model.addEscalationBarrier(anchorEl.id, opts);
       Bowtie.openCreateOrChooseNodeModal({
         model: this.model,
         type: kind,

@@ -4,6 +4,8 @@
     consequence: 'Consequence',
     preventativeBarrier: 'Preventative Barrier',
     mitigativeBarrier: 'Mitigative Barrier',
+    escalationFactor: 'Escalation Factor',
+    escalationBarrier: 'Escalation Barrier',
   };
 
   function makeSection(title) {
