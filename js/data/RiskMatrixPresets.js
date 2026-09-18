@@ -196,6 +196,142 @@
         "A"
       ]
     ]
+  },
+  "milstd882e": {
+    "id": "milstd882e",
+    "name": "MIL-STD-882E",
+    "source": "MIL-STD-882E, Department of Defense Standard Practice: System Safety, 11 May 2012 -- Table I (Severity Categories), Table II (Probability Levels, specific individual item), Table III (Risk Assessment Matrix). Transcribed for this editor; check against a controlled copy of the standard, and against your programme's own tailoring of risk acceptance authority, before using it for a real assessment.",
+    "authoringUnit": "lifetime",
+    "authoringExposureHours": 100000,
+    "severityClasses": [
+      {
+        "id": "negligible",
+        "ordinal": 0,
+        "label": "Negligible (4)",
+        "description": "Injury or occupational illness not resulting in a lost work day, minimal environmental impact, or monetary loss less than $100K."
+      },
+      {
+        "id": "marginal",
+        "ordinal": 1,
+        "label": "Marginal (3)",
+        "description": "Injury or occupational illness resulting in one or more lost work days, reversible moderate environmental impact, or monetary loss of at least $100K but less than $1M."
+      },
+      {
+        "id": "critical",
+        "ordinal": 2,
+        "label": "Critical (2)",
+        "description": "Permanent partial disability, injuries or occupational illness that may result in hospitalization of at least three personnel, reversible significant environmental impact, or monetary loss of at least $1M but less than $10M."
+      },
+      {
+        "id": "catastrophic",
+        "ordinal": 3,
+        "label": "Catastrophic (1)",
+        "description": "Death, permanent total disability, irreversible significant environmental impact, or monetary loss of $10M or more."
+      }
+    ],
+    "likelihoodClasses": [
+      {
+        "id": "frequent",
+        "ordinal": 4,
+        "label": "Frequent (A)",
+        "description": "Likely to occur often in the life of an item: probability of occurrence greater than 10^-1.",
+        "minValue": "0.000001"
+      },
+      {
+        "id": "probable",
+        "ordinal": 3,
+        "label": "Probable (B)",
+        "description": "Will occur several times in the life of an item: probability of occurrence less than 10^-1 but greater than 10^-2.",
+        "minValue": "0.0000001"
+      },
+      {
+        "id": "occasional",
+        "ordinal": 2,
+        "label": "Occasional (C)",
+        "description": "Likely to occur sometime in the life of an item: probability of occurrence less than 10^-2 but greater than 10^-3.",
+        "minValue": "0.00000001"
+      },
+      {
+        "id": "remote",
+        "ordinal": 1,
+        "label": "Remote (D)",
+        "description": "Unlikely, but possible to occur in the life of an item: probability of occurrence less than 10^-3 but greater than 10^-6.",
+        "minValue": "0.00000000001"
+      },
+      {
+        "id": "improbable",
+        "ordinal": 0,
+        "label": "Improbable (E)",
+        "description": "So unlikely it can be assumed occurrence may not be experienced in the life of an item: probability of occurrence less than 10^-6. The standard's sixth level, Eliminated (F), is a state rather than a band -- the hazard has been removed and cannot occur -- so it has no boundary to band a computed figure against and is deliberately not listed here.",
+        "minValue": "0"
+      }
+    ],
+    "riskClasses": [
+      {
+        "id": "high",
+        "rank": 0,
+        "label": "High",
+        "colour": "#d32f2f",
+        "description": "Risk acceptance authority: Component Acquisition Executive (MIL-STD-882E 4.3.4, subject to programme tailoring).",
+        "reviewPeriod": "Accept only at Component Acquisition Executive level"
+      },
+      {
+        "id": "serious",
+        "rank": 1,
+        "label": "Serious",
+        "colour": "#f57c00",
+        "description": "Risk acceptance authority: Program Executive Officer (MIL-STD-882E 4.3.4, subject to programme tailoring).",
+        "reviewPeriod": "Accept only at Program Executive Officer level"
+      },
+      {
+        "id": "medium",
+        "rank": 2,
+        "label": "Medium",
+        "colour": "#fbc02d",
+        "description": "Risk acceptance authority: Program Manager (MIL-STD-882E 4.3.4, subject to programme tailoring).",
+        "reviewPeriod": "Accept at Program Manager level"
+      },
+      {
+        "id": "low",
+        "rank": 3,
+        "label": "Low",
+        "colour": "#388e3c",
+        "description": "Risk acceptance authority: Program Manager (MIL-STD-882E 4.3.4, subject to programme tailoring).",
+        "reviewPeriod": "Accept at Program Manager level"
+      }
+    ],
+    "cells": [
+      [
+        "low",
+        "medium",
+        "medium",
+        "medium"
+      ],
+      [
+        "low",
+        "medium",
+        "medium",
+        "serious"
+      ],
+      [
+        "low",
+        "medium",
+        "serious",
+        "high"
+      ],
+      [
+        "medium",
+        "serious",
+        "high",
+        "high"
+      ],
+      [
+        "medium",
+        "serious",
+        "high",
+        "high"
+      ]
+    ]
   }
 };
 })(window.Bowtie = window.Bowtie || {});

@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Added a second bundled risk matrix, **MIL-STD-882E** (`proposals/10`),
+  selectable in the New Bowtie wizard and Project Settings like Leaflet 5.
+  Its probability levels are stated per item life rather than per unit
+  time, so matrices can now be authored with `authoringUnit: "lifetime"`
+  plus the item life they assume (`authoringExposureHours`, 100,000 h in
+  the preset); the build converts through it at the same single rounding
+  point as the hour/year conversion, and the validator requires the field
+  rather than defaulting it, so the assumption stays visible and editable.
+  The standard's Eliminated (F) level is a state rather than a band and is
+  described in Improbable's text instead of being listed as a class no
+  computed value could reach. The preset's own `source` records that its
+  tables are a transcription to be checked against a controlled copy of
+  the standard.
 - Files from an older schema version are now upgraded on load rather than
   refused (`proposals/12`). `js/model/Migrations.js` holds a forward-only
   chain of pure JSON→JSON steps; a file newer than the editor is still

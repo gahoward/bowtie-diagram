@@ -221,3 +221,50 @@ def test_export_denormalize_leaves_hour_authored_matrix_unchanged(page):
       return denormalized.likelihoodClasses.find((c) => c.id === 'frequent').minValue;
     }""", VALID_MATRIX)
     assert result == "0.1"
+
+
+# --- "lifetime" authoring (proposals/10) ----------------------------------
+
+def test_lifetime_authoring_requires_a_positive_item_life(page):
+    """Per-item-life probabilities can't reach canonical events/hour
+    without one, and silently picking a default would bury exactly the
+    assumption the field exists to state."""
+    lifetime = {**VALID_MATRIX, "authoringUnit": "lifetime"}
+    missing = _validate(page, lifetime)
+    assert missing["ok"] is False
+    assert "authoringExposureHours" in missing["error"]
+
+    for bad in (0, -100, "not a number"):
+        result = _validate(page, {**lifetime, "authoringExposureHours": bad})
+        assert result["ok"] is False, f"{bad!r} should be rejected"
+
+    good = _validate(page, {**lifetime, "authoringExposureHours": 100000})
+    assert good["ok"] is True
+
+
+def test_lifetime_min_values_convert_by_dividing_by_the_item_life(page):
+    result = page.evaluate("""(m) => {
+      const validated = Bowtie.validateRiskMatrix(
+        { ...m, authoringUnit: 'lifetime', authoringExposureHours: 100000 },
+      );
+      return validated.matrix.likelihoodClasses.find((c) => c.id === 'frequent').minValue;
+    }""", VALID_MATRIX)
+    assert float(result) == 0.1 / 100000
+
+
+def test_lifetime_matrices_round_trip_through_export(page):
+    """Same rule as the per-year case: re-exporting has to give the
+    authored figure back, or a reimport would convert it twice."""
+    result = page.evaluate("""(m) => {
+      const lifetime = { ...m, authoringUnit: 'lifetime', authoringExposureHours: 100000 };
+      const validated = Bowtie.validateRiskMatrix(lifetime);
+      const denormalized = Bowtie.denormalizeRiskMatrixForExport(validated.matrix);
+      const reimported = Bowtie.validateRiskMatrix(denormalized);
+      return {
+        authored: denormalized.likelihoodClasses.find((c) => c.id === 'frequent').minValue,
+        first: validated.matrix.likelihoodClasses.find((c) => c.id === 'frequent').minValue,
+        second: reimported.matrix.likelihoodClasses.find((c) => c.id === 'frequent').minValue,
+      };
+    }""", VALID_MATRIX)
+    assert result["authored"] == "0.1"
+    assert result["first"] == result["second"]

@@ -227,6 +227,16 @@ step for the app itself, so tests run directly against `index.html` as-is.
   not, and the synthetic `beforeunload` event is only `preventDefault`ed
   while dirty. What happens to the work itself when the user leaves
   anyway is `test_recovery.py` below.
+- **`test_risk_matrix_882e.py`** — golden master for the bundled
+  MIL-STD-882E preset (proposals/10), mirroring `test_risk_matrix.py`'s
+  Leaflet 5 coverage: all 20 Table III cells against a transcription of
+  the standard kept at the top of the file, the per-item-life bands
+  converted through the declared item life, the export round-trip (a
+  matrix converted twice would have every boundary shifted), Eliminated
+  (F) deliberately absent as a band, well-formed axes and ranks, and
+  banding either side of a boundary. Also proves the claim that adding a
+  preset needs no UI change, by driving the wizard through to a document
+  using it and checking the status strip names it.
 - **`test_migrations.py`** — forward schema migrations (proposals/12):
   the shipped chain is empty, so these register a step and raise
   `SCHEMA_VERSION` in the page to stand in for the next bump — everything

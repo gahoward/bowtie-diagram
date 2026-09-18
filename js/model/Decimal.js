@@ -191,7 +191,27 @@
     return roundToSigFigs(converted, CONVERSION_SIG_FIGS);
   }
 
+  // The same conversion for a matrix whose bands are authored as a
+  // probability PER ITEM LIFE rather than per unit time -- MIL-STD-882E's
+  // levels are "likely to occur often in the life of an item, probability
+  // > 10^-1" and so on. Turning that into the app's canonical events/hour
+  // needs one number the standard deliberately does NOT supply: how many
+  // hours an item's life is. The matrix states its own assumption in
+  // `authoringExposureHours`, so a programme working to a different item
+  // life edits one field and re-imports rather than recomputing every
+  // band by hand. Rounds at the same single sanctioned point as
+  // convertHourYear -- there is no other rounding anywhere in the
+  // pipeline.
+  function convertLifetimeHour(decimal, direction, exposureHours) {
+    const exposure = Number(exposureHours);
+    if (!Number.isFinite(exposure) || exposure <= 0) return decimal;
+    const asNumber = Number(decimal.toDecimalString());
+    const converted = direction === 'hourToLifetime' ? asNumber * exposure : asNumber / exposure;
+    return roundToSigFigs(converted, CONVERSION_SIG_FIGS);
+  }
+
   Bowtie.Decimal = Decimal;
   Bowtie.HOURS_PER_YEAR = HOURS_PER_YEAR;
   Bowtie.convertHourYear = convertHourYear;
+  Bowtie.convertLifetimeHour = convertLifetimeHour;
 })(window.Bowtie = window.Bowtie || {});

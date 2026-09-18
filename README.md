@@ -15,6 +15,23 @@ Either way, Chrome/Edge get the nicest experience (native Save/Open dialogs), bu
 
 Prefer not to download anything? **[Try it live](https://gahoward.github.io/bowtie-diagram/)** — same app, hosted on GitHub Pages. On a Chromium browser this is actually the *best* experience: being served over HTTPS (unlike a downloaded file) unlocks the native Save/Open dialogs. Nothing you do there is saved on our end — it's the same local-only editor, just running from a URL instead of a file.
 
+## Risk matrices
+
+Two are bundled: **Leaflet 5 (Ships) Annex D** (DE&S S&EP Leaflet 5,
+Issue 3) and **MIL-STD-882E** (DoD Standard Practice: System Safety,
+11 May 2012). Pick one when you start a new analysis, or change it later
+in Settings › Project Settings, where you can also import your own as
+JSON. Selecting a preset embeds a copy in the document, so a later change
+to the bundled one never alters an analysis you have already saved.
+
+Both presets transcribe published tables. Check them against a
+controlled copy of the standard — and, for 882E, check the risk
+acceptance authorities against your programme's own tailoring — before
+relying on either for a real assessment. 882E's probability levels are
+stated per item life rather than per unit time, so its preset declares
+the item life it assumes (100,000 hours); edit that one field and
+re-import if your programme uses a different figure.
+
 ## Development
 
 To run from source instead of a downloaded release — e.g. to contribute — clone the repo and open `index.html` directly; there's no build step for day-to-day editing, `js/`, `css/`, and `index.html` are plain scripts loaded directly.

@@ -11,8 +11,23 @@
   function validateRiskMatrix(raw) {
     if (!raw || typeof raw !== 'object') return { ok: false, error: 'Not a JSON object.' };
     if (!raw.id || !raw.name || !raw.cells) return { ok: false, error: 'Missing id/name/cells.' };
-    if (!['hour', 'year'].includes(raw.authoringUnit)) {
-      return { ok: false, error: 'authoringUnit must be "hour" or "year".' };
+    if (!['hour', 'year', 'lifetime'].includes(raw.authoringUnit)) {
+      return { ok: false, error: 'authoringUnit must be "hour", "year" or "lifetime".' };
+    }
+    // "lifetime" means the bands are probabilities per item life rather
+    // than rates (MIL-STD-882E, proposals/10). The item life is the one
+    // number such a standard doesn't supply, so the matrix has to state
+    // its own assumption -- without it there is no way to reach canonical
+    // events/hour, and silently picking one would bury the assumption.
+    if (raw.authoringUnit === 'lifetime') {
+      const exposure = Number(raw.authoringExposureHours);
+      if (!Number.isFinite(exposure) || exposure <= 0) {
+        return {
+          ok: false,
+          error: 'authoringUnit "lifetime" requires a positive authoringExposureHours '
+            + '(the item life the probabilities are stated over, in hours).',
+        };
+      }
     }
 
     const severity = raw.severityClasses || [];
@@ -117,7 +132,11 @@
       } catch {
         return cls; // already reported above if this were reachable; kept defensive
       }
-      const canonical = raw.authoringUnit === 'year' ? Bowtie.convertHourYear(parsed, 'yearToHour') : parsed;
+      let canonical = parsed;
+      if (raw.authoringUnit === 'year') canonical = Bowtie.convertHourYear(parsed, 'yearToHour');
+      else if (raw.authoringUnit === 'lifetime') {
+        canonical = Bowtie.convertLifetimeHour(parsed, 'lifetimeToHour', raw.authoringExposureHours);
+      }
       return { ...cls, minValue: canonical.toDecimalString() };
     });
 
@@ -166,7 +185,11 @@
   function denormalizeRiskMatrixForExport(matrix) {
     const likelihoodClasses = matrix.likelihoodClasses.map((cls) => {
       const canonical = Bowtie.Decimal.parse(cls.minValue);
-      const authored = matrix.authoringUnit === 'year' ? Bowtie.convertHourYear(canonical, 'hourToYear') : canonical;
+      let authored = canonical;
+      if (matrix.authoringUnit === 'year') authored = Bowtie.convertHourYear(canonical, 'hourToYear');
+      else if (matrix.authoringUnit === 'lifetime') {
+        authored = Bowtie.convertLifetimeHour(canonical, 'hourToLifetime', matrix.authoringExposureHours);
+      }
       return { ...cls, minValue: authored.toDecimalString() };
     });
     return { ...matrix, likelihoodClasses };
