@@ -62,6 +62,14 @@
       return this.selectedId;
     }
 
+    // Public: the keyboard controller (proposals/13) moves the selection
+    // as focus moves, so the roving tabindex and the click selection are
+    // one piece of state rather than two that can disagree.
+    selectPlacement(placementId) {
+      this.selectedId = placementId;
+      this._apply();
+    }
+
     clearSelection() {
       this.selectedId = null;
       this._apply();

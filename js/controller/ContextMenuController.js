@@ -145,6 +145,20 @@
       });
     }
 
+    // The keyboard route into the same menu a right-click gives
+    // (proposals/13): Shift+F10 or the ContextMenu key on a focused node.
+    // Reuses _buildNodeItems unchanged -- the menu's contents must not
+    // depend on how it was opened -- and anchors at the node's own
+    // on-screen box rather than a pointer position.
+    openForElement(el, anchorRect, returnFocusTo = null) {
+      const items = this._buildNodeItems(el, { x: el.x, y: el.y });
+      if (items.length === 0) return null;
+      this.view.render(
+        anchorRect.left + anchorRect.width / 2, anchorRect.bottom, items, returnFocusTo,
+      );
+      return this.view.menuEl;
+    }
+
     _onDoubleClick(e) {
       const g = e.target.closest('.node');
       if (!g) return;

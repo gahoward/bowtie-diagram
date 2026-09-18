@@ -252,6 +252,16 @@ step for the app itself, so tests run directly against `index.html` as-is.
   banding either side of a boundary. Also proves the claim that adding a
   preset needs no UI change, by driving the wizard through to a document
   using it and checking the status strip names it.
+- **`test_canvas_keyboard.py`** — canvas keyboard and screen-reader
+  access (proposals/13): exactly one node tabbable and the tabindex
+  surviving a re-render, arrow navigation along a row and between lanes,
+  Home, down-into-an-escalation-stack, Enter/Shift+F10/Ctrl+arrow/Delete/
+  Escape, the accessible names matching the drawn figures, the canvas
+  landmark and the hidden minimap, the live region, and the context menu
+  behaving as a real menu that returns focus to the node it came from
+  (while a right-click menu deliberately does not steal focus). Note
+  every DOM query is scoped to `#bowtie-canvas`: the minimap clones the
+  node layer, ids and all.
 - **`test_model_escalation.py`** / **`test_escalation_rendering.py`** /
   **`test_escalation_arrange.py`** / **`test_escalation_ui.py`** —
   escalation factors (proposals/08), one file per layer. The model file

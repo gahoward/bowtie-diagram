@@ -80,6 +80,7 @@
     });
 
     let statusStrip = null;
+    let canvasKeyboard = null;
     const renderAll = () => {
       view.render(pageScopedModel, renderOpts());
       minimap.render(view.connectionsLayer, view.nodesLayer, view.getContentBounds());
@@ -87,6 +88,9 @@
       // renderAll runs before that point -- hence the `let` above and
       // this guard rather than a closure over a later `const`.
       if (statusStrip) statusStrip.render();
+      // CanvasView replaced every node element, so the one that carried
+      // `tabindex="0"` is gone -- put it back on whatever is selected.
+      if (canvasKeyboard) canvasKeyboard.applyRovingTabindex();
     };
     // Structural review finding 02: renderAll used to run synchronously off
     // every single _emitChange, which is exactly right for an ordinary
@@ -191,7 +195,7 @@
       () => preferences.arrangeSpacing,
       () => preferences.pullChainsCloser,
     );
-    new Bowtie.ContextMenuController(
+    const contextMenu = new Bowtie.ContextMenuController(
       pageScopedModel, svgRoot, () => autoArrange.arrange(), () => preferences.getDisplayUnit(),
       // `nodeLibrary` is constructed further down (design review finding
       // 04's "Delete from Library…" item needs it) -- same closure-over-a-
@@ -199,6 +203,25 @@
       (nodeId) => nodeLibrary.openForNode(nodeId),
     );
     const focus = new Bowtie.FocusController(pageScopedModel, svgRoot);
+
+    // Canvas keyboard access (proposals/13): a roving tabindex over the
+    // node groups, arrow navigation that follows the diagram rather than
+    // the DOM, and the same actions the pointer has. Shares
+    // FocusController's `selectedId`, so keyboard focus and click
+    // selection are one piece of state.
+    canvasKeyboard = new Bowtie.CanvasKeyboardController(pageScopedModel, svgRoot, focus, {
+      openProperties: (el) => Bowtie.openPropertiesModal({
+        model: pageScopedModel, el, displayUnit: preferences.getDisplayUnit(),
+      }),
+      openContextMenu: (el, rect, node) => contextMenu.openForElement(el, rect, node),
+      liveRegion: document.getElementById('canvas-live-region'),
+      // Escape leaves the canvas for the toolbar, the way Escape leaves
+      // any other composite widget.
+      onLeave: () => document.getElementById('menu-trigger-file').focus(),
+      // One undo entry per nudge -- the same explicit snapshot
+      // DragController takes once per drag gesture.
+      onBeforeNudge: () => undo.snapshot(pageTabs.getActivePageId()),
+    });
     const importExport = new Bowtie.ImportExportController(
       model,
       svgRoot,

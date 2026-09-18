@@ -75,11 +75,21 @@
       <input id="import-risk-matrix-input" type="file" accept="application/json,.json" hidden>
     </div>
     <div id="canvas-wrapper">
-      <svg id="bowtie-canvas" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 800">
+      <!-- role="application" so arrow keys reach the canvas's own
+           navigation rather than being eaten by the screen reader's
+           browse mode; every node carries a self-describing aria-label to
+           pay for that (proposals/13, open question 1). -->
+      <svg id="bowtie-canvas" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 800"
+           role="application" aria-roledescription="bowtie diagram"
+           aria-label="Bowtie diagram">
         <g id="connections-layer"></g>
         <g id="nodes-layer"></g>
       </svg>
       <div id="minimap-container"></div>
+      <!-- Announces the outcome of a keyboard action on the canvas
+           ("Removed T_1 from the page"). Polite, so it never interrupts
+           what the user is already hearing. -->
+      <div id="canvas-live-region" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
     </div>
     <!-- One bottom bar: the page tabs (rebuilt wholesale by PageTabsView,
          hence its own element) and the document's status strip beside it. -->
@@ -152,6 +162,7 @@
   <script src="js/controller/StatusStripController.js"></script>
   <script src="js/controller/PreferencesController.js"></script>
   <script src="js/controller/FocusController.js"></script>
+  <script src="js/controller/CanvasKeyboardController.js"></script>
   <script src="js/controller/ShortcutsController.js"></script>
 
   <script src="js/main.js"></script>

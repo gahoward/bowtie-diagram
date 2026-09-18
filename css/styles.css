@@ -634,6 +634,38 @@ html, body {
   cursor: help;
 }
 
+/* Visually hidden, still announced -- the live region under the canvas
+   (proposals/13). Not `display: none`, which would hide it from screen
+   readers as well as from sight. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Keyboard focus on a canvas node. Deliberately the same ring as
+   `.selected` (proposals/03): keyboard focus and mouse selection are one
+   concept in this app, so they look like one thing. */
+.node:focus {
+  outline: none;
+}
+
+.node:focus-visible .shape {
+  stroke: #1d4ed8;
+  stroke-width: 3;
+}
+
+.node:focus-visible text {
+  font-weight: 600;
+}
+
 /* The "Upgraded" notice's list of applied migrations (proposals/12). */
 .migration-list {
   margin: 8px 0 0;

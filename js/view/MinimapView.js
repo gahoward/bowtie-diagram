@@ -43,6 +43,20 @@
   // not a hand-drawn approximation of dots with no connecting lines at
   // all. A rectangle overlays the main canvas's current pan/zoom window;
   // click or drag anywhere on the minimap to jump the main view there.
+  // The clone inherits every attribute the live canvas set, including the
+  // roving tabindex (proposals/13) -- which would put a second, invisible
+  // copy of the diagram in the tab order, inside a container marked
+  // aria-hidden. Strip the interactive attributes from the copy: the
+  // minimap is a picture, not a control.
+  function stripInteractivity(clone) {
+    clone.querySelectorAll('[tabindex], [role], [aria-label], [focusable]').forEach((node) => {
+      node.removeAttribute('tabindex');
+      node.removeAttribute('role');
+      node.removeAttribute('aria-label');
+      node.removeAttribute('focusable');
+    });
+  }
+
   class MinimapView {
     constructor(containerEl, panZoom) {
       this.panZoom = panZoom;
@@ -51,6 +65,11 @@
       this._pendingLayers = null;
       this._debounceTimer = null;
 
+      // A duplicate of the canvas, for pointer navigation only: announced,
+      // it would read every node a second time, and its cloned copies
+      // would also duplicate the canvas's own tabindexes (proposals/13,
+      // open question 2).
+      containerEl.setAttribute('aria-hidden', 'true');
       this.svg = el('svg', {
         class: 'minimap', width: MINI_W, height: MINI_H, viewBox: `0 0 ${MINI_W} ${MINI_H}`,
       });
@@ -107,6 +126,7 @@
       const connectionsClone = connectionsLayer.cloneNode(true);
       const nodesClone = nodesLayer.cloneNode(true);
       rewriteDefIds(nodesClone);
+      stripInteractivity(nodesClone);
       this.contentGroup.appendChild(connectionsClone);
       this.contentGroup.appendChild(nodesClone);
     }

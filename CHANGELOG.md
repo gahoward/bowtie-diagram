@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **The canvas is now keyboard-operable and screen-reader navigable**
+  (`proposals/13`) — until now every surface but the canvas was, so a
+  keyboard-only user could start a bowtie and then do nothing with it.
+  Tab enters the canvas once; arrows move between nodes *along the
+  diagram* (left/right walk a threat's row through its barriers to the
+  top event and on to its consequences, up/down move between lanes,
+  Home jumps to the top event, and down from a barrier drops into its
+  escalation stack). Enter opens Properties, Shift+F10 opens that node's
+  own menu, Ctrl+arrows nudge it in single undo steps, Delete removes it,
+  Escape leaves for the toolbar. Context menus became real `role=menu`
+  widgets with arrow navigation that return focus where they came from.
+  Every node announces what it is, what it is called and the figures
+  drawn beside it — built from the same strings the canvas prints, so the
+  spoken and drawn versions cannot drift — and keyboard actions are
+  announced in a live region. The minimap is hidden from assistive
+  technology, being a duplicate view.
 - Added **escalation factors** and **escalation barriers**
   (`proposals/08`, schema v12) — the largest remaining gap between "a
   bowtie diagram" and "a bowtie". An escalation factor is a condition

@@ -163,6 +163,133 @@
     // like an Unknown threat, it's silently SKIPPED from the fold instead
     // (Quantitative.js's own "conservative" skip rule) -- worth flagging
     // on the barrier itself since nothing else surfaces it.
+    // The three "at a glance" summaries the canvas prints under a node.
+    // Extracted from render() so CanvasKeyboardController's accessible
+    // names (proposals/13) are built from the SAME strings a sighted user
+    // reads -- a screen-reader name that drifts from the drawing is worse
+    // than none, because nothing would ever catch it.
+    // What a screen reader says for one node: what it is, what it is
+    // called, and whatever figures the canvas prints beside it -- built
+    // from the same info-line builders below, so the spoken and the drawn
+    // versions cannot disagree (proposals/13).
+    //
+    // A barrier also says which lines run through it, because that is the
+    // one thing a sighted user reads from the picture (the bar crossing
+    // two lanes) and a screen-reader user cannot.
+    _accessibleName(model, placement, displayUnit) {
+      const TYPE_WORDS = {
+        threat: 'Threat',
+        consequence: 'Consequence',
+        preventativeBarrier: 'Preventative barrier',
+        mitigativeBarrier: 'Mitigative barrier',
+        escalationFactor: 'Escalation factor',
+        escalationBarrier: 'Escalation barrier',
+      };
+      const node = model.getNode(placement.nodeId);
+      const parts = [`${TYPE_WORDS[placement.type] || placement.type} ${model.displayIdentifierFor(node)}`];
+      if (node.name) parts.push(node.name);
+
+      if (placement.type === 'threat') parts.push(...this._threatInfoLines(model, placement, displayUnit));
+      else if (placement.type === 'consequence') {
+        parts.push(...this._consequenceInfoLines(model, placement, displayUnit));
+        const assessment = model.mode !== 'simple' && model.riskMatrix
+          ? model.assessConsequence(placement.id) : null;
+        if (assessment && assessment.post && assessment.post.riskClass) {
+          parts.push(`risk class ${assessment.post.riskClass.label}`);
+          if (assessment.pre && assessment.pre.riskClass) {
+            parts.push(`pre-mitigation ${assessment.pre.riskClass.label}`);
+          }
+        }
+      } else if (placement.type === 'preventativeBarrier' || placement.type === 'mitigativeBarrier') {
+        parts.push(...this._barrierInfoLines(model, node).lines);
+        const origins = model.linesThrough(placement.id)
+          .map((line) => model.findById(line.originId))
+          .filter(Boolean)
+          .map((origin) => model.displayIdentifierFor(model.getNode(origin.nodeId)));
+        if (origins.length > 0) parts.push(`on lines from ${origins.join(' and ')}`);
+        const factors = model.escalationFactorsFor(placement.id);
+        if (factors.length > 0) parts.push(`${factors.length} escalation factor${factors.length > 1 ? 's' : ''}`);
+      } else if (placement.type === 'escalationFactor') {
+        const barrier = model.findById(placement.barrierId);
+        if (barrier) parts.push(`degrades ${model.displayIdentifierFor(model.getNode(barrier.nodeId))}`);
+      }
+      return parts.join(', ');
+    }
+
+    // The top event and the hazard are not library nodes -- they belong to
+    // the page, one each, and carry their own name -- so they get their
+    // own small builder rather than being forced through the placement
+    // one.
+    _fixtureName(model, el, displayUnit) {
+      if (el.type === 'hazard') return `Hazard, ${el.name}`;
+      if (el.type !== 'topLevelEvent') return el.name || el.type;
+      return [`Top event, ${el.name}`, ...this._tleInfoLines(model, displayUnit)].join(', ');
+    }
+
+    _tleInfoLines(model, displayUnit) {
+      // Quantitative mode only: Qualitative has no arithmetic combination
+      // defined for threats (each is a direct class pick).
+      if (model.mode !== 'quantitative') return [];
+      const residual = model.computeTleLikelihoodForActivePage();
+      const text = this._formatLikelihood(residual.value, displayUnit);
+      if (!text) return [];
+      // Design review finding 11: name the active aggregation right on the
+      // figure it produced, since 'max' and 'sum' are both valid, very
+      // differently-valued answers for the same diagram. Appended in
+      // parens so this stays a superstring of "Likelihood: <value>".
+      const lines = [`Likelihood: ${text} (${model.tleAggregation})`];
+      if (residual.excludedThreatCount) lines.push(`(${residual.excludedThreatCount} excluded)`);
+      return lines;
+    }
+
+    // An explicit "Unknown" line (rather than silence) matters here: an
+    // Unknown frequency isn't just "not shown", it EXCLUDES this threat
+    // from the TLE's calculation entirely.
+    _threatInfoLines(model, threat, displayUnit) {
+      if (model.mode === 'simple') return [];
+      const node = model.getNode(threat.nodeId);
+      const lines = [];
+      if (model.mode === 'qualitative' && model.riskMatrix && node.likelihoodClassId) {
+        const likelihood = Bowtie.RiskMatrix.likelihoodClass(model.riskMatrix, node.likelihoodClassId);
+        if (likelihood) lines.push(`Likelihood: ${likelihood.label}`);
+      } else if (model.mode === 'quantitative' && node.frequency) {
+        if (node.frequency.unknown) {
+          lines.push('Frequency: Unknown');
+        } else {
+          const text = this._formatLikelihood(Bowtie.RiskMatrix.quantityToDecimal(node.frequency), displayUnit);
+          if (text) lines.push(`Frequency: ${text}`);
+        }
+      }
+      return lines;
+    }
+
+    _consequenceInfoLines(model, consequence, displayUnit) {
+      if (model.mode === 'simple') return [];
+      const node = model.getNode(consequence.nodeId);
+      const lines = [];
+      if (model.riskMatrix && node.severityClassId) {
+        const severity = Bowtie.RiskMatrix.severityClass(model.riskMatrix, node.severityClassId);
+        if (severity) lines.push(`Severity: ${severity.label}`);
+      }
+      if (model.mode === 'qualitative' && model.riskMatrix && node.likelihoodClassId) {
+        const likelihood = Bowtie.RiskMatrix.likelihoodClass(model.riskMatrix, node.likelihoodClassId);
+        if (likelihood) lines.push(`Likelihood: ${likelihood.label}`);
+      } else if (model.mode === 'quantitative') {
+        const residual = model.computeConsequenceLikelihood(consequence.id);
+        const text = this._formatLikelihood(residual.value, displayUnit);
+        // Same finding-11 labeling as the TLE: this figure derives from
+        // the TLE's own aggregated likelihood, so it carries the same
+        // 'max'-vs-'sum' dependency.
+        if (text) lines.push(`Likelihood: ${text} (${model.tleAggregation})`);
+        // The same figure with every barrier removed -- the "before" half
+        // of the badge pair, as an actual number.
+        const inherent = model.computeConsequenceLikelihood(consequence.id, { includeBarriers: false });
+        const inherentText = this._formatLikelihood(inherent.value, displayUnit);
+        if (inherentText) lines.push(`Pre-mitigation: ${inherentText}`);
+      }
+      return lines;
+    }
+
     _barrierInfoLines(model, node) {
       if (model.mode !== 'quantitative' || !node.protection) return { lines: [], title: null };
       if (node.protection.unknown) return { lines: ['Barrier: Unknown'], title: null };
@@ -201,22 +328,11 @@
       // its own known preventative barriers, Quantitative mode only --
       // Qualitative mode has no arithmetic combination defined for threats
       // (each is a direct class pick, nothing to combine at the TLE).
-      if (model.mode === 'quantitative') {
-        const residual = model.computeTleLikelihoodForActivePage();
-        const text = this._formatLikelihood(residual.value, displayUnit);
-        if (text) {
-          // Design review finding 11: name the active aggregation right on
-          // the figure it produced, since 'max' and 'sum' are both valid,
-          // very differently-valued answers to "what's the TLE's
-          // likelihood" for the exact same diagram. Appended in parens
-          // (rather than before the value) so this stays a superstring of
-          // the original "Likelihood: <value>" text.
-          const lines = [`Likelihood: ${text} (${model.tleAggregation})`];
-          if (residual.excludedThreatCount) lines.push(`(${residual.excludedThreatCount} excluded)`);
-          const infoY = model.topLevelEvent.y + tleResult.bounds.r + 14;
-          nodeGroups.push(this._renderInfoText(model.topLevelEvent.x, infoY, lines, { emphasized: true }));
-          extend(model.topLevelEvent.x, infoY + lines.length * 15, 60, 10);
-        }
+      const tleLines = this._tleInfoLines(model, displayUnit);
+      if (tleLines.length > 0) {
+        const infoY = model.topLevelEvent.y + tleResult.bounds.r + 14;
+        nodeGroups.push(this._renderInfoText(model.topLevelEvent.x, infoY, tleLines, { emphasized: true }));
+        extend(model.topLevelEvent.x, infoY + tleLines.length * 15, 60, 10);
       }
 
       const hazardLayout = Bowtie.Layout.hazardLayout(
@@ -261,21 +377,8 @@
         // TLE's max-of-known-frequencies calculation entirely (BowtieModel.
         // computeTleLikelihood) -- worth flagging on the threat itself, not
         // just as an aggregate count at the TLE.
-        if (model.mode !== 'simple') {
-          const threatNode = model.getNode(threat.nodeId);
-          const infoLines = [];
-          if (model.mode === 'qualitative' && model.riskMatrix && threatNode.likelihoodClassId) {
-            const likelihood = Bowtie.RiskMatrix.likelihoodClass(model.riskMatrix, threatNode.likelihoodClassId);
-            if (likelihood) infoLines.push(`Likelihood: ${likelihood.label}`);
-          } else if (model.mode === 'quantitative' && threatNode.frequency) {
-            if (threatNode.frequency.unknown) {
-              infoLines.push('Frequency: Unknown');
-            } else {
-              const freq = Bowtie.RiskMatrix.quantityToDecimal(threatNode.frequency);
-              const text = this._formatLikelihood(freq, displayUnit);
-              if (text) infoLines.push(`Frequency: ${text}`);
-            }
-          }
+        {
+          const infoLines = this._threatInfoLines(model, threat, displayUnit);
           if (infoLines.length > 0) {
             const emphasized = model.mode === 'quantitative';
             const infoY = threat.y + result.bounds.h / 2 + 14;
@@ -328,30 +431,8 @@
         // set, mode-aware (qualitative = the manual likelihood pick,
         // quantitative = the computed residual likelihood) -- silent when
         // this consequence's node has nothing set yet.
-        if (model.mode !== 'simple') {
-          const consequenceNode = model.getNode(consequence.nodeId);
-          const infoLines = [];
-          if (model.riskMatrix && consequenceNode.severityClassId) {
-            const severity = Bowtie.RiskMatrix.severityClass(model.riskMatrix, consequenceNode.severityClassId);
-            if (severity) infoLines.push(`Severity: ${severity.label}`);
-          }
-          if (model.mode === 'qualitative' && model.riskMatrix && consequenceNode.likelihoodClassId) {
-            const likelihood = Bowtie.RiskMatrix.likelihoodClass(model.riskMatrix, consequenceNode.likelihoodClassId);
-            if (likelihood) infoLines.push(`Likelihood: ${likelihood.label}`);
-          } else if (model.mode === 'quantitative') {
-            const residual = model.computeConsequenceLikelihood(consequence.id);
-            const text = this._formatLikelihood(residual.value, displayUnit);
-            // Same finding-11 labeling as the TLE badge above -- this
-            // figure is derived from the TLE's own aggregated likelihood
-            // (see computeConsequenceLikelihood), so it carries the same
-            // 'max'-vs-'sum' dependency.
-            if (text) infoLines.push(`Likelihood: ${text} (${model.tleAggregation})`);
-            // The same figure with every barrier removed -- the "before"
-            // half of the badge pair above, as an actual number.
-            const inherent = model.computeConsequenceLikelihood(consequence.id, { includeBarriers: false });
-            const inherentText = this._formatLikelihood(inherent.value, displayUnit);
-            if (inherentText) infoLines.push(`Pre-mitigation: ${inherentText}`);
-          }
+        {
+          const infoLines = this._consequenceInfoLines(model, consequence, displayUnit);
           if (infoLines.length > 0) {
             const emphasized = model.mode === 'quantitative';
             const infoY = consequence.y + result.bounds.h / 2 + 14;
@@ -443,6 +524,24 @@
       });
 
       const connectionsFragment = Bowtie.ConnectionRenderer.render(model, boundsById, hazardLayout, opts);
+
+      // Accessibility (proposals/13): every node becomes a focusable,
+      // self-describing group. `focusable="true"` is for Safari, which
+      // otherwise ignores tabindex on SVG elements. The roving tabindex
+      // itself -- exactly one node at 0, the rest at -1 -- is applied by
+      // CanvasKeyboardController after this render, since which node holds
+      // it is controller state that has to survive replaceChildren.
+      nodeGroups.forEach((g) => {
+        if (!g.classList || !g.classList.contains('node')) return;
+        const placement = model.findById(g.getAttribute('data-id'));
+        if (!placement) return;
+        g.setAttribute('role', 'group');
+        g.setAttribute('tabindex', '-1');
+        g.setAttribute('focusable', 'true');
+        g.setAttribute('aria-label', placement.nodeId
+          ? this._accessibleName(model, placement, displayUnit)
+          : this._fixtureName(model, placement, displayUnit));
+      });
 
       this.connectionsLayer.replaceChildren(connectionsFragment);
       this.nodesLayer.replaceChildren(...nodeGroups);
