@@ -11,14 +11,14 @@ instead of dividing. The single division happens at display.
 """
 
 
-def _ev(page, body):
-    return page.evaluate("() => {" + body + "\n}")
+def _ev(blank_page, body):
+    return blank_page.evaluate("() => {" + body + "\n}")
 
 
 # --- Exact division where the quotient terminates -------------------------
 
-def test_dividing_by_a_power_of_ten_is_exact(page):
-    result = _ev(page, """
+def test_dividing_by_a_power_of_ten_is_exact(blank_page):
+    result = _ev(blank_page, """
       const r = Bowtie.Rational.fromDecimal(Bowtie.Decimal.parse('0.001'))
         .divideBy(Bowtie.Decimal.parse('10'));
       return r.toExactDecimal().toDecimalString();
@@ -26,9 +26,9 @@ def test_dividing_by_a_power_of_ten_is_exact(page):
     assert result == "0.0001"
 
 
-def test_a_chain_of_barriers_divides_exactly(page):
+def test_a_chain_of_barriers_divides_exactly(blank_page):
     # 1E-3 through RRF 10 then RRF 100 -> 1E-6, with no rounding anywhere.
-    result = _ev(page, """
+    result = _ev(blank_page, """
       let r = Bowtie.Rational.fromDecimal(Bowtie.Decimal.parse('1E-3'));
       r = r.divideBy(Bowtie.Decimal.parse('10')).divideBy(Bowtie.Decimal.parse('100'));
       return r.toExactDecimal().toDecimalString();
@@ -36,8 +36,8 @@ def test_a_chain_of_barriers_divides_exactly(page):
     assert result == "0.000001"
 
 
-def test_non_power_of_ten_divisors_that_still_terminate(page):
-    result = _ev(page, """
+def test_non_power_of_ten_divisors_that_still_terminate(blank_page):
+    result = _ev(blank_page, """
       const one = () => Bowtie.Rational.fromDecimal(Bowtie.Decimal.parse('1'));
       return {
         byTwo:      one().divideBy(Bowtie.Decimal.parse('2')).toExactDecimal().toDecimalString(),
@@ -49,8 +49,8 @@ def test_non_power_of_ten_divisors_that_still_terminate(page):
     assert result == {"byTwo": "0.5", "byFour": "0.25", "byTwoFive": "0.4", "byTwenty": "0.05"}
 
 
-def test_non_terminating_quotient_reports_itself_as_inexact(page):
-    result = _ev(page, """
+def test_non_terminating_quotient_reports_itself_as_inexact(blank_page):
+    result = _ev(blank_page, """
       const third = Bowtie.Rational.fromDecimal(Bowtie.Decimal.parse('1'))
         .divideBy(Bowtie.Decimal.parse('3'));
       return { exact: third.toExactDecimal(), display: third.toDisplayNumber(6) };
@@ -61,12 +61,12 @@ def test_non_terminating_quotient_reports_itself_as_inexact(page):
 
 # --- Exact comparison, the reason this type exists ------------------------
 
-def test_comparison_is_exact_past_the_point_a_rounded_value_would_agree(page):
+def test_comparison_is_exact_past_the_point_a_rounded_value_would_agree(blank_page):
     """The crux of carrying a rational rather than dividing eagerly. 1/3 is
     strictly greater than 0.333333333333, but a calculation that divided and
     rounded to 12 significant figures would produce exactly that value and
     call the two equal."""
-    result = _ev(page, """
+    result = _ev(blank_page, """
       const third = Bowtie.Rational.fromDecimal(Bowtie.Decimal.parse('1'))
         .divideBy(Bowtie.Decimal.parse('3'));
       const twelveThrees = Bowtie.Decimal.parse('0.333333333333');
@@ -80,9 +80,9 @@ def test_comparison_is_exact_past_the_point_a_rounded_value_would_agree(page):
     assert result["whatRoundingWouldSay"] == 0, "rounded to 12 sig figs they are indistinguishable"
 
 
-def test_equal_values_with_different_denominators_compare_equal(page):
+def test_equal_values_with_different_denominators_compare_equal(blank_page):
     # 1/2 and 5/10 are the same number reached by different barrier chains.
-    result = _ev(page, """
+    result = _ev(blank_page, """
       const a = Bowtie.Rational.fromDecimal(Bowtie.Decimal.parse('1')).divideBy(Bowtie.Decimal.parse('2'));
       const b = Bowtie.Rational.fromDecimal(Bowtie.Decimal.parse('5')).divideBy(Bowtie.Decimal.parse('10'));
       return { compare: a.compare(b), aGreater: a.greaterThan(b), bGreater: b.greaterThan(a) };
@@ -90,8 +90,8 @@ def test_equal_values_with_different_denominators_compare_equal(page):
     assert result == {"compare": 0, "aGreater": False, "bGreater": False}
 
 
-def test_max_picks_the_largest_across_different_denominators(page):
-    result = _ev(page, """
+def test_max_picks_the_largest_across_different_denominators(blank_page):
+    result = _ev(blank_page, """
       const mk = (n, d) => Bowtie.Rational.fromDecimal(Bowtie.Decimal.parse(n))
         .divideBy(Bowtie.Decimal.parse(d));
       const values = [mk('1', '1000'), mk('1', '3'), mk('1', '10'), mk('1', '10000')];
@@ -100,17 +100,17 @@ def test_max_picks_the_largest_across_different_denominators(page):
     assert abs(result - 0.333333) < 1e-9, "1/3 is the largest of the four"
 
 
-def test_max_of_an_empty_list_is_null(page):
-    assert _ev(page, "return Bowtie.Rational.max([]);") is None
+def test_max_of_an_empty_list_is_null(blank_page):
+    assert _ev(blank_page, "return Bowtie.Rational.max([]);") is None
 
 
 # --- add/sum: design review finding 11's alternative aggregation ----------
 
-def test_add_across_different_denominators_is_exact(page):
+def test_add_across_different_denominators_is_exact(blank_page):
     # 1/1000 (1E-3 / RRF 1) + 1/10 (1E-3 / RRF 100, i.e. 1E-5) -- the
     # denominators differ, so this exercises the cross-multiplied numerator
     # add() has to do, not just Decimal.add's own alignment.
-    result = _ev(page, """
+    result = _ev(blank_page, """
       const a = Bowtie.Rational.fromDecimal(Bowtie.Decimal.parse('1E-3')).divideBy(Bowtie.Decimal.parse('1'));
       const b = Bowtie.Rational.fromDecimal(Bowtie.Decimal.parse('1E-3')).divideBy(Bowtie.Decimal.parse('100'));
       return a.add(b).toExactDecimal().toDecimalString();
@@ -118,8 +118,8 @@ def test_add_across_different_denominators_is_exact(page):
     assert result == "0.00101", "1E-3 + 1E-5 = 1.01E-3, exactly"
 
 
-def test_sum_of_several_contributions_matches_repeated_add(page):
-    result = _ev(page, """
+def test_sum_of_several_contributions_matches_repeated_add(blank_page):
+    result = _ev(blank_page, """
       const mk = (n, d) => Bowtie.Rational.fromDecimal(Bowtie.Decimal.parse(n))
         .divideBy(Bowtie.Decimal.parse(d));
       const values = [mk('1E-3', '1'), mk('1E-3', '10'), mk('1E-3', '100')];
@@ -128,12 +128,12 @@ def test_sum_of_several_contributions_matches_repeated_add(page):
     assert result == "0.00111", "1E-3 + 1E-4 + 1E-5 = 1.11E-3, exactly"
 
 
-def test_sum_of_an_empty_list_is_null(page):
-    assert _ev(page, "return Bowtie.Rational.sum([]);") is None
+def test_sum_of_an_empty_list_is_null(blank_page):
+    assert _ev(blank_page, "return Bowtie.Rational.sum([]);") is None
 
 
-def test_sum_of_one_value_equals_that_value(page):
-    result = _ev(page, """
+def test_sum_of_one_value_equals_that_value(blank_page):
+    result = _ev(blank_page, """
       const r = Bowtie.Rational.fromDecimal(Bowtie.Decimal.parse('1E-3')).divideBy(Bowtie.Decimal.parse('7'));
       return Bowtie.Rational.sum([r]).compare(r);
     """)
@@ -142,10 +142,10 @@ def test_sum_of_one_value_equals_that_value(page):
 
 # --- Banding: where exactness actually changes an answer ------------------
 
-def test_a_likelihood_on_a_band_boundary_lands_in_the_upper_band(page):
+def test_a_likelihood_on_a_band_boundary_lands_in_the_upper_band(blank_page):
     """Round-numbered LOPA inputs land exactly on band floors routinely, so
     banding compares by cross-multiplication rather than dividing first."""
-    result = _ev(page, """
+    result = _ev(blank_page, """
       const matrix = {
         likelihoodClasses: [
           { id: 'upper', ordinal: 1, label: 'Upper', minValue: '0.0001' },
@@ -166,9 +166,9 @@ def test_a_likelihood_on_a_band_boundary_lands_in_the_upper_band(page):
     assert result["justBelow"] == "lower"
 
 
-def test_band_for_value_still_accepts_a_plain_decimal(page):
+def test_band_for_value_still_accepts_a_plain_decimal(blank_page):
     # Qualitative-mode callers and the preset tests pass Decimals directly.
-    result = _ev(page, """
+    result = _ev(blank_page, """
       const m = Bowtie.RISK_MATRIX_PRESETS.leaflet5;
       return Bowtie.RiskMatrix.bandForValue(m, Bowtie.Decimal.parse('0')).id;
     """)
@@ -177,8 +177,8 @@ def test_band_for_value_still_accepts_a_plain_decimal(page):
 
 # --- clampTo: the `limit` composition rule (barrier_measures_proposal.md) --
 
-def test_clamp_to_a_decimal_picks_the_smaller_value(page):
-    result = _ev(page, """
+def test_clamp_to_a_decimal_picks_the_smaller_value(blank_page):
+    result = _ev(blank_page, """
       const high = Bowtie.Rational.fromDecimal(Bowtie.Decimal.parse('1'));
       const low = Bowtie.Rational.fromDecimal(Bowtie.Decimal.parse('0.01'));
       return {
@@ -189,24 +189,24 @@ def test_clamp_to_a_decimal_picks_the_smaller_value(page):
     assert result == {"clamped": "0.5", "untouched": "0.01"}
 
 
-def test_clamp_to_is_exact_at_the_boundary(page):
+def test_clamp_to_is_exact_at_the_boundary(blank_page):
     """f_in == the clamp operand, exactly -- must not tip either way from
     a rounding step (there is none: this compares by cross-multiplication,
     like every other Rational comparison)."""
-    result = _ev(page, """
+    result = _ev(blank_page, """
       const f = Bowtie.Rational.fromDecimal(Bowtie.Decimal.parse('1E-3')).divideBy(Bowtie.Decimal.parse('10'));
       return f.clampTo(Bowtie.Decimal.parse('1E-4')).compare(f);
     """)
     assert result == 0
 
 
-def test_clamp_to_accepts_a_rational_operand_and_discards_a_large_denominator(page):
+def test_clamp_to_accepts_a_rational_operand_and_discards_a_large_denominator(blank_page):
     """An MTBF-derived limiting rate arrives as a Rational (see
     BarrierMeasures.js's lambdaDangerousOf), never as a computed Decimal
     reciprocal -- clampTo must accept one directly, and when the clamp
     actually bites, the result should just BE that operand (whatever
     denominator it carried), not something rebuilt from a rounded number."""
-    result = _ev(page, """
+    result = _ev(blank_page, """
       const big = Bowtie.Rational.fromDecimal(Bowtie.Decimal.parse('1'))
         .divideBy(Bowtie.Decimal.parse('7')).divideBy(Bowtie.Decimal.parse('11')).divideBy(Bowtie.Decimal.parse('13'));
       const f = Bowtie.Rational.fromDecimal(Bowtie.Decimal.parse('1'));
@@ -218,11 +218,11 @@ def test_clamp_to_accepts_a_rational_operand_and_discards_a_large_denominator(pa
 
 # --- Display ---------------------------------------------------------------
 
-def test_scaling_the_numerator_for_year_display_is_exact(page):
+def test_scaling_the_numerator_for_year_display_is_exact(blank_page):
     """events/hour -> events/year multiplies by an exact 8760, so this
     display direction costs no precision at all -- unlike year -> hour
     ENTRY, which divides and is irreducibly lossy."""
-    result = _ev(page, """
+    result = _ev(blank_page, """
       const perHour = Bowtie.Rational.fromDecimal(Bowtie.Decimal.parse('1E-4'))
         .divideBy(Bowtie.Decimal.parse('10'));
       const perYear = perHour.multiplyNumerator(Bowtie.Decimal.parse(String(Bowtie.HOURS_PER_YEAR)));
@@ -231,8 +231,8 @@ def test_scaling_the_numerator_for_year_display_is_exact(page):
     assert result == "0.0876", "1E-5 events/hour x 8760 = 0.0876 events/year, exactly"
 
 
-def test_zero_numerator_is_zero(page):
-    result = _ev(page, """
+def test_zero_numerator_is_zero(blank_page):
+    result = _ev(blank_page, """
       const z = Bowtie.Rational.fromDecimal(Bowtie.Decimal.zero()).divideBy(Bowtie.Decimal.parse('7'));
       return { isZero: z.isZero(), exact: z.toExactDecimal().toDecimalString() };
     """)

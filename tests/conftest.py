@@ -165,3 +165,41 @@ def page(browser, base_url):
     yield pg
     assert pg.errors == [], f"uncaught page error(s) during test: {pg.errors}"
     pg.close()
+
+
+@pytest.fixture(scope="session")
+def _blank_page(browser, base_url):
+    """One page per session for tests of PURE functions (proposals/17).
+
+    `Decimal`, `Rational`, `TableExport`, `Geometry`, `Dom` and `Svg` all
+    attach to `window.Bowtie` at load and hold no state, so a test of one
+    needs a loaded page and nothing else -- not a fresh tab, and
+    certainly not a drive through the new-bowtie wizard, which is what
+    the `page` fixture below spends most of its time doing.
+
+    Deliberately NOT a substitute for `page`: anything that touches the
+    model, the canvas or a modal wants a fresh document, and sharing one
+    across tests would make them order-dependent.
+    """
+    pg = browser.new_page(viewport={"width": 1600, "height": 1000})
+    pg.errors = []
+    pg.on("pageerror", lambda exc: pg.errors.append(str(exc)))
+    pg.add_init_script(INIT_SCRIPT)
+    pg.goto(f"{base_url}/index.html")
+    yield pg
+    pg.close()
+
+
+@pytest.fixture
+def blank_page(_blank_page):
+    """`_blank_page`, with each test's own page errors attributed to it.
+
+    The session-scoped fixture can't assert on errors per test, so this
+    records the error count on the way in and checks only what the test
+    itself added -- the same guarantee `page` gives, without the
+    per-test setup cost.
+    """
+    before = len(_blank_page.errors)
+    yield _blank_page
+    added = _blank_page.errors[before:]
+    assert added == [], f"uncaught page error(s) during test: {added}"

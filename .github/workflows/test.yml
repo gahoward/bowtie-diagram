@@ -36,4 +36,7 @@ jobs:
 
       - run: pip install -r tests/requirements.txt
       - run: playwright install --with-deps chromium
-      - run: pytest tests/
+      # -n auto: the browser and static-server fixtures are session-scoped,
+      # so each worker gets its own and tests share nothing but the files
+      # on disk (proposals/17). 637 tests: ~8min serial, ~3min on 4 workers.
+      - run: pytest tests/ -n auto

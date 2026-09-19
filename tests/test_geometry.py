@@ -11,13 +11,13 @@ literal left behind by the refactor.
 """
 
 
-def test_new_page_tle_and_hazard_size_come_from_geometry(page):
-    page.evaluate("""() => {
+def test_new_page_tle_and_hazard_size_come_from_geometry(blank_page):
+    blank_page.evaluate("""() => {
       window.Bowtie.Geometry.TLE_DEFAULT_R = 999;
       window.Bowtie.Geometry.HAZARD_W = 555;
       window.Bowtie.Geometry.HAZARD_H = 444;
     }""")
-    result = page.evaluate("""() => {
+    result = blank_page.evaluate("""() => {
       const m = window.__lastModel;
       const p = m.addPage({ name: 'Geometry check' });
       return { r: p.topLevelEvent.r, w: p.hazard.w, h: p.hazard.h };
@@ -25,9 +25,9 @@ def test_new_page_tle_and_hazard_size_come_from_geometry(page):
     assert result == {"r": 999, "w": 555, "h": 444}
 
 
-def test_new_threat_and_consequence_width_comes_from_geometry(page):
-    page.evaluate("() => { window.Bowtie.Geometry.THREAT_CONSEQUENCE_W = 321; }")
-    result = page.evaluate("""() => {
+def test_new_threat_and_consequence_width_comes_from_geometry(blank_page):
+    blank_page.evaluate("() => { window.Bowtie.Geometry.THREAT_CONSEQUENCE_W = 321; }")
+    result = blank_page.evaluate("""() => {
       const m = window.__lastModel;
       m.addThreat({x: 150, y: 200});
       m.addConsequence({x: 1200, y: 200});
@@ -36,14 +36,14 @@ def test_new_threat_and_consequence_width_comes_from_geometry(page):
     assert result == {"threatW": 321, "consequenceW": 321}
 
 
-def test_new_barrier_size_comes_from_geometry(page):
+def test_new_barrier_size_comes_from_geometry(blank_page):
     """Covers both of LineTopology's barrier-creation paths -- attaching the
     very first control off a Threat/Consequence (_makeBarrierNear via anchor ==
     origin) and inserting a second one into an existing chain (anchor ==
     the first barrier) -- since both used to carry their own separate
     hardcoded w:36/h:110 literal before this refactor."""
-    page.evaluate("() => { window.Bowtie.Geometry.BARRIER_W = 77; window.Bowtie.Geometry.BARRIER_H = 88; }")
-    result = page.evaluate("""() => {
+    blank_page.evaluate("() => { window.Bowtie.Geometry.BARRIER_W = 77; window.Bowtie.Geometry.BARRIER_H = 88; }")
+    result = blank_page.evaluate("""() => {
       const m = window.__lastModel;
       m.addThreat({x: 150, y: 200});
       const first = m.addPreventativeControl(m.threats[0].id);

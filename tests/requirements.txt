@@ -1,2 +1,15 @@
-pytest
-playwright
+# Pinned deliberately (proposals/17). These were unpinned, which meant a
+# Playwright or pytest major release could break CI with no change from
+# this repo -- and the failure would look like a regression in the app.
+#
+# To bump: change a version here, run the suite locally, and land the
+# bump as its own commit so a behavioural change and a toolchain change
+# are never in the same diff.
+pytest==9.1.1
+playwright==1.56.0
+
+# Parallel test execution (-n auto). The `browser` and `base_url`
+# fixtures are session-scoped, so each worker gets its own browser and
+# its own static-file server, which is correct rather than merely
+# tolerated: tests share nothing but the files on disk.
+pytest-xdist==3.8.0
