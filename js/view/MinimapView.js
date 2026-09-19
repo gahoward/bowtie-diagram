@@ -1,5 +1,4 @@
 (function (Bowtie) {
-  const SVG_NS = 'http://www.w3.org/2000/svg';
   const MINI_W = 220;
   const MINI_H = 140;
   const PAD = 10;
@@ -12,11 +11,7 @@
   // reclone instead of one per render.
   const CONTENT_DEBOUNCE_MS = 120;
 
-  function el(tag, attrs) {
-    const node = document.createElementNS(SVG_NS, tag);
-    Object.entries(attrs || {}).forEach(([k, v]) => node.setAttribute(k, v));
-    return node;
-  }
+  const el = Bowtie.Svg.el;
 
   // Every <defs> id (the TLE's radial gradient, the Hazard's stripe
   // pattern — see ShapeRenderer) is freshly generated on every main-canvas

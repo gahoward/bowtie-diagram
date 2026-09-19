@@ -1,12 +1,7 @@
 (function (Bowtie) {
   const MODE_LABELS = { simple: 'Simple', qualitative: 'Qualitative', quantitative: 'Quantitative' };
 
-  function el(tag, className, text) {
-    const node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
-    return node;
-  }
+  const el = Bowtie.Dom.el;
 
   // The document's own context, always visible at the end of the page-tab
   // strip (ui_fitness_proposal.md 07): which mode it's in, which risk

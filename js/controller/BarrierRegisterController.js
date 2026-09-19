@@ -29,12 +29,7 @@
     'measure', 'measure_value', 'demand_rate', 'demand_rate_unit', 'protects', 'warnings',
   ];
 
-  function el(tag, className, text) {
-    const node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
-    return node;
-  }
+  const el = Bowtie.Dom.el;
 
   function measureFor(protection) {
     if (!protection || protection.unknown) return null;
@@ -68,19 +63,14 @@
     }
 
     _open() {
-      const exportable = this._hasRows();
-      this.modal = Bowtie.ModalView.openModal({
+      this.modal = Bowtie.SummaryModalView.open({
         title: 'Barrier Register',
         bodyEl: this._buildBody(),
-        size: 'xwide',
-        actions: [
-          ...(exportable ? [
-            { label: 'Copy as table', onClick: () => { this._copy(); return false; } },
-            { label: 'Export CSV…', onClick: () => { this._exportCsv(); return false; } },
-            { label: 'Print…', onClick: () => { this._print(); return false; } },
-          ] : []),
-          { label: 'Close', primary: true },
-        ],
+        exportable: this._hasRows(),
+        onCopy: () => Bowtie.SummaryModalView.copyTable(this.modal, this._exportTable()),
+        onExportCsv: () => Bowtie.SummaryModalView.exportCsv(
+          this._exportTable(), this.model.name, 'barrier register',
+        ),
       });
     }
 
@@ -117,45 +107,14 @@
       return { columns: EXPORT_COLUMNS, rows };
     }
 
-    async _copy() {
-      const ok = await Bowtie.TableExport.copyText(Bowtie.TableExport.toTsv(this._exportTable()));
-      this._flashAction('Copy as table', ok ? 'Copied' : "Couldn't copy");
-    }
 
-    _exportCsv() {
-      const name = Bowtie.ExportUtil.safeFileName(this.model.name, 'bowtie-diagram');
-      Bowtie.ExportUtil.exportCsv(Bowtie.TableExport.toCsv(this._exportTable()), `${name} - barrier register.csv`);
-    }
 
-    _flashAction(label, message) {
-      if (!this.modal) return;
-      const btn = [...this.modal.dialog.querySelectorAll('.modal-actions button')]
-        .find((b) => b.textContent === label);
-      if (!btn) return;
-      btn.textContent = message;
-      btn.disabled = true;
-      setTimeout(() => {
-        btn.textContent = label;
-        btn.disabled = false;
-      }, 1500);
-    }
 
     // The same print-the-tables-not-the-app treatment the Risk Summary
     // uses, through the shared `printing-summary` body class.
-    _print() {
-      const done = () => {
-        document.body.classList.remove('printing-summary');
-        window.removeEventListener('afterprint', done);
-      };
-      window.addEventListener('afterprint', done);
-      document.body.classList.add('printing-summary');
-      window.print();
-    }
 
     _refresh() {
-      if (this.modal && document.body.contains(this.modal.overlay)) {
-        this.modal.setBody(this._buildBody());
-      }
+      Bowtie.SummaryModalView.refresh(this.modal, () => this._buildBody());
     }
 
     // --- Rendering --------------------------------------------------------

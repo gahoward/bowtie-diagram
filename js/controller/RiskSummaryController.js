@@ -29,12 +29,7 @@
     'excluded_threats',
   ];
 
-  function el(tag, className, text) {
-    const node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
-    return node;
-  }
+  const el = Bowtie.Dom.el;
 
   // View > "Risk Summary…": one table per page, in document page order,
   // each ranking that page's Consequences worst-first with their pre-
@@ -59,22 +54,14 @@
     }
 
     _open() {
-      // The three export actions return false so the modal stays open --
-      // a user exporting a CSV usually wants to keep reading the table.
-      // They're offered only when there is a table to export.
-      const exportable = this._hasRows();
-      this.modal = Bowtie.ModalView.openModal({
+      this.modal = Bowtie.SummaryModalView.open({
         title: 'Risk Summary',
         bodyEl: this._buildBody(),
-        size: 'xwide',
-        actions: [
-          ...(exportable ? [
-            { label: 'Copy as table', onClick: () => { this._copy(); return false; } },
-            { label: 'Export CSV…', onClick: () => { this._exportCsv(); return false; } },
-            { label: 'Print…', onClick: () => { this._print(); return false; } },
-          ] : []),
-          { label: 'Close', primary: true },
-        ],
+        exportable: this._hasRows(),
+        onCopy: () => Bowtie.SummaryModalView.copyTable(this.modal, this._exportTable()),
+        onExportCsv: () => Bowtie.SummaryModalView.exportCsv(
+          this._exportTable(), this.model.name, 'risk summary',
+        ),
       });
     }
 
@@ -117,48 +104,17 @@
       return { columns: EXPORT_COLUMNS, rows };
     }
 
-    async _copy() {
-      const ok = await Bowtie.TableExport.copyText(Bowtie.TableExport.toTsv(this._exportTable()));
-      this._flashAction('Copy as table', ok ? 'Copied' : "Couldn't copy");
-    }
 
-    _exportCsv() {
-      const name = (this.model.name || 'bowtie-diagram').replace(/[\\/:*?"<>|]/g, '-');
-      Bowtie.ExportUtil.exportCsv(Bowtie.TableExport.toCsv(this._exportTable()), `${name} - risk summary.csv`);
-    }
 
     // Swaps a footer button's label briefly, rather than opening a dialog
     // on top of this one to say "Copied".
-    _flashAction(label, message) {
-      if (!this.modal) return;
-      const btn = [...this.modal.dialog.querySelectorAll('.modal-actions button')]
-        .find((b) => b.textContent === label);
-      if (!btn) return;
-      btn.textContent = message;
-      btn.disabled = true;
-      setTimeout(() => {
-        btn.textContent = label;
-        btn.disabled = false;
-      }, 1500);
-    }
 
     // Print the tables, not the app behind them: the class swaps the
     // print stylesheet onto this modal (see styles.css) and is dropped
     // again once the print dialog closes, whether it printed or not.
-    _print() {
-      const done = () => {
-        document.body.classList.remove('printing-summary');
-        window.removeEventListener('afterprint', done);
-      };
-      window.addEventListener('afterprint', done);
-      document.body.classList.add('printing-summary');
-      window.print();
-    }
 
     _refresh() {
-      if (this.modal && document.body.contains(this.modal.overlay)) {
-        this.modal.setBody(this._buildBody());
-      }
+      Bowtie.SummaryModalView.refresh(this.modal, () => this._buildBody());
     }
 
     _buildIntro(quantitative) {

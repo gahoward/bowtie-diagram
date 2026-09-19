@@ -1,5 +1,5 @@
 (function (Bowtie) {
-  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const SVG_NS = Bowtie.Svg.NS;
   const EXPORT_PADDING = 40;
 
   // Mirrors the node/connection visual rules in css/styles.css, so exported

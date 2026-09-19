@@ -92,29 +92,40 @@
       // `tabindex="0"` is gone -- put it back on whatever is selected.
       if (canvasKeyboard) canvasKeyboard.applyRovingTabindex();
     };
-    // Structural review finding 02: renderAll used to run synchronously off
-    // every single _emitChange, which is exactly right for an ordinary
-    // action (one mutation, one render) but not for a drag -- DragController
-    // calls moveElement on every pointermove, so one drag gesture measured
-    // at up to 11 full teardown-and-rebuild passes over both SVG layers.
-    // Scoped to just that case (isDragging, set by DragController's start/
-    // end callbacks below) rather than deferring every render generally:
-    // ImportExportController's "loading modal stays up until the first page
-    // has rendered" guarantee depends on loadDocument's _emitChange chain
-    // rendering synchronously, and this leaves that path untouched.
-    let isDragging = false;
-    let dragRenderFrameId = null;
-    rawModel.onChange(() => {
-      if (!isDragging) {
-        renderAll();
-        return;
-      }
-      if (dragRenderFrameId !== null) return;
-      dragRenderFrameId = requestAnimationFrame(() => {
-        dragRenderFrameId = null;
+    // Structural review finding 02, extended by proposals/16: renderAll
+    // used to run synchronously off every single _emitChange. That is
+    // right for an ordinary action (one mutation, one render) and wrong
+    // for any burst -- a drag calls moveElement on every pointermove (up
+    // to 11 full teardown-and-rebuild passes per gesture, which is what
+    // finding 02 measured), and so does a cascading delete, an
+    // auto-arrange, or anything building a document programmatically.
+    //
+    // Every render is now coalesced into the next animation frame, so N
+    // mutations in one turn cost one render instead of N. Repeated
+    // changes within a frame collapse into the already-scheduled one.
+    let renderFrameId = null;
+    const scheduleRender = () => {
+      if (renderFrameId !== null) return;
+      renderFrameId = requestAnimationFrame(() => {
+        renderFrameId = null;
         renderAll();
       });
-    });
+    };
+    // The one sanctioned way to render NOW. Two callers need it, for
+    // different reasons, and both are documented at their call sites:
+    // ImportExportController's "the loading modal stays up until the
+    // first page has rendered" guarantee, which depends on loadDocument's
+    // _emitChange chain having rendered by the time it returns; and
+    // DragController's drag-end, so a dropped node never waits on a frame
+    // that has nothing left to invalidate it.
+    const flushRender = () => {
+      if (renderFrameId !== null) {
+        cancelAnimationFrame(renderFrameId);
+        renderFrameId = null;
+      }
+      renderAll();
+    };
+    rawModel.onChange(scheduleRender);
     // A page switch (or add/delete changing which page is active) re-renders
     // for the new active page, then re-fits the viewport to it — the same
     // call `btn-reset-view` already uses — since a different page's content
@@ -122,7 +133,10 @@
     // `view.getContentBounds()` reflects the page just switched to, not the
     // one just left.
     pageTabs.onChange(() => {
-      renderAll();
+      // Flushed rather than scheduled: fitToBounds reads
+      // view.getContentBounds(), which only describes the page just
+      // switched TO once that page has actually been rendered.
+      flushRender();
       panZoom.fitToBounds(view.getContentBounds());
     });
 
@@ -169,18 +183,12 @@
     new Bowtie.DragController(
       pageScopedModel,
       svgRoot,
-      () => {
-        isDragging = true;
-        undo.snapshot(pageTabs.getActivePageId());
-      },
-      () => {
-        isDragging = false;
-        if (dragRenderFrameId !== null) {
-          cancelAnimationFrame(dragRenderFrameId);
-          dragRenderFrameId = null;
-        }
-        renderAll();
-      },
+      () => undo.snapshot(pageTabs.getActivePageId()),
+      // Every render is coalesced now (see scheduleRender above), so a
+      // drag needs nothing special while it runs. It still forces one
+      // synchronous render on release, so the dropped position is never
+      // left waiting on a frame with nothing left to invalidate it.
+      () => flushRender(),
     );
     // Constructed ahead of ContextMenuController so its arrange() can be
     // handed in as the "topology just changed, tidy up" callback below —

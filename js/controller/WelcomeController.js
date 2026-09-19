@@ -4,18 +4,9 @@
   // Settings via RiskModeCards.js so the two screens teach the same thing.
   const MODES = Bowtie.RISK_MODES;
 
-  function el(tag, className, text) {
-    const node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
-    return node;
-  }
+  const el = Bowtie.Dom.el;
 
-  function button(label, className) {
-    const btn = el('button', className, label);
-    btn.type = 'button';
-    return btn;
-  }
+  const button = Bowtie.Dom.button;
 
   function presets() {
     return (window.Bowtie && Bowtie.RISK_MATRIX_PRESETS) || {};

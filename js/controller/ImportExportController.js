@@ -163,11 +163,16 @@
     // Wraps the actual load in a loading modal that stays up until the
     // import has either failed (loadDocument shows its own error dialog on
     // top before this closes it underneath) or the document has loaded AND
-    // the first page has rendered — `loadDocument` -> `model.loadFromJSON`
-    // -> `_emitChange` -> the app's own `onChange` listeners (PageTabsView,
-    // then CanvasView) all run synchronously, so by the time `loadDocument`
-    // returns, rendering has already either completed or thrown; there is
-    // no separate "wait for render" step needed beyond just awaiting it.
+    // the first page has rendered.
+    //
+    // That used to come for free: `loadDocument` -> `model.loadFromJSON`
+    // -> `_emitChange` -> the app's own listeners all ran synchronously,
+    // so rendering had completed by the time `loadDocument` returned.
+    // proposals/16 coalesces every render into the next animation frame,
+    // which would otherwise close this modal one frame before the diagram
+    // appears -- so the wait is now explicit. `nextPaint()` resolves after
+    // the frame the render was scheduled into has actually painted, which
+    // is a slightly stronger guarantee than the synchronous version gave.
     async _processImportedText(text) {
       let data;
       try {
@@ -180,6 +185,7 @@
       try {
         await nextPaint(); // let the loading modal actually paint before the synchronous work below
         this.loadDocument(data);
+        await nextPaint();
       } finally {
         loading.close();
       }

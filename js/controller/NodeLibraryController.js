@@ -8,18 +8,9 @@
     { id: 'escalationBarrier', label: 'Esc. barriers', singular: 'escalation barrier' },
   ];
 
-  function el(tag, className, text) {
-    const node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
-    return node;
-  }
+  const el = Bowtie.Dom.el;
 
-  function button(label, className) {
-    const btn = el('button', className, label);
-    btn.type = 'button';
-    return btn;
-  }
+  const button = Bowtie.Dom.button;
 
   // Add › Node Library… (ui_fitness_proposal.md S4): the manager for the
   // shared node library (node_library_proposal.md ask 2) merged with the

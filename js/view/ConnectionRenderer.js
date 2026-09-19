@@ -1,5 +1,5 @@
 (function (Bowtie) {
-  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const SVG_NS = Bowtie.Svg.NS;
   const { leftEdge, rightEdge, circleEdgePoint } = Bowtie.Layout;
   const LABEL_GAP = 6;
 

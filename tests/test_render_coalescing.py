@@ -1,12 +1,23 @@
-"""Structural review finding 02: every model mutation used to trigger a
-synchronous CanvasView.render() + MinimapView clone, and DragController's
-moveElement fires on every pointermove -- measured at up to 11 full
-teardown-and-rebuild passes over both SVG layers for one drag gesture. Drag-
-driven renders now collapse into at most one per animation frame (main.js's
-isDragging-gated scheduling); everything else (a single click-driven
-mutation, an import) still renders synchronously, exactly as before, so
+"""Structural review finding 02, widened by proposals/16: every model
+mutation used to trigger a synchronous CanvasView.render() + MinimapView
+clone, and DragController's moveElement fires on every pointermove --
+measured at up to 11 full teardown-and-rebuild passes over both SVG
+layers for one drag gesture.
+
+Finding 02 coalesced the drag case only, deliberately, because
 ImportExportController's "loading modal stays up until the first page has
-rendered" guarantee (test_import_loading_modal.py) keeps holding.
+rendered" guarantee depended on everything else rendering synchronously.
+proposals/16 coalesced EVERY render -- a cascading delete, an
+auto-arrange and programmatic construction are all bursts too, and
+building a 1000-placement document was taking 148 seconds almost entirely
+in renders nobody ever saw.
+
+So a single mutation now renders on the next animation frame rather than
+synchronously, which is what `test_a_single_mutation_renders_on_the_next_frame`
+below asserts (it asserted the synchronous contract until proposals/16
+changed it). The import guarantee is now explicit rather than incidental:
+ImportExportController awaits its own nextPaint() after loadDocument --
+see test_import_loading_modal.py, which is unchanged and still passing.
 """
 
 
@@ -117,12 +128,24 @@ def test_minimap_reclone_is_debounced_across_a_mutation_burst(page):
     assert after_settling == 1, "five mutations in a burst must settle into exactly one reclone"
 
 
-def test_a_single_non_drag_mutation_still_renders_synchronously(page):
-    """Only drag-driven renders coalesce -- an ordinary click-driven action
-    (Add Threat) must still paint on the very next microtask/frame boundary
-    with no artificial delay, matching every other test in this suite that
-    asserts DOM state right after a short wait."""
+def test_a_single_mutation_renders_on_the_next_frame(page):
+    """One mutation, one render -- but on the next animation frame rather
+    than synchronously (proposals/16).
+
+    The distinction matters to anything reading the DOM straight after a
+    model call with no wait at all. Nothing in the app does that: every
+    render-dependent path either waits (the tests), flushes explicitly
+    (main.js's flushRender, for a drag release and a page switch), or
+    awaits a paint (ImportExportController)."""
     render_count = _count_renders_during(page, lambda: page.evaluate(
         "() => { window.__lastModel.addThreat({x: 150, y: 200}); }"
     ))
-    assert render_count == 1
+    assert render_count == 0, "a mutation must not render synchronously any more"
+
+    rendered = _count_renders_during(page, lambda: page.evaluate("""
+        () => new Promise((resolve) => {
+          window.__lastModel.addThreat({x: 170, y: 220});
+          requestAnimationFrame(() => requestAnimationFrame(resolve));
+        })
+    """))
+    assert rendered == 1, "one mutation must produce exactly one render, on the next frame"

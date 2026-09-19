@@ -113,6 +113,8 @@
         ));
       model.lines = model.lines.filter((l) => l.pageId !== pageId)
         .concat((data.lines || []).map((l) => new Bowtie.Line(l)));
+      // Every placement collection was just replaced (proposals/16).
+      model.rebuildPlacementIndex();
     },
 
     // --- Whole-document serialization ---------------------------------
@@ -245,6 +247,11 @@
         escalationFactor: (data.retiredIds && data.retiredIds.escalationFactor) || [],
         escalationBarrier: (data.retiredIds && data.retiredIds.escalationBarrier) || [],
       };
+      // Collections were assigned directly onto the fresh model above,
+      // bypassing the add path that maintains the index (proposals/16).
+      // A missing entry only costs findById a scan, but a caller handed
+      // this model directly -- tests do -- should get the fast one too.
+      model.rebuildPlacementIndex();
       return model;
     },
 
@@ -369,6 +376,9 @@
       model.proofTestIntervalH = fresh.proofTestIntervalH;
       model.idCounters = fresh.idCounters;
       model.retiredIds = fresh.retiredIds;
+      // Assigned wholesale above, so the index this model was carrying
+      // describes the document it used to hold (proposals/16).
+      model.rebuildPlacementIndex();
     },
   };
 

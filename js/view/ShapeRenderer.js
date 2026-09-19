@@ -1,13 +1,8 @@
 (function (Bowtie) {
-  const SVG_NS = 'http://www.w3.org/2000/svg';
   const { LINE_HEIGHT, FONT_SIZE } = Bowtie.Layout;
   const { BARRIER_LABEL_MAX_WIDTH, LABEL_GAP } = Bowtie.Geometry;
 
-  function el(tag, attrs) {
-    const node = document.createElementNS(SVG_NS, tag);
-    Object.entries(attrs || {}).forEach(([k, v]) => node.setAttribute(k, v));
-    return node;
-  }
+  const el = Bowtie.Svg.el;
 
   // Renders a vertically-centered block of tspans, one <tspan> per line,
   // starting with an optional bold id line followed by the wrapped name.

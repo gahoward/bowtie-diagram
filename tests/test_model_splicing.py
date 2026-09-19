@@ -437,3 +437,88 @@ def test_swap_barrier_with_neighbor_batch_is_one_undo_step(page):
       };
     }""")
     assert result["restored"] == result["before"]
+
+
+# --- the placement index (proposals/16) -----------------------------------
+
+AGREES = """
+() => {
+  const m = window.__lastModel;
+  const all = [
+    ...m.threats, ...m.consequences,
+    ...m.preventativeBarriers, ...m.mitigativeBarriers,
+    ...m.escalationFactors, ...m.escalationBarriers,
+  ];
+  // Every live placement resolves to ITSELF...
+  for (const p of all) {
+    if (m.findById(p.id) !== p) return `findById(${p.id}) did not return its own placement`;
+  }
+  // ...and the index holds nothing that is no longer in a collection,
+  // which is the failure mode that would make a hit return a ghost.
+  for (const [id, p] of m._byPlacementId) {
+    if (!all.includes(p)) return `index still holds removed placement ${id}`;
+    if (p.id !== id) return `index key ${id} points at ${p.id}`;
+  }
+  return 'ok';
+}
+"""
+
+
+def _agrees(page):
+    return page.evaluate(AGREES)
+
+
+def test_the_placement_index_agrees_with_the_collections_after_every_mutation(page):
+    """A hit on the index is authoritative, so an entry that outlives its
+    placement returns something that no longer exists. A miss is merely
+    slow -- findById falls back to the scan -- which is why this checks
+    for ghosts rather than for completeness."""
+    assert _agrees(page) == 'ok', 'a fresh document'
+
+    ids = page.evaluate("""() => {
+      const m = window.__lastUndo.model;
+      const t = m.addThreat({ name: 'T' });
+      const c = m.addConsequence({ name: 'C' });
+      const pb = m.addPreventativeControl(t.id, { name: 'PB' });
+      const pb2 = m.insertBarrier('preventativeBarrier', 'after', pb.id, { name: 'PB2' });
+      const mb = m.addMitigativeControl(c.id, { name: 'MB' });
+      const ef = m.addEscalationFactor(pb.id, { name: 'EF' });
+      const eb = m.addEscalationBarrier(ef.id, { name: 'EB' });
+      return { t: t.id, c: c.id, pb: pb.id, pb2: pb2.id, mb: mb.id, ef: ef.id, eb: eb.id };
+    }""")
+    assert _agrees(page) == 'ok', 'after creating one of every kind'
+
+    # Deleting a barrier cascades to its escalation factors and their
+    # lines -- the deepest removal path there is.
+    page.evaluate("(ids) => window.__lastUndo.model.deleteElement(ids.pb)", ids)
+    assert _agrees(page) == 'ok', 'after a cascading delete'
+
+    page.evaluate("() => window.__lastUndo.undo()")
+    assert _agrees(page) == 'ok', 'after undoing it'
+
+    page.evaluate("() => window.__lastUndo.redo()")
+    assert _agrees(page) == 'ok', 'after redoing it'
+
+
+def test_the_index_survives_a_page_delete_and_a_document_load(page):
+    page.evaluate("""() => {
+      const m = window.__lastUndo.model;
+      const page2 = m.addPage({ name: 'Second', topLevelEvent: { name: 'TLE2' } });
+      const t = m.addThreat({ name: 'On page 2', pageId: page2.id });
+      m.addPreventativeControl(t.id, { name: 'PB on page 2' });
+    }""")
+    assert _agrees(page) == 'ok', 'with two pages'
+
+    page.evaluate("""() => {
+      const m = window.__lastUndo.model;
+      m.deletePage(m.pages[m.pages.length - 1].id);
+    }""")
+    assert _agrees(page) == 'ok', 'after deleting a whole page'
+
+    # A round trip replaces every collection wholesale.
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      window.__lastImportExport.loadDocument(m.toJSON());
+    }""")
+    page.wait_for_timeout(150)
+    assert _agrees(page) == 'ok', 'after reloading the document'

@@ -1,10 +1,5 @@
 (function (Bowtie) {
-  function el(tag, className, text) {
-    const node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
-    return node;
-  }
+  const el = Bowtie.Dom.el;
 
   // File > "Print…": builds a whole-document print surface -- every page's
   // diagram, one per sheet, then the Risk Summary tables -- so a browser's

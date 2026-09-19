@@ -12,12 +12,7 @@
     { id: 'quantitative', label: 'Quantitative' }, // only while mode === 'quantitative'
   ];
 
-  function el(tag, className, text) {
-    const node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
-    return node;
-  }
+  const el = Bowtie.Dom.el;
 
   // Settings › Project Settings… (ui_fitness_proposal.md S2): one home for
   // every setting that is SAVED WITH THE DOCUMENT -- the analysis name,

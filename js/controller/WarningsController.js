@@ -1,10 +1,5 @@
 (function (Bowtie) {
-  function el(tag, className, text) {
-    const node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
-    return node;
-  }
+  const el = Bowtie.Dom.el;
 
   // Toolbar warning badge (orphaned PCs/MCs, plus barrier_measures_
   // proposal.md's two advisory barrier-measure checks) with a

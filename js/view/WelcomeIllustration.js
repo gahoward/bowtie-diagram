@@ -1,5 +1,4 @@
 (function (Bowtie) {
-  const SVG_NS = 'http://www.w3.org/2000/svg';
   let patternSeq = 0;
 
   // The two small "what a bowtie is" pictures the welcome flow shows --
@@ -22,12 +21,7 @@
     };
   }
 
-  function el(tag, attrs = {}, text) {
-    const node = document.createElementNS(SVG_NS, tag);
-    Object.entries(attrs).forEach(([k, val]) => node.setAttribute(k, String(val)));
-    if (text !== undefined) node.textContent = text;
-    return node;
-  }
+  const el = Bowtie.Svg.el;
 
   // Mirrors ShapeRenderer.renderHazard's stripes, scaled down for a small
   // box. A fresh id per call: several illustrations can be on screen at

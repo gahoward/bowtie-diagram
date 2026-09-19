@@ -74,6 +74,18 @@
       // degrades.
       this.escalationFactors = [];
       this.escalationBarriers = [];
+      // Placement id -> placement, for findById (proposals/16). Rendering
+      // resolves Line.stops/originId through findById once per drawn
+      // element, so before this existed a full render was O(elements x
+      // placements): measured at 420ms for 1000 placements, against 12ms
+      // for 50.
+      //
+      // Deliberately indexes PLACEMENT ids only, not node ids. The render
+      // path resolves placement ids (that is what Lines store); node-id
+      // resolution is the convenience fallback for direct-model callers
+      // and keeps its scan, which also means `reassignId` -- the one
+      // operation that changes a node id -- cannot invalidate this.
+      this._byPlacementId = new Map();
       // One Line per Threat and per Consequence — the first-order representation
       // of that element's continuous path to/from the TLE. Created/destroyed
       // alongside their origin, mutated directly by every chaining operation
@@ -233,6 +245,7 @@
       this.mitigativeBarriers = this.mitigativeBarriers.filter((m) => m.pageId !== pageId);
       this.escalationFactors = this.escalationFactors.filter((f) => f.pageId !== pageId);
       this.escalationBarriers = this.escalationBarriers.filter((b) => b.pageId !== pageId);
+      this.rebuildPlacementIndex();
       this.lines = this.lines.filter((l) => l.pageId !== pageId);
       this._emitChange();
     }
@@ -415,6 +428,7 @@
         id, type: 'threat', nodeId: node.id, x, y, w, h, pageId,
       });
       this.threats.push(threat);
+      this._byPlacementId.set(threat.id, threat);
       this.idCounters.line += 1;
       this.lines.push(new Bowtie.Line({
         id: `LINE_${this.idCounters.line}`, originType: 'threat', originId: id, pageId,
@@ -437,6 +451,7 @@
         id, type: 'consequence', nodeId: node.id, x, y, w, h, pageId,
       });
       this.consequences.push(consequence);
+      this._byPlacementId.set(consequence.id, consequence);
       this.idCounters.line += 1;
       this.lines.push(new Bowtie.Line({
         id: `LINE_${this.idCounters.line}`, originType: 'consequence', originId: id, pageId,
@@ -528,6 +543,7 @@
         barrierId: barrier.id,
       });
       this.escalationFactors.push(placement);
+      this._byPlacementId.set(placement.id, placement);
       this.idCounters.line += 1;
       this.lines.push(new Bowtie.Line({
         id: `LINE_${this.idCounters.line}`,
@@ -589,6 +605,22 @@
       return [...this._warnings.getWarnings(), ...this._quantitative.computeBarrierWarnings()];
     }
 
+    // Rebuilds the placement index from the collections. Called by
+    // anything that replaces a collection wholesale rather than adding or
+    // removing one entry -- deletePage above, and DocumentSerializer's
+    // three load paths. Cheaper to rebuild than to reason about which
+    // entries a filter removed, and it cannot drift.
+    rebuildPlacementIndex() {
+      this._byPlacementId = new Map();
+      [
+        this.threats, this.consequences,
+        this.preventativeBarriers, this.mitigativeBarriers,
+        this.escalationFactors, this.escalationBarriers,
+      ].forEach((collection) => {
+        collection.forEach((placement) => this._byPlacementId.set(placement.id, placement));
+      });
+    }
+
     // --- Lookup ---------------------------------------------------------
 
     // Tries every placement's own internal id first (Line.stops/originId
@@ -603,10 +635,19 @@
     // page instead, where "at most one placement per node per page"
     // (decided) makes the resolution unambiguous.
     findById(id) {
-      const tleOrHazard = this.pages
-        .flatMap((p) => [p.topLevelEvent, p.hazard])
-        .find((el) => el.id === id);
-      if (tleOrHazard) return tleOrHazard;
+      for (const page of this.pages) {
+        if (page.topLevelEvent.id === id) return page.topLevelEvent;
+        if (page.hazard.id === id) return page.hazard;
+      }
+      // The placement-id index (proposals/16). A HIT is authoritative; a
+      // MISS falls through to the same scan this method always did, which
+      // is what makes the index safe to maintain: forgetting to index a
+      // newly-added placement costs a scan, never a wrong answer. Only
+      // REMOVAL has to be exhaustive, and removal happens in exactly two
+      // places (_removePlacementOnly and deletePage) plus the wholesale
+      // replacements DocumentSerializer performs, which rebuild outright.
+      const indexed = this._byPlacementId.get(id);
+      if (indexed) return indexed;
       const direct = (
         this.threats.find((c) => c.id === id) ||
         this.consequences.find((o) => o.id === id) ||
@@ -753,6 +794,9 @@
     _removePlacementOnly(id) {
       const el = this.findById(id);
       if (!el) return;
+      // Removal must be exhaustive or findById returns a placement that
+      // no longer exists -- see the note in findById.
+      this._byPlacementId.delete(id);
       switch (el.type) {
         case 'threat':
           this.threats = this.threats.filter((c) => c.id !== id);

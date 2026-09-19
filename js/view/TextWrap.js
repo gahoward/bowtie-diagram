@@ -1,5 +1,5 @@
 (function (Bowtie) {
-  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const SVG_NS = Bowtie.Svg.NS;
 
   // Greedy word-wrap using real SVG text measurement (getComputedTextLength),
   // so wrapping is accurate for the actual font in use rather than an estimate.

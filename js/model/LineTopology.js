@@ -226,6 +226,7 @@
         pageId: factor.pageId,
       });
       model.escalationBarriers.push(barrier);
+      model._byPlacementId.set(barrier.id, barrier);
       line.stops.push(barrier.id);
       model._emitChange();
       return barrier;
@@ -312,6 +313,7 @@
         id, type: kind, nodeId: node.id, x, y, w, h, pageId: anchor.pageId,
       });
       this._barrierCollection(kind).push(barrier);
+      model._byPlacementId.set(barrier.id, barrier);
       return barrier;
     }
 
