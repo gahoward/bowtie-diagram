@@ -8,6 +8,8 @@ frequent (>= ~0.1/year) threat is class A; the same consequence pushed down into
 the bottom likelihood band (cells[0]) is class C.
 """
 
+from helpers import eventually_equals
+
 LEAFLET5 = "JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5))"
 
 
@@ -439,13 +441,27 @@ def test_export_csv_follows_the_display_unit_preference(page):
 
 
 def test_copy_as_table_puts_tsv_on_the_clipboard(page):
-    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    """What this is about is the TSV the app hands to the clipboard, not
+    the browser's clipboard itself -- so the clipboard is replaced rather
+    than permitted. `grant_permissions(["clipboard-read", ...])` is a
+    Chromium-only Playwright call and raised "Unknown permission" the
+    first time this ran under Firefox (proposals/17)."""
     _build_ranked_scenario(page)
+    page.evaluate("""() => {
+      window.__copied = null;
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText: async (t) => { window.__copied = t; } },
+      });
+    }""")
     _open_summary(page)
     page.get_by_role("button", name="Copy as table", exact=True).click()
-    page.wait_for_timeout(200)
 
-    text = page.evaluate("() => navigator.clipboard.readText()")
+    eventually_equals(
+        lambda: page.evaluate("() => window.__copied !== null"), True,
+        "the copy handler never reached the clipboard",
+    )
+    text = page.evaluate("() => window.__copied")
     lines = text.split("\r\n")
     assert lines[0].split("\t")[:3] == ["page", "rank", "id"]
     assert len(lines) == 5

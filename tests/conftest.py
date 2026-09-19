@@ -135,13 +135,18 @@ BROWSER_NAME = os.environ.get("BOWTIE_BROWSER", "chromium")
 
 # True when the running engine implements the File System Access API.
 #
-# Currently UNUSED, deliberately: test_file_handlers.py and
-# test_recent_files.py already mock showSaveFilePicker/showOpenFilePicker
-# in-page rather than depending on the browser's own, so they are
-# engine-independent by construction. This marker is here for the first
-# real Firefox failure that turns out to be a genuine capability gap --
-# so it gets an explicit skip naming the capability, rather than being
-# quietly deleted or left red.
+# The first Firefox run found the genuine capability gap this was written
+# for: RecentFilesController decides `supported` from
+# window.showOpenFilePicker in its CONSTRUCTOR, so six tests in
+# test_recent_files.py drive a branch that only exists where the API
+# does. They carry this marker, and the seventh -- which asserts the
+# FALLBACK, the behaviour Firefox users actually get -- runs everywhere.
+#
+# The bar for adding this marker is that the test is about the supported
+# branch. A test that merely happens to fail on another engine is a bug
+# or a harness problem, not a capability gap: test_file_handlers.py mocks
+# the pickers in-page and stays engine-independent, and the Risk
+# Summary's clipboard test was fixed rather than skipped.
 SUPPORTS_FILE_SYSTEM_ACCESS = BROWSER_NAME == "chromium"
 
 requires_file_system_access = pytest.mark.skipif(

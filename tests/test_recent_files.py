@@ -11,8 +11,16 @@ own data properties and drops the prototype, so an instance with only
 -- while a literal carrying function properties would throw DataCloneError.
 Which is also why `read()` is stubbed where a test needs a handle to come
 back out of the database still usable.
+
+Six of the seven tests below are marked `requires_file_system_access`,
+because they drive the branch that only exists where the API does. The
+controller decides `supported` from `window.showOpenFilePicker` in its
+CONSTRUCTOR, so stubbing the picker after load would not reach it -- and
+stubbing it before load would be testing a browser that doesn't exist.
+The seventh test is the one that matters on those engines: it asserts
+the fallback, and it runs everywhere.
 """
-from conftest import INIT_SCRIPT, complete_new_bowtie_wizard
+from conftest import INIT_SCRIPT, complete_new_bowtie_wizard, requires_file_system_access
 
 FAKE_HANDLE = """
   class FakeHandle {
@@ -55,6 +63,7 @@ def _install_fake_handle(pg):
     pg.evaluate(f"() => {{ window.__fakeHandleSrc = {FAKE_HANDLE!r}; }}")
 
 
+@requires_file_system_access
 def test_remembering_a_file_lists_it_on_the_next_visit(browser, base_url):
     pg = _started(browser, base_url)
     try:
@@ -75,6 +84,7 @@ def test_remembering_a_file_lists_it_on_the_next_visit(browser, base_url):
         pg.close()
 
 
+@requires_file_system_access
 def test_the_same_file_twice_is_one_entry(browser, base_url):
     pg = _started(browser, base_url)
     try:
@@ -88,6 +98,7 @@ def test_the_same_file_twice_is_one_entry(browser, base_url):
         pg.close()
 
 
+@requires_file_system_access
 def test_at_most_five_are_kept(browser, base_url):
     """Older entries are pruned, not just hidden -- the store is never
     read beyond the newest five."""
@@ -113,6 +124,7 @@ def test_at_most_five_are_kept(browser, base_url):
         pg.close()
 
 
+@requires_file_system_access
 def test_an_export_through_the_native_dialog_remembers_the_file(browser, base_url):
     pg = _started(browser, base_url)
     try:
@@ -134,6 +146,7 @@ def test_an_export_through_the_native_dialog_remembers_the_file(browser, base_ur
         pg.close()
 
 
+@requires_file_system_access
 def test_clicking_an_entry_loads_that_document(browser, base_url):
     pg = _started(browser, base_url)
     try:
@@ -162,6 +175,7 @@ def test_clicking_an_entry_loads_that_document(browser, base_url):
         pg.close()
 
 
+@requires_file_system_access
 def test_an_entry_that_cannot_be_read_drops_out_of_the_list(browser, base_url):
     """Permission refused, or the file has been moved or deleted since."""
     pg = _started(browser, base_url)

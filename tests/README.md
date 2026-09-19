@@ -29,6 +29,48 @@ No dev server needs to be started by hand — `conftest.py` spins up a
 duration of the session, and tears it down afterwards. There is no build
 step for the app itself, so tests run directly against `index.html` as-is.
 
+## Browsers: `BOWTIE_BROWSER`
+
+Chromium by default. To run the suite under another engine:
+
+```
+playwright install firefox
+BOWTIE_BROWSER=firefox pytest tests/ -n auto
+```
+
+CI runs both. The Firefox job exists because `RecentFilesController` and
+`ExportUtil` each branch on the File System Access API, and until it
+existed **nothing anywhere executed the fallback side of those
+branches** — which is what Firefox, Safari and a page opened over
+`file://` all get. It is `continue-on-error` until it has been green for
+a week.
+
+**When a test fails only on Firefox, it is a bug until proven
+otherwise.** There is exactly one legitimate reason to skip:
+
+```python
+from conftest import requires_file_system_access
+
+@requires_file_system_access
+def test_clicking_an_entry_loads_that_document(browser, base_url):
+    ...
+```
+
+Use it only when the test is *about the supported branch* — the code
+path that cannot exist without the capability. `RecentFilesController`
+reads `window.showOpenFilePicker` in its constructor, so six tests in
+`test_recent_files.py` qualify; the seventh asserts the fallback and runs
+everywhere, which is what keeps the skip honest.
+
+A test that merely *happens* to fail on another engine is a bug or a
+harness problem, and gets fixed. `test_copy_as_table_puts_tsv_on_the_clipboard`
+was the second kind: it used `grant_permissions(["clipboard-read", ...])`,
+which is Chromium-only, to test something that was never about the
+browser's clipboard. It stubs `navigator.clipboard` now.
+
+Marking the first kind keeps a gap visible. Marking the second kind is
+how a suite goes green by deleting its own coverage.
+
 ## Waiting: `expect()` and the `eventually_*` helpers
 
 **Do not put a `wait_for_timeout` before an assertion.** A fixed sleep is
