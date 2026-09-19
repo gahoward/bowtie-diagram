@@ -1,41 +1,76 @@
 """UI-level coverage for ProjectSettingsController (js/controller/
-ProjectSettingsController.js) -- the single "Project Settings" modal
-consolidating the analysis name, identifier display mode (moved out of
-NodeLibraryController), the risk analysis mode/matrix picker, and the
-events/hour <-> events/year display-unit preference (formerly the separate
-"Analysis Mode" modal/ModeController).
+ProjectSettingsController.js) -- Settings › Project Settings…, the one
+modal for everything SAVED WITH THE DOCUMENT (ui_fitness_proposal.md S2):
+three tabs -- General (name, identifier display), Risk analysis (mode
+cards, matrix picker + summary/legend + import/export) and, only in
+Quantitative mode, Quantitative (TLE aggregation, dangerous-fraction and
+proof-test-interval defaults). Per-browser preferences (display unit and
+friends) live in Preferences instead -- see test_preferences.py.
 """
 
 
-def _open_project_settings(page):
+from playwright.sync_api import expect
+from helpers import eventually_contains, eventually_equals
+
+def _open_project_settings(page, tab=None):
     page.click("#menu-trigger-settings")
     page.click("#btn-project-settings")
     page.wait_for_timeout(100)
+    if tab:
+        _go_to_tab(page, tab)
 
 
-def test_project_settings_menu_item_replaces_analysis_mode(page):
+def _go_to_tab(page, tab):
+    page.click(f".settings-tab[data-tab={tab}]")
+    page.wait_for_timeout(80)
+
+
+def _tabs(page):
+    return page.locator(".settings-tab").all_text_contents()
+
+
+def _set_mode(page, mode):
+    """Picks a mode card on the Risk analysis tab (wherever the modal is)."""
+    _go_to_tab(page, "risk")
+    page.locator(f"input[name=analysis-mode][value={mode}]").check()
+    page.wait_for_timeout(80)
+
+
+def _done(page):
+    page.get_by_role("button", name="Done", exact=True).click()
+    page.wait_for_timeout(80)
+
+
+def test_settings_menu_holds_only_project_settings_and_preferences(page):
     page.click("#menu-trigger-settings")
-    dropdown = page.locator("#menu-dropdown-settings")
-    texts = dropdown.locator(".menu-dropdown-item").all_text_contents()
-    assert any("Project Settings" in t for t in texts)
-    assert not any("Analysis Mode" in t for t in texts)
+    texts = page.locator("#menu-dropdown-settings .menu-dropdown-item").all_text_contents()
+    assert [t.rstrip("…") for t in texts] == ["Project Settings", "Preferences"]
 
 
-def test_project_settings_shows_name_identifiers_and_risk_analysis_sections(page):
+def test_project_settings_has_general_and_risk_tabs_and_a_conditional_quantitative_tab(page):
     _open_project_settings(page)
-    titles = page.locator(".modal-section-title").all_text_contents()
-    assert titles == ["Analysis", "Identifiers", "Risk Analysis"]
-    page.get_by_role("button", name="Close", exact=True).click()
+    assert page.locator(".modal-subtitle").text_content() == "Saved with the document. Changes apply immediately."
+    assert _tabs(page) == ["General", "Risk analysis"]
+    assert page.locator(".settings-tab[aria-selected=true]").text_content() == "General"
+
+    _set_mode(page, "quantitative")
+    assert _tabs(page) == ["General", "Risk analysis", "Quantitative"]
+    assert page.locator(".settings-tab[aria-selected=true]").text_content() == "Risk analysis", "the active tab survives the rebuild"
+
+    _go_to_tab(page, "quantitative")
+    page.locator("input[name=analysis-mode]").count() == 0
+    _set_mode(page, "qualitative")
+    assert _tabs(page) == ["General", "Risk analysis"]
+    _done(page)
 
 
 def test_project_settings_renames_the_document(page):
     _open_project_settings(page)
-    name_input = page.locator(".modal-section:has-text('Analysis') input[type=text]")
+    name_input = page.locator("input[name=analysis-name]")
     name_input.fill("My Renamed Analysis")
     name_input.blur()
-    page.wait_for_timeout(80)
 
-    assert page.evaluate("() => window.__lastModel.name") == "My Renamed Analysis"
+    eventually_equals(lambda: page.evaluate("() => window.__lastModel.name"), "My Renamed Analysis")
 
 
 def test_committing_a_rename_does_not_drop_focus_to_body(page):
@@ -44,104 +79,101 @@ def test_committing_a_rename_does_not_drop_focus_to_body(page):
     -- a same-tick modal body rebuild used to replace that element too,
     dropping focus to <body> with no way back for a keyboard user."""
     _open_project_settings(page)
-    name_input = page.locator(".modal-section:has-text('Analysis') input[type=text]")
+    name_input = page.locator("input[name=analysis-name]")
     name_input.fill("Tabbed Away")
     name_input.press("Tab")
-    page.wait_for_timeout(80)
 
-    assert page.evaluate("() => window.__lastModel.name") == "Tabbed Away"
+    eventually_equals(lambda: page.evaluate("() => window.__lastModel.name"), "Tabbed Away")
     assert page.evaluate("() => document.activeElement.tagName") != "BODY"
 
 
-def test_project_settings_identifier_display_mode_moved_out_of_node_library(page):
-    # The toggle now lives only in Project Settings.
+def test_a_blank_name_is_rejected_and_reverted(page):
+    _open_project_settings(page)
+    name_input = page.locator("input[name=analysis-name]")
+    name_input.fill("   ")
+    name_input.blur()
+    eventually_equals(lambda: page.evaluate("() => window.__lastModel.name"), "Untitled Bowtie")
+    assert name_input.input_value() == "Untitled Bowtie"
+
+
+def test_project_settings_identifier_display_mode_lives_on_the_general_tab_only(page):
     _open_project_settings(page)
     assert page.locator("input[name=identifier-display-mode-toggle]").count() == 2
-    page.get_by_role("button", name="Close", exact=True).click()
+    _done(page)
 
-    page.click("#menu-trigger-settings")
+    page.click("#menu-trigger-add")
     page.click("#btn-manage-ids")
-    page.wait_for_timeout(100)
-    assert page.locator("input[name=identifier-display-mode-toggle]").count() == 0
+    expect(page.locator("input[name=identifier-display-mode-toggle]")).to_have_count(0)
     assert page.locator(".modal-title").text_content() == "Node Library"
 
 
 def test_project_settings_switching_identifier_mode_to_custom_backfills_ids(page):
-    page.evaluate("() => { window.__lastModel.addCause({x: 150, y: 200}); }")
+    page.evaluate("() => { window.__lastModel.addThreat({x: 150, y: 200}); }")
     page.wait_for_timeout(80)
 
     _open_project_settings(page)
     page.locator("input[name=identifier-display-mode-toggle][value=custom]").check()
-    page.wait_for_timeout(80)
-    page.get_by_role("button", name="Close", exact=True).click()
+    eventually_contains(lambda: page.locator(".settings-row:has-text('Identifiers') .settings-row-help").text_content(), "Node Library")
+    _done(page)
 
     identifier = page.evaluate("""() => {
-      const c = window.__lastModel.causes[0];
+      const c = window.__lastModel.threats[0];
       return window.__lastModel.getNode(c.nodeId).identifier;
     }""")
-    assert identifier == "C_1"
+    assert identifier == "T_1"
 
 
-def test_project_settings_matrix_picker_and_display_unit_appear_only_in_matching_modes(page):
-    _open_project_settings(page)
+def test_risk_tab_uses_the_wizards_mode_cards_and_hides_the_matrix_in_simple_mode(page):
+    _open_project_settings(page, tab="risk")
+    cards = page.locator(".mode-card")
+    assert cards.count() == 3
+    assert "selected" in cards.nth(0).get_attribute("class")
     assert page.locator(".modal-field:has-text('Risk matrix')").count() == 0
-    assert page.locator(".modal-field:has-text('Display frequencies as')").count() == 0
-    assert page.locator(".modal-field:has-text('Combine multiple causes')").count() == 0
+    assert page.locator(".modal-field:has-text('Display frequencies')").count() == 0, "display unit is a Preference now"
 
     page.locator("input[name=analysis-mode][value=qualitative]").check()
-    page.wait_for_timeout(80)
-    assert page.locator(".modal-field:has-text('Risk matrix')").count() == 1
-    assert page.locator(".modal-field:has-text('Display frequencies as')").count() == 0
-    assert page.locator(".modal-field:has-text('Combine multiple causes')").count() == 0
-
-    page.locator("input[name=analysis-mode][value=quantitative]").check()
-    page.wait_for_timeout(80)
-    assert page.locator(".modal-field:has-text('Risk matrix')").count() == 1
-    assert page.locator(".modal-field:has-text('Display frequencies as')").count() == 1
-    assert page.locator(".modal-field:has-text('Combine multiple causes')").count() == 1
+    expect(page.locator(".modal-field:has-text('Risk matrix')")).to_have_count(1)
+    assert "selected" in page.locator(".mode-card[data-mode=qualitative]").get_attribute("class")
+    assert page.evaluate("() => window.__lastModel.mode") == "qualitative"
 
     page.locator("input[name=analysis-mode][value=simple]").check()
-    page.wait_for_timeout(80)
-    assert page.locator(".modal-field:has-text('Risk matrix')").count() == 0
-    assert page.locator(".modal-field:has-text('Display frequencies as')").count() == 0
-    assert page.locator(".modal-field:has-text('Combine multiple causes')").count() == 0
+    expect(page.locator(".modal-field:has-text('Risk matrix')")).to_have_count(0)
+    _done(page)
 
 
-def test_risk_class_legend_appears_once_a_matrix_is_active(page):
+def test_matrix_summary_and_legend_appear_once_a_matrix_is_active(page):
     """Design review finding 02: the canvas risk badge only ever draws a
     bare letter -- this legend is the persistent, always-visible reference
-    for what each letter means, shown once a matrix is picked rather than
-    requiring a hover per badge."""
+    for what each letter means, now on one line with the matrix's shape."""
     _open_project_settings(page)
-    page.locator("input[name=analysis-mode][value=qualitative]").check()
-    page.wait_for_timeout(80)
+    _set_mode(page, "qualitative")
     assert page.locator(".risk-class-legend").count() == 0, "no matrix selected yet"
 
-    page.locator(".modal-field:has-text('Risk matrix') select").select_option("leaflet5")
+    page.locator("select[name=risk-matrix]").select_option("leaflet5")
     page.wait_for_timeout(80)
 
-    legend = page.locator(".risk-class-legend")
-    assert legend.count() == 1
-    items = legend.locator(".risk-class-legend-item").all_text_contents()
+    summary = page.locator(".risk-matrix-summary")
+    assert summary.count() == 1
+    assert "6 severity × 7 likelihood" in summary.text_content()
+    items = summary.locator(".risk-class-legend-item").all_text_contents()
     assert len(items) == 4
     assert any("A - Intolerable" in t for t in items)
     assert any("D - Broadly Acceptable" in t for t in items)
 
-    page.locator(".modal-field:has-text('Risk matrix') select").select_option("")
-    page.wait_for_timeout(80)
-    assert page.locator(".risk-class-legend").count() == 0, "cleared alongside the matrix itself"
+    page.locator("select[name=risk-matrix]").select_option("")
+    expect(page.locator(".risk-class-legend")).to_have_count(0)
 
 
-def test_project_settings_tle_aggregation_toggle_updates_model_and_canvas(page):
+def test_quantitative_tab_tle_aggregation_toggle_updates_model_and_canvas(page):
     """Design review finding 11: the aggregation toggle drives
     BowtieModel.setTleAggregation, and the canvas TLE badge names whichever
     policy is active (CanvasView.js)."""
     page.evaluate("""() => {
       const m = window.__lastModel;
       m.setMode('quantitative');
-      const c1 = m.addCause({x: 150, y: 200});
+      const c1 = m.addThreat({x: 150, y: 200});
       m.renameNode(c1.nodeId, { name: 'C1', frequency: { value: '0.001' } });
-      const c2 = m.addCause({x: 150, y: 400});
+      const c2 = m.addThreat({x: 150, y: 400});
       m.renameNode(c2.nodeId, { name: 'C2', frequency: { value: '0.01' } });
     }""")
     page.wait_for_timeout(100)
@@ -153,22 +185,18 @@ def test_project_settings_tle_aggregation_toggle_updates_model_and_canvas(page):
         """)
 
     assert "(max)" in tle_info_text()
-    assert page.evaluate("() => window.__lastModel.tleAggregation") == "max"
 
-    _open_project_settings(page)
-    page.locator("input[name=analysis-mode][value=quantitative]").check()
-    page.wait_for_timeout(80)
+    _open_project_settings(page, tab="quantitative")
     assert page.locator("input[name=tle-aggregation]").count() == 2
     page.locator("input[name=tle-aggregation][value=sum]").check()
     page.wait_for_timeout(80)
-    page.get_by_role("button", name="Close", exact=True).click()
-    page.wait_for_timeout(80)
+    _done(page)
 
     assert page.evaluate("() => window.__lastModel.tleAggregation") == "sum"
     assert "(sum)" in tle_info_text()
 
 
-def test_project_settings_quantitative_defaults_update_the_model(page):
+def test_quantitative_tab_defaults_update_the_model(page):
     """barrier_measures_proposal.md's ProjectDefaults: the dangerous-
     fraction and proof-test-interval fallbacks a barrier's own protection
     overrides -- committed via setQuantitativeDefaults, same
@@ -177,77 +205,47 @@ def test_project_settings_quantitative_defaults_update_the_model(page):
     assert page.evaluate("() => window.__lastModel.proofTestIntervalH") == "8760"
 
     _open_project_settings(page)
-    page.locator("input[name=analysis-mode][value=quantitative]").check()
-    page.wait_for_timeout(80)
+    _set_mode(page, "quantitative")
+    _go_to_tab(page, "quantitative")
 
-    df_input = page.locator(".modal-field:has-text('dangerous fraction') input[type=text]")
+    df_input = page.locator(".modal-field:has-text('Dangerous fraction') input[type=text]")
     df_input.fill("0.5")
     df_input.blur()
     page.wait_for_timeout(80)
 
-    ti_input = page.locator(".modal-field:has-text('proof-test interval') input[type=text]")
+    ti_input = page.locator(".modal-field:has-text('Proof-test interval') input[type=text]")
     ti_input.fill("4380")
     ti_input.blur()
     page.wait_for_timeout(80)
-
-    page.get_by_role("button", name="Close", exact=True).click()
-    page.wait_for_timeout(80)
+    _done(page)
 
     assert page.evaluate("() => window.__lastModel.dangerousFraction") == "0.5"
     assert page.evaluate("() => window.__lastModel.proofTestIntervalH") == "4380"
 
 
-def test_project_settings_quantitative_defaults_reject_out_of_range_values(page):
+def test_quantitative_tab_defaults_reject_out_of_range_values(page):
     _open_project_settings(page)
-    page.locator("input[name=analysis-mode][value=quantitative]").check()
-    page.wait_for_timeout(80)
+    _set_mode(page, "quantitative")
+    _go_to_tab(page, "quantitative")
 
-    df_input = page.locator(".modal-field:has-text('dangerous fraction') input[type=text]")
+    df_input = page.locator(".modal-field:has-text('Dangerous fraction') input[type=text]")
     df_input.fill("1.5")
     df_input.blur()
-    page.wait_for_timeout(80)
 
-    assert page.evaluate("() => window.__lastModel.dangerousFraction") == "1", "out-of-range input must be rejected"
+    eventually_equals(lambda: page.evaluate("() => window.__lastModel.dangerousFraction"), "1", "out-of-range input must be rejected")
+    assert df_input.input_value() == "1"
 
 
 def test_project_settings_selecting_a_matrix_preset_embeds_a_full_copy(page):
     _open_project_settings(page)
-    page.locator("input[name=analysis-mode][value=quantitative]").check()
-    page.wait_for_timeout(80)
-    page.locator(".modal-field:has-text('Risk matrix') select").select_option("leaflet5")
+    _set_mode(page, "quantitative")
+    page.locator("select[name=risk-matrix]").select_option("leaflet5")
     page.wait_for_timeout(80)
 
     embedded_id = page.evaluate("() => window.__lastModel.riskMatrix && window.__lastModel.riskMatrix.id")
     assert embedded_id == "leaflet5"
     is_copy = page.evaluate("() => window.__lastModel.riskMatrix !== Bowtie.RISK_MATRIX_PRESETS.leaflet5")
     assert is_copy is True
-
-
-def test_project_settings_display_unit_toggle_changes_canvas_likelihood_text(page):
-    page.evaluate("""() => {
-      const m = window.__lastModel;
-      m.setMode('quantitative');
-      m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
-      const c = m.addCause({x: 150, y: 200});
-      m.renameNode(c.nodeId, { name: 'C1', frequency: { value: '1' } });
-    }""")
-    page.wait_for_timeout(100)
-
-    def tle_info_text():
-        return page.evaluate("""
-          () => Array.from(document.getElementById('nodes-layer').querySelectorAll('.node-info-text text'))
-            .map((t) => t.textContent).join(' | ')
-        """)
-
-    assert "/hr" in tle_info_text()
-
-    _open_project_settings(page)
-    page.locator("input[name=display-unit][value=year]").check()
-    page.wait_for_timeout(80)
-    page.get_by_role("button", name="Close", exact=True).click()
-    page.wait_for_timeout(80)
-
-    assert "/yr" in tle_info_text()
 
 
 # --- Risk matrix import/export ---------------------------------------------
@@ -268,21 +266,22 @@ _CUSTOM_MATRIX = {
 }
 
 
-def test_export_risk_matrix_button_disabled_until_a_matrix_is_active(page):
+def _open_in_quantitative_mode(page):
     _open_project_settings(page)
-    page.locator("input[name=analysis-mode][value=quantitative]").check()
-    page.wait_for_timeout(80)
+    _set_mode(page, "quantitative")
+
+
+def test_export_risk_matrix_button_disabled_until_a_matrix_is_active(page):
+    _open_in_quantitative_mode(page)
     assert page.get_by_role("button", name="Export Risk Matrix…", exact=True).is_disabled()
 
-    page.locator(".modal-field:has-text('Risk matrix') select").select_option("leaflet5")
+    page.locator("select[name=risk-matrix]").select_option("leaflet5")
     page.wait_for_timeout(80)
     assert page.get_by_role("button", name="Export Risk Matrix…", exact=True).is_enabled()
 
 
 def test_import_risk_matrix_via_native_picker_sets_it_active(page):
-    _open_project_settings(page)
-    page.locator("input[name=analysis-mode][value=quantitative]").check()
-    page.wait_for_timeout(80)
+    _open_in_quantitative_mode(page)
 
     page.evaluate(
         """(matrix) => {
@@ -297,12 +296,13 @@ def test_import_risk_matrix_via_native_picker_sets_it_active(page):
 
     active_id = page.evaluate("() => window.__lastModel.riskMatrix && window.__lastModel.riskMatrix.id")
     assert active_id == "custom-import-test"
+    # The imported matrix shows as its own (informational) option.
+    assert page.locator("select[name=risk-matrix]").input_value() == "custom-import-test"
+    assert "(imported)" in page.locator("select[name=risk-matrix] option:checked").text_content()
 
 
 def test_import_risk_matrix_falls_back_to_hidden_input_when_api_unavailable(page, tmp_path):
-    _open_project_settings(page)
-    page.locator("input[name=analysis-mode][value=quantitative]").check()
-    page.wait_for_timeout(80)
+    _open_in_quantitative_mode(page)
     page.evaluate("() => { delete window.showOpenFilePicker; }")
 
     file_path = tmp_path / "matrix.json"
@@ -318,9 +318,7 @@ def test_import_risk_matrix_falls_back_to_hidden_input_when_api_unavailable(page
 
 
 def test_import_risk_matrix_rejects_an_invalid_file(page):
-    _open_project_settings(page)
-    page.locator("input[name=analysis-mode][value=quantitative]").check()
-    page.wait_for_timeout(80)
+    _open_in_quantitative_mode(page)
 
     page.evaluate("""() => {
       window.showOpenFilePicker = async () => [{
@@ -328,18 +326,15 @@ def test_import_risk_matrix_rejects_an_invalid_file(page):
       }];
     }""")
     page.get_by_role("button", name="Import Risk Matrix…", exact=True).click()
-    page.wait_for_timeout(150)
 
-    assert page.locator(".modal-title", has_text="Cannot Import Risk Matrix").count() == 1
+    expect(page.locator(".modal-title", has_text="Cannot Import Risk Matrix")).to_have_count(1)
     page.get_by_role("button", name="OK", exact=True).click()
     assert page.evaluate("() => window.__lastModel.riskMatrix") is None
 
 
 def test_export_then_reimport_risk_matrix_round_trips(page):
-    _open_project_settings(page)
-    page.locator("input[name=analysis-mode][value=quantitative]").check()
-    page.wait_for_timeout(80)
-    page.locator(".modal-field:has-text('Risk matrix') select").select_option("leaflet5")
+    _open_in_quantitative_mode(page)
+    page.locator("select[name=risk-matrix]").select_option("leaflet5")
     page.wait_for_timeout(80)
 
     page.evaluate("""() => {
@@ -361,7 +356,7 @@ def test_export_then_reimport_risk_matrix_round_trips(page):
     )
 
     # Reset to no matrix, then reimport the exported file.
-    page.locator(".modal-field:has-text('Risk matrix') select").select_option("")
+    page.locator("select[name=risk-matrix]").select_option("")
     page.wait_for_timeout(80)
     page.evaluate(
         """(text) => {

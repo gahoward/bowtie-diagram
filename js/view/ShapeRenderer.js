@@ -1,13 +1,8 @@
 (function (Bowtie) {
-  const SVG_NS = 'http://www.w3.org/2000/svg';
   const { LINE_HEIGHT, FONT_SIZE } = Bowtie.Layout;
   const { BARRIER_LABEL_MAX_WIDTH, LABEL_GAP } = Bowtie.Geometry;
 
-  function el(tag, attrs) {
-    const node = document.createElementNS(SVG_NS, tag);
-    Object.entries(attrs || {}).forEach(([k, v]) => node.setAttribute(k, v));
-    return node;
-  }
+  const el = Bowtie.Svg.el;
 
   // Renders a vertically-centered block of tspans, one <tspan> per line,
   // starting with an optional bold id line followed by the wrapped name.
@@ -110,12 +105,12 @@
     return { g, bounds: { w: layout.w, h: layout.h } };
   }
 
-  // `node` here is a PLACEMENT (Cause/Outcome/PreventativeBarrier/
+  // `node` here is a PLACEMENT (Threat/Consequence/PreventativeBarrier/
   // MitigativeBarrier) — `stableId`/`displayId`/`displayName` are resolved
   // by the caller (CanvasView) from the placement's `nodeId` against the
   // shared library (node_library_proposal.md "Two id spaces"). Three
   // distinct strings, each doing a different job:
-  //   - `stableId` (the library NODE's own id, e.g. "C_1"): the DOM
+  //   - `stableId` (the library NODE's own id, e.g. "T_1"): the DOM
   //     `data-id` — deliberately NOT the placement's own internal id.
   //     Drag/context-menu/focus resolve elements via this, and "at most
   //     one placement per node per page" (decided) makes a node id
@@ -126,8 +121,8 @@
   //   - `displayId`: the same node's id OR its custom identifier, per the
   //     document's identifierDisplayMode — what actually renders as text.
   //   - `displayName`: the node's name, for text wrapping/the label line.
-  function renderCauseOrOutcome(svgRoot, node, kind, stableId, displayId, displayName) {
-    const { w, h, lines } = Bowtie.Layout.causeOutcomeBounds(svgRoot, node, displayName);
+  function renderThreatOrConsequence(svgRoot, node, kind, stableId, displayId, displayName) {
+    const { w, h, lines } = Bowtie.Layout.threatConsequenceBounds(svgRoot, node, displayName);
     const g = el('g', { class: `node ${kind}`, 'data-id': stableId });
     g.appendChild(el('rect', {
       x: node.x - w / 2, y: node.y - h / 2, width: w, height: h,
@@ -162,14 +157,66 @@
     };
   }
 
+  // An escalation factor hangs BELOW the barrier it degrades, so unlike a
+  // Threat/Consequence its box is sized to its own text rather than to a
+  // fixed lane, and unlike a barrier it carries its label inside itself
+  // (there is no room under it -- the next factor in the stack is there).
+  //
+  // `stableId` for a factor is its PLACEMENT id, not its node id. Every
+  // other kind can rely on "at most one placement per node per page" to
+  // make the node id unambiguous in the DOM; a factor is the one kind
+  // that can legitimately appear twice on a page, degrading two different
+  // barriers (proposals/08), so the placement id is what makes each of
+  // those two boxes addressable. `displayId` is still the node's, so both
+  // read "EF_1" -- which is the point.
+  function renderEscalationFactor(svgRoot, node, stableId, displayId, displayName) {
+    const lines = Bowtie.TextWrap.wrapText(svgRoot, displayName, node.w - 16, FONT_SIZE);
+    const h = Math.max(node.h, (lines.length + 1) * LINE_HEIGHT + 14);
+    const g = el('g', { class: 'node escalation-factor', 'data-id': stableId });
+    g.appendChild(el('rect', {
+      x: node.x - node.w / 2, y: node.y - h / 2, width: node.w, height: h,
+      rx: 8, ry: 8, class: 'shape',
+    }));
+    g.appendChild(textBlock(node.x, node.y, displayId, lines));
+    return { g, bounds: { w: node.w, h } };
+  }
+
+  // The same bar a preventative/mitigative barrier draws, lying flat: an
+  // escalation barrier sits ON the vertical escalation line, so its long
+  // axis is horizontal. Its label sits to the right rather than below,
+  // for the same reason -- below is where the line continues.
+  function renderEscalationBarrier(svgRoot, node, stableId, displayId, displayName) {
+    const g = el('g', { class: 'node escalation-barrier', 'data-id': stableId });
+    g.appendChild(el('rect', {
+      x: node.x - node.w / 2, y: node.y - node.h / 2, width: node.w, height: node.h,
+      rx: 3, ry: 3, class: 'shape',
+    }));
+    const labelLines = Bowtie.TextWrap.wrapText(svgRoot, displayName, BARRIER_LABEL_MAX_WIDTH, FONT_SIZE);
+    const labelX = node.x + node.w / 2 + LABEL_GAP;
+    const labelBlockHeight = (labelLines.length + 1) * LINE_HEIGHT;
+    const label = textBlock(labelX, node.y, displayId, labelLines);
+    label.setAttribute('text-anchor', 'start');
+    g.appendChild(label);
+    return {
+      g,
+      bounds: {
+        w: node.w,
+        h: node.h,
+        labelCenterY: node.y,
+        labelRight: labelX + BARRIER_LABEL_MAX_WIDTH,
+        labelHalfHeight: labelBlockHeight / 2,
+      },
+    };
+  }
+
   Bowtie.ShapeRenderer = {
     renderTopLevelEvent,
     renderHazard,
-    renderCause: (svgRoot, node, stableId, displayId, displayName) => renderCauseOrOutcome(
-      svgRoot, node, 'cause', stableId, displayId, displayName,
+    renderThreat: (svgRoot, node, stableId, displayId, displayName) => renderThreatOrConsequence(
+      svgRoot, node, 'threat', stableId, displayId, displayName,
     ),
-    renderOutcome: (svgRoot, node, stableId, displayId, displayName) => renderCauseOrOutcome(
-      svgRoot, node, 'outcome', stableId, displayId, displayName,
+    renderConsequence: (svgRoot, node, stableId, displayId, displayName) => renderThreatOrConsequence(
+      svgRoot, node, 'consequence', stableId, displayId, displayName,
     ),
     renderPreventativeBarrier: (svgRoot, node, laneYs, stableId, displayId, displayName) => renderControl(
       svgRoot, node, 'preventative-barrier', laneYs, stableId, displayId, displayName,
@@ -177,5 +224,7 @@
     renderMitigativeBarrier: (svgRoot, node, laneYs, stableId, displayId, displayName) => renderControl(
       svgRoot, node, 'mitigative-barrier', laneYs, stableId, displayId, displayName,
     ),
+    renderEscalationFactor,
+    renderEscalationBarrier,
   };
 })(window.Bowtie = window.Bowtie || {});

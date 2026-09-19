@@ -20,7 +20,7 @@
     // Opens the shared Properties modal (PropertiesModal.js) for any node
     // type -- Identity (name/description/identifier), Risk Analysis
     // (qualitative/quantitative fields, library nodes only), and read-only
-    // Computed values (Outcome risk class/likelihood, TLE computed
+    // Computed values (Consequence risk class/likelihood, TLE computed
     // likelihood). Reached from both double-click and the context menu's
     // "Properties" item.
     rename(el) {
@@ -162,7 +162,7 @@
 
     // Generic searchable-by-id/name candidate picker -- shared by every
     // "attach to existing barrier" item, whichever menu it was offered from
-    // (a Cause/Outcome node's own menu, or a right-clicked line segment).
+    // (a Threat/Consequence node's own menu, or a right-clicked line segment).
     openAttachModal(title, candidates, onPick) {
       const body = document.createElement('div');
 

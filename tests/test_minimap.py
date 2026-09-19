@@ -12,11 +12,11 @@ suggested were out of view, because it was computed from `viewBox` alone.
 def test_minimap_viewport_rect_reflects_true_visible_area_not_stale_viewbox(page):
     page.evaluate("""() => {
       const m = window.__lastModel;
-      m.addCause({x: 150, y: 380});
-      let anchor = m.addPreventativeControl(m.causes[0].id);
+      m.addThreat({x: 150, y: 380});
+      let anchor = m.addPreventativeControl(m.threats[0].id);
       for (let i = 0; i < 4; i++) anchor = m.insertBarrier('preventativeBarrier', 'after', anchor.id);
-      m.addOutcome({x: 1900, y: 420});
-      let mAnchor = m.addMitigativeControl(m.outcomes[0].id);
+      m.addConsequence({x: 1900, y: 420});
+      let mAnchor = m.addMitigativeControl(m.consequences[0].id);
       for (let i = 0; i < 4; i++) mAnchor = m.insertBarrier('mitigativeBarrier', 'before', mAnchor.id);
     }""")
     page.click("#menu-trigger-view")
@@ -75,8 +75,8 @@ def test_minimap_viewport_rect_updates_on_window_resize_alone(page):
     `ResizeObserver` on the SVG root in PanZoomController."""
     page.evaluate("""() => {
       const m = window.__lastModel;
-      m.addCause({x: 150, y: 380});
-      m.addOutcome({x: 1900, y: 420});
+      m.addThreat({x: 150, y: 380});
+      m.addConsequence({x: 1900, y: 420});
     }""")
     page.click("#menu-trigger-view")
     page.click("#btn-auto-arrange")

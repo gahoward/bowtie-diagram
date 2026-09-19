@@ -1,7 +1,7 @@
-"""Settings -> Visual Settings -> "Auto-arrange spacing" (Loose/Tight).
+"""Settings -> Preferences -> Auto-arrange "Column spacing" (Loose/Tight).
 Tight mode brings columns closer together horizontally while still
 respecting the same overlap-avoidance guarantees auto-arrange already
-enforces vertically -- COL_SPACING_TIGHT is derived from real barrier/Cause/
+enforces vertically -- COL_SPACING_TIGHT is derived from real barrier/Threat/
 TLE geometry (mirroring how GROUP_GAP was derived), not a guessed number.
 """
 from helpers import auto_arrange
@@ -9,29 +9,29 @@ from helpers import auto_arrange
 
 def _set_arrange_spacing(page, value):
     page.click("#menu-trigger-settings")
-    page.click("#btn-settings")
+    page.click("#btn-preferences")
     page.locator(".modal-checkbox-row", has_text=value).click()
-    page.get_by_role("button", name="Close", exact=True).click()
+    page.get_by_role("button", name="Done", exact=True).click()
     page.wait_for_timeout(80)
 
 
 def _build_simple_chain(page):
     page.evaluate("""() => {
       const m = window.__lastModel;
-      m.addCause({x: 150, y: 200});
-      m.addPreventativeControl(m.causes[0].id);
-      m.addOutcome({x: 1200, y: 200});
-      m.addMitigativeControl(m.outcomes[0].id);
+      m.addThreat({x: 150, y: 200});
+      m.addPreventativeControl(m.threats[0].id);
+      m.addConsequence({x: 1200, y: 200});
+      m.addMitigativeControl(m.consequences[0].id);
     }""")
 
 
 def test_settings_modal_offers_loose_and_tight_options(page):
     page.click("#menu-trigger-settings")
-    page.click("#btn-settings")
+    page.click("#btn-preferences")
     texts = page.locator(".modal-checkbox-row").all_text_contents()
     assert any("Loose" in t for t in texts)
     assert any("Tight" in t for t in texts)
-    page.get_by_role("button", name="Close", exact=True).click()
+    page.get_by_role("button", name="Done", exact=True).click()
 
 
 def test_tight_mode_produces_closer_columns_than_loose(page):
@@ -40,7 +40,7 @@ def test_tight_mode_produces_closer_columns_than_loose(page):
     page.wait_for_timeout(100)
     loose_gap = page.evaluate("""() => {
       const m = window.__lastModel;
-      return m.preventativeBarriers[0].x - m.causes[0].x;
+      return m.preventativeBarriers[0].x - m.threats[0].x;
     }""")
 
     _set_arrange_spacing(page, "Tight")
@@ -48,7 +48,7 @@ def test_tight_mode_produces_closer_columns_than_loose(page):
     page.wait_for_timeout(100)
     tight_gap = page.evaluate("""() => {
       const m = window.__lastModel;
-      return m.preventativeBarriers[0].x - m.causes[0].x;
+      return m.preventativeBarriers[0].x - m.threats[0].x;
     }""")
 
     assert tight_gap < loose_gap
@@ -63,8 +63,8 @@ def test_tight_mode_still_avoids_horizontal_label_overlap(page):
     _set_arrange_spacing(page, "Tight")
     page.evaluate("""() => {
       const m = window.__lastModel;
-      m.addCause({x: 150, y: 200});
-      const pb1 = m.addPreventativeControl(m.causes[0].id);
+      m.addThreat({x: 150, y: 200});
+      const pb1 = m.addPreventativeControl(m.threats[0].id);
       m.insertBarrier('preventativeBarrier', 'after', pb1.id);
       m.insertBarrier('preventativeBarrier', 'after', 'PB_2');
     }""")
@@ -128,38 +128,38 @@ def test_tight_mode_still_clears_the_hazard(page):
 
 def test_shallower_side_no_longer_padded_to_match_the_deeper_sides_depth(page):
     """Bug fix bundled with tight/loose mode (applies to both): `tleX`/
-    `outcomesX` used to both be offset using a single shared
-    max(pcDepth, mcDepth), so the OUTCOME NODE ITSELF (not its barriers --
+    `consequencesX` used to both be offset using a single shared
+    max(pcDepth, mcDepth), so the CONSEQUENCE NODE ITSELF (not its barriers --
     `mcColX(d)` already only ever depended on that barrier's own depth, so
     barrier placement was never actually affected) landed padded out an
     extra, unused column's worth of gap past its own last barrier whenever
-    the Cause side was deeper. Build a 3-deep Cause chain and a 1-deep
-    Outcome chain: the Outcome should sit exactly one column-spacing unit
-    past its own single barrier, not out at the 3-deep Cause side's
+    the Threat side was deeper. Build a 3-deep Threat chain and a 1-deep
+    Consequence chain: the Consequence should sit exactly one column-spacing unit
+    past its own single barrier, not out at the 3-deep Threat side's
     distance."""
     page.evaluate("""() => {
       const m = window.__lastModel;
-      m.addCause({x: 150, y: 200});
-      let anchor = m.addPreventativeControl(m.causes[0].id);
+      m.addThreat({x: 150, y: 200});
+      let anchor = m.addPreventativeControl(m.threats[0].id);
       anchor = m.insertBarrier('preventativeBarrier', 'after', anchor.id);
       anchor = m.insertBarrier('preventativeBarrier', 'after', anchor.id);
-      m.addOutcome({x: 1200, y: 200});
-      m.addMitigativeControl(m.outcomes[0].id);
+      m.addConsequence({x: 1200, y: 200});
+      m.addMitigativeControl(m.consequences[0].id);
     }""")
     auto_arrange(page)
     page.wait_for_timeout(100)
 
     result = page.evaluate("""() => {
       const m = window.__lastModel;
-      const outcomeX = m.outcomes[0].x;
+      const consequenceX = m.consequences[0].x;
       const mb1x = m.mitigativeBarriers[0].x;
       const pbXs = m.preventativeBarriers.map((pb) => pb.x).sort((a, b) => a - b);
       return {
         colSpacing: pbXs[1] - pbXs[0],
-        outcomeToItsOwnBarrier: outcomeX - mb1x,
+        consequenceToItsOwnBarrier: consequenceX - mb1x,
       };
     }""")
-    assert abs(result["outcomeToItsOwnBarrier"] - result["colSpacing"]) < 1, (
-        "the Outcome should sit exactly one column-spacing unit past its own (single) barrier, "
-        "not padded out to match the 3-deep cause side"
+    assert abs(result["consequenceToItsOwnBarrier"] - result["colSpacing"]) < 1, (
+        "the Consequence should sit exactly one column-spacing unit past its own (single) barrier, "
+        "not padded out to match the 3-deep threat side"
     )

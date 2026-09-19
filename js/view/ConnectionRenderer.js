@@ -1,5 +1,5 @@
 (function (Bowtie) {
-  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const SVG_NS = Bowtie.Svg.NS;
   const { leftEdge, rightEdge, circleEdgePoint } = Bowtie.Layout;
   const LABEL_GAP = 6;
 
@@ -29,10 +29,10 @@
     return label;
   }
 
-  // `line.originId` is the origin Cause/Outcome's own PLACEMENT id (an
+  // `line.originId` is the origin Threat/Consequence's own PLACEMENT id (an
   // internal, never-rendered bookkeeping key -- see "Two id spaces" in
   // node_library_proposal.md) -- the annotation must show the origin
-  // NODE's own display identifier (C_1/O_1, or its custom label) instead.
+  // NODE's own display identifier (T_1/C_1, or its custom label) instead.
   function originDisplayId(model, line) {
     const origin = model.findById(line.originId);
     const node = model.getNode(origin.nodeId);
@@ -100,7 +100,7 @@
     // reported bug: the truncated line's bend visibly cut across the
     // column its former continuation used to occupy), and (2) a bare line
     // whose fixed margin happens to fall short of where the diagram's
-    // actual barrier columns are (reported alongside it: a bare Outcome's
+    // actual barrier columns are (reported alongside it: a bare Consequence's
     // bend stopping well before the nearest Mitigative Barrier's column).
     // Real barrier positions are already Hazard-safe by construction
     // (AutoArrangeController's TLE_ADJACENT_GAP_TIGHT/LOOSE), so reusing
@@ -114,16 +114,16 @@
       ? Math.min(...model.mitigativeBarriers.map((mb) => mb.x - boundsById[mb.id].w / 2))
       : null;
 
-    // --- Cause -> ... -> TLE ---
+    // --- Threat -> ... -> TLE ---
 
-    model.causes.forEach((cause) => {
-      const line = model._lineFor(cause.id);
-      const cb = boundsById[cause.id];
-      const laneY = cause.y;
-      const start = rightEdge(cause, cb);
+    model.threats.forEach((threat) => {
+      const line = model._lineFor(threat.id);
+      const cb = boundsById[threat.id];
+      const laneY = threat.y;
+      const start = rightEdge(threat, cb);
 
       if (line.stops.length === 0) {
-        const attrs = { 'data-role': 'cause-direct', 'data-line-id': line.id };
+        const attrs = { 'data-role': 'threat-direct', 'data-line-id': line.id };
         // Hazard clearance is a hard ceiling on how far the flat run may
         // extend (smaller x = more clearance); reaching the shallowest PB
         // column is best-effort on top of that, never past it -- Math.min
@@ -148,11 +148,11 @@
       const flatEnd = { x: shallowestPcEdge !== null ? Math.max(ownEdge, shallowestPcEdge) : ownEdge, y: laneY };
 
       frag.appendChild(makeLine(start, flatEnd, 'to-control', {
-        'data-role': 'cause-line', 'data-line-id': line.id,
+        'data-role': 'threat-line', 'data-line-id': line.id,
       }));
       const bendEnd = circleEdgePoint(tleCenter, tleR, flatEnd.x, laneY);
       frag.appendChild(makeLine(flatEnd, bendEnd, 'to-hazard', {
-        'data-role': 'cause-line', 'data-line-id': line.id,
+        'data-role': 'threat-line', 'data-line-id': line.id,
       }));
 
       if (showAnnotations) {
@@ -165,19 +165,19 @@
       }
     });
 
-    // --- TLE -> ... -> Outcome ---
+    // --- TLE -> ... -> Consequence ---
 
-    model.outcomes.forEach((outcome) => {
-      const line = model._lineFor(outcome.id);
-      const ob = boundsById[outcome.id];
-      const laneY = outcome.y;
-      const end = leftEdge(outcome, ob);
+    model.consequences.forEach((consequence) => {
+      const line = model._lineFor(consequence.id);
+      const ob = boundsById[consequence.id];
+      const laneY = consequence.y;
+      const end = leftEdge(consequence, ob);
 
       if (line.stops.length === 0) {
-        const attrs = { 'data-role': 'outcome-direct', 'data-line-id': line.id };
-        // Mirrors the Cause side: Hazard clearance is the hard floor on
+        const attrs = { 'data-role': 'consequence-direct', 'data-line-id': line.id };
+        // Mirrors the Threat side: Hazard clearance is the hard floor on
         // how close to the TLE the flat run may reach (larger x = more
-        // clearance here, since Outcomes sit right of the TLE); reaching
+        // clearance here, since Consequences sit right of the TLE); reaching
         // the shallowest MB column is best-effort on top of that, via
         // Math.max so whichever demands the longer run wins.
         const hazardFloor = tleCenter.x + bareBendRunLength(laneY);
@@ -187,7 +187,7 @@
         const bendEnd = flatX < end.x ? flatStart : end;
         const bendStart = circleEdgePoint(tleCenter, tleR, bendEnd.x, laneY);
         frag.appendChild(makeLine(bendStart, bendEnd, 'from-hazard', attrs));
-        if (flatX < end.x) frag.appendChild(makeLine(flatStart, end, 'to-outcome', attrs));
+        if (flatX < end.x) frag.appendChild(makeLine(flatStart, end, 'to-consequence', attrs));
         return;
       }
 
@@ -199,10 +199,10 @@
 
       const bendStart = circleEdgePoint(tleCenter, tleR, flatStart.x, laneY);
       frag.appendChild(makeLine(bendStart, flatStart, 'from-hazard', {
-        'data-role': 'outcome-line', 'data-line-id': line.id,
+        'data-role': 'consequence-line', 'data-line-id': line.id,
       }));
-      frag.appendChild(makeLine(flatStart, end, 'to-outcome', {
-        'data-role': 'outcome-line', 'data-line-id': line.id,
+      frag.appendChild(makeLine(flatStart, end, 'to-consequence', {
+        'data-role': 'consequence-line', 'data-line-id': line.id,
       }));
 
       if (showAnnotations) {
@@ -213,6 +213,37 @@
           frag.appendChild(makeLabel({ x: sn.x + sb.w / 2 + LABEL_GAP, y: laneY }, originDisplayId(model, line)));
         });
       }
+    });
+
+    // Escalation lines (proposals/08): one per escalation factor, running
+    // VERTICALLY from the factor's top edge up into the bottom edge of the
+    // barrier it degrades, with its escalation barriers as flat bars
+    // across that line. Dashed, and in its own class, so it reads as
+    // "degrades" rather than as a path anything flows along -- the one
+    // edge on the canvas that is not part of a threat-to-consequence
+    // story.
+    //
+    // A factor whose barrier isn't on this page (or has just been
+    // deleted) draws nothing rather than a line to nowhere: the model's
+    // own cascade removes it a moment later.
+    model.escalationFactors.forEach((factor) => {
+      const barrier = model.findById(factor.barrierId);
+      if (!barrier) return;
+      const barrierBounds = boundsById[barrier.nodeId] || boundsById[barrier.id];
+      if (!barrierBounds) return;
+      const factorBounds = boundsById[factor.id];
+      const factorTop = {
+        x: factor.x,
+        y: factor.y - (factorBounds ? factorBounds.h : factor.h) / 2,
+      };
+      const barrierBottom = {
+        x: factor.x,
+        y: (barrierBounds.cy !== undefined ? barrierBounds.cy : barrier.y) + barrierBounds.h / 2,
+      };
+      frag.appendChild(makeLine(factorTop, barrierBottom, 'escalation', {
+        'data-role': 'escalation-line',
+        'data-line-id': (model.lines.find((l) => l.originId === factor.id) || {}).id || '',
+      }));
     });
 
     return frag;

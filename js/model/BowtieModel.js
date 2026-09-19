@@ -20,30 +20,73 @@
   // document's plain `{ value: '10' }` would be read as a PFD_avg of 10,
   // not an RRF of 10 -- so this is a version bump, not an additive field,
   // and there is (as with v9) no migration path.
-  const SCHEMA_VERSION = 10;
+  //
+  // From v10 on the policy changes (proposals/12): a bump ships with a
+  // migration in js/model/Migrations.js AND a frozen fixture in
+  // tests/fixtures/schema-v<old>.json, so an older export is upgraded on
+  // load instead of refused. v7-v9 predate that and stay refused --
+  // nobody has those files, and a migration with no fixture to test it
+  // against is guesswork.
+  //
+  // v11 (proposals/11): Causes became Threats and Outcomes became
+  // Consequences, everywhere -- type keys, library/idCounters/retiredIds
+  // keys, Line.originType, and the visible id prefixes, where `C_`
+  // ROTATED from Cause to Consequence (a Threat is now `T_n`). That
+  // rotation is the reason this is a bump and not a cosmetic change: a
+  // v10 `C_1` and a v11 `C_1` name different sides of the diagram, so
+  // reading one as the other would silently mislabel a whole document.
+  // The first entry in Migrations.js upgrades v10 files, so unlike v9 and
+  // v10 nobody's export is stranded by it.
+  //
+  // v12 (proposals/08): escalation factors and their barriers. Purely
+  // additive -- two library/retiredIds keys, two placement arrays, and a
+  // third `Line.originType` -- so a v11 document means exactly what it
+  // always did and its migration only fills in the empty collections.
+  // The bump still happens, because a v11 editor handed a v12 file would
+  // silently drop every escalation factor in it.
+  const SCHEMA_VERSION = 12;
 
   class BowtieModel {
     constructor() {
       this._listeners = [];
       this.name = 'Untitled Bowtie';
       // Each page owns its own TopLevelEvent+Hazard pair; see addPage().
-      // Causes/outcomes/barriers/lines stay flat, document-wide arrays
+      // Threats/consequences/barriers/lines stay flat, document-wide arrays
       // (below), each tagged with a pageId, rather than nested under a
       // page — this keeps every splice/attach/delete/findById primitive
       // below working unchanged across a multi-page document.
       this.pages = [];
       // Placements -- one per node's appearance on one page (position +,
-      // for causes/outcomes, its own Line). See node_library_proposal.md
+      // for threats/consequences, its own Line). See node_library_proposal.md
       // "Two id spaces": these arrays' own `.id` fields are the INTERNAL,
       // never-rendered placement ids (findById/Line.stops/Line.originId/
       // undo's page-attribution key on them, unchanged from before this
       // proposal) -- the VISIBLE id a user sees is each placement's
       // `nodeId`, resolved through `this.library` below.
-      this.causes = [];
-      this.outcomes = [];
+      this.threats = [];
+      this.consequences = [];
       this.preventativeBarriers = [];
       this.mitigativeBarriers = [];
-      // One Line per Cause and per Outcome — the first-order representation
+      // Escalation factors and their barriers (proposals/08). An EF
+      // placement carries a `barrierId`: it is anchored to one barrier
+      // PLACEMENT on the same page rather than sitting free, because an
+      // escalation factor has no meaning apart from the barrier it
+      // degrades.
+      this.escalationFactors = [];
+      this.escalationBarriers = [];
+      // Placement id -> placement, for findById (proposals/16). Rendering
+      // resolves Line.stops/originId through findById once per drawn
+      // element, so before this existed a full render was O(elements x
+      // placements): measured at 420ms for 1000 placements, against 12ms
+      // for 50.
+      //
+      // Deliberately indexes PLACEMENT ids only, not node ids. The render
+      // path resolves placement ids (that is what Lines store); node-id
+      // resolution is the convenience fallback for direct-model callers
+      // and keeps its scan, which also means `reassignId` -- the one
+      // operation that changes a node id -- cannot invalidate this.
+      this._byPlacementId = new Map();
+      // One Line per Threat and per Consequence — the first-order representation
       // of that element's continuous path to/from the TLE. Created/destroyed
       // alongside their origin, mutated directly by every chaining operation
       // below. See js/model/Line.js.
@@ -56,7 +99,7 @@
       this.mode = 'simple';
       this.riskMatrix = null;
       // 'max' (default, original behaviour) | 'sum' -- design review
-      // finding 11: how the TLE combines multiple causes' contributions.
+      // finding 11: how the TLE combines multiple threats' contributions.
       // See Quantitative.js's computeTleLikelihood. Purely additive, safe
       // default (an older document simply lacks it and reads as 'max'),
       // so this doesn't bump SCHEMA_VERSION -- same reasoning as the
@@ -74,10 +117,12 @@
       this.proofTestIntervalH = String(Bowtie.HOURS_PER_YEAR);
       this.idCounters = {
         page: 0,
-        cause: 0,
-        outcome: 0,
+        threat: 0,
+        consequence: 0,
         preventativeBarrier: 0,
         mitigativeBarrier: 0,
+        escalationFactor: 0,
+        escalationBarrier: 0,
         line: 0,
         // Node ids are drawn from the four counters above (repurposed to
         // count NODES, not placements, by this proposal — same counters,
@@ -90,7 +135,7 @@
       // "New" flow calling addPage() itself) — every existing call site
       // still reads model.topLevelEvent/model.hazard as a single
       // document-wide pair (see the getters below) and calls
-      // addCause/addOutcome without a pageId. Auto-creating one page here
+      // addThreat/addConsequence without a pageId. Auto-creating one page here
       // keeps all of that working unchanged until that wiring lands.
       this.addPage();
       // Read-only collaborators (design review finding 06) -- see
@@ -183,7 +228,7 @@
       this._emitChange();
     }
 
-    // Removes the page entry and cascades: every cause/outcome/barrier/line
+    // Removes the page entry and cascades: every threat/consequence/barrier/line
     // tagged with this pageId goes with it. Throws if it's the last
     // remaining page (defensive; the UI also won't offer delete on the
     // last tab). Node library records are untouched — a node surviving
@@ -194,10 +239,13 @@
       const idx = this.pages.findIndex((p) => p.id === pageId);
       if (idx === -1) return;
       this.pages.splice(idx, 1);
-      this.causes = this.causes.filter((c) => c.pageId !== pageId);
-      this.outcomes = this.outcomes.filter((o) => o.pageId !== pageId);
+      this.threats = this.threats.filter((c) => c.pageId !== pageId);
+      this.consequences = this.consequences.filter((o) => o.pageId !== pageId);
       this.preventativeBarriers = this.preventativeBarriers.filter((p) => p.pageId !== pageId);
       this.mitigativeBarriers = this.mitigativeBarriers.filter((m) => m.pageId !== pageId);
+      this.escalationFactors = this.escalationFactors.filter((f) => f.pageId !== pageId);
+      this.escalationBarriers = this.escalationBarriers.filter((b) => b.pageId !== pageId);
+      this.rebuildPlacementIndex();
       this.lines = this.lines.filter((l) => l.pageId !== pageId);
       this._emitChange();
     }
@@ -206,12 +254,12 @@
       return this.pages.find((p) => p.id === pageId) || null;
     }
 
-    causesForPage(pageId) {
-      return this.causes.filter((c) => c.pageId === pageId);
+    threatsForPage(pageId) {
+      return this.threats.filter((c) => c.pageId === pageId);
     }
 
-    outcomesForPage(pageId) {
-      return this.outcomes.filter((o) => o.pageId === pageId);
+    consequencesForPage(pageId) {
+      return this.consequences.filter((o) => o.pageId === pageId);
     }
 
     preventativeBarriersForPage(pageId) {
@@ -222,21 +270,31 @@
       return this.mitigativeBarriers.filter((m) => m.pageId === pageId);
     }
 
+    escalationFactorsForPage(pageId) {
+      return this.escalationFactors.filter((f) => f.pageId === pageId);
+    }
+
+    escalationBarriersForPage(pageId) {
+      return this.escalationBarriers.filter((b) => b.pageId === pageId);
+    }
+
     linesForPage(pageId) {
       return this.lines.filter((l) => l.pageId === pageId);
     }
 
     _placementsForPage(kind, pageId) {
       switch (kind) {
-        case 'cause': return this.causesForPage(pageId);
-        case 'outcome': return this.outcomesForPage(pageId);
+        case 'threat': return this.threatsForPage(pageId);
+        case 'consequence': return this.consequencesForPage(pageId);
         case 'preventativeBarrier': return this.preventativeBarriersForPage(pageId);
         case 'mitigativeBarrier': return this.mitigativeBarriersForPage(pageId);
+        case 'escalationFactor': return this.escalationFactorsForPage(pageId);
+        case 'escalationBarrier': return this.escalationBarriersForPage(pageId);
         default: return [];
       }
     }
 
-    // Resolves the pageId a new cause/outcome should be tagged with: the
+    // Resolves the pageId a new threat/consequence should be tagged with: the
     // caller's explicit choice, validated against this.pages, or — for
     // call sites that predate multi-page support (and every existing test)
     // — a default-to-first-page fallback, so omitting pageId keeps working
@@ -278,7 +336,14 @@
       if (opts.nodeId) {
         const node = this.getNodeOfType(kind, opts.nodeId);
         if (!node) throw new Error(`Unknown ${kind} node id: ${opts.nodeId}`);
-        if (this._placementsForPage(kind, pageId).some((p) => p.nodeId === opts.nodeId)) {
+        // "At most one placement per node per page" holds for everything
+        // except an escalation factor, whose uniqueness is keyed by
+        // (node, barrier) instead -- the same factor ("not proof tested")
+        // legitimately degrades several barriers on one page, and
+        // addEscalationFactor enforces the per-barrier rule itself
+        // (proposals/08, open question 1).
+        if (kind !== 'escalationFactor'
+          && this._placementsForPage(kind, pageId).some((p) => p.nodeId === opts.nodeId)) {
           throw new Error('That node is already placed on this page');
         }
         return node;
@@ -321,7 +386,7 @@
     _findClearY(pageId, x, w, h, startY) {
       const page = this.getPage(pageId);
       const boxes = [
-        ...this.causesForPage(pageId), ...this.outcomesForPage(pageId),
+        ...this.threatsForPage(pageId), ...this.consequencesForPage(pageId),
         ...this.preventativeBarriersForPage(pageId), ...this.mitigativeBarriersForPage(pageId),
       ].map((n) => ({ x: n.x, y: n.y, w: n.w, h: n.h }));
       if (page) {
@@ -348,49 +413,51 @@
 
     // Accepts either `{ name, description, identifier, x, y, pageId }`
     // (create a brand-new node + a new placement in one call) or
-    // `{ nodeId, x, y, pageId }` (place an already-existing cause node —
+    // `{ nodeId, x, y, pageId }` (place an already-existing threat node —
     // node_library_proposal.md ask 1).
-    addCause(opts = {}) {
+    addThreat(opts = {}) {
       const pageId = this._resolvePageId(opts.pageId);
-      const node = this._resolveOrCreateNode('cause', opts, pageId);
+      const node = this._resolveOrCreateNode('threat', opts, pageId);
       this.idCounters.placement += 1;
       const id = `PLACEMENT_${this.idCounters.placement}`;
-      const w = Bowtie.Geometry.CAUSE_OUTCOME_W;
+      const w = Bowtie.Geometry.THREAT_CONSEQUENCE_W;
       const h = 60;
       const x = opts.x ?? 150;
       const y = opts.y ?? this._findClearY(pageId, x, w, h, TOP_MARGIN);
-      const cause = new Bowtie.Placement({
-        id, type: 'cause', nodeId: node.id, x, y, w, h, pageId,
+      const threat = new Bowtie.Placement({
+        id, type: 'threat', nodeId: node.id, x, y, w, h, pageId,
       });
-      this.causes.push(cause);
+      this.threats.push(threat);
+      this._byPlacementId.set(threat.id, threat);
       this.idCounters.line += 1;
       this.lines.push(new Bowtie.Line({
-        id: `LINE_${this.idCounters.line}`, originType: 'cause', originId: id, pageId,
+        id: `LINE_${this.idCounters.line}`, originType: 'threat', originId: id, pageId,
       }));
       this._emitChange();
-      return cause;
+      return threat;
     }
 
-    // Mirrors addCause for the outcome/output side.
-    addOutcome(opts = {}) {
+    // Mirrors addThreat for the consequence/output side.
+    addConsequence(opts = {}) {
       const pageId = this._resolvePageId(opts.pageId);
-      const node = this._resolveOrCreateNode('outcome', opts, pageId);
+      const node = this._resolveOrCreateNode('consequence', opts, pageId);
       this.idCounters.placement += 1;
       const id = `PLACEMENT_${this.idCounters.placement}`;
-      const w = Bowtie.Geometry.CAUSE_OUTCOME_W;
+      const w = Bowtie.Geometry.THREAT_CONSEQUENCE_W;
       const h = 60;
       const x = opts.x ?? (CANVAS_W - 150);
       const y = opts.y ?? this._findClearY(pageId, x, w, h, TOP_MARGIN);
-      const outcome = new Bowtie.Placement({
-        id, type: 'outcome', nodeId: node.id, x, y, w, h, pageId,
+      const consequence = new Bowtie.Placement({
+        id, type: 'consequence', nodeId: node.id, x, y, w, h, pageId,
       });
-      this.outcomes.push(outcome);
+      this.consequences.push(consequence);
+      this._byPlacementId.set(consequence.id, consequence);
       this.idCounters.line += 1;
       this.lines.push(new Bowtie.Line({
-        id: `LINE_${this.idCounters.line}`, originType: 'outcome', originId: id, pageId,
+        id: `LINE_${this.idCounters.line}`, originType: 'consequence', originId: id, pageId,
       }));
       this._emitChange();
-      return outcome;
+      return consequence;
     }
 
     // --- Line lookup / edge grouping / splicing / attachment -------------
@@ -418,12 +485,90 @@
       return this._lineTopology.laneYsThrough(barrierId);
     }
 
-    addPreventativeControl(causeId, opts = {}) {
-      return this._lineTopology._addBarrierChainedFrom('preventativeBarrier', causeId, opts);
+    addPreventativeControl(threatId, opts = {}) {
+      return this._lineTopology._addBarrierChainedFrom('preventativeBarrier', threatId, opts);
     }
 
-    addMitigativeControl(outcomeId, opts = {}) {
-      return this._lineTopology._addBarrierChainedFrom('mitigativeBarrier', outcomeId, opts);
+    addMitigativeControl(consequenceId, opts = {}) {
+      return this._lineTopology._addBarrierChainedFrom('mitigativeBarrier', consequenceId, opts);
+    }
+
+    // --- Escalation factors (proposals/08) --------------------------------
+    //
+    // An escalation factor degrades one barrier: "the ESDV isn't proof
+    // tested", "the deluge pump is on manual". It hangs below that barrier
+    // and owns its own Line -- `originType: 'escalationFactor'`, stops =
+    // the escalation barriers controlling it, far end = the barrier
+    // itself. That reuse is the whole design: every splice, attach,
+    // reorder and truncate primitive in LineTopology already works on a
+    // Line, so none of them needed a second implementation here.
+    //
+    // Deliberately NOT part of the quantitative fold: an EF does not
+    // change any computed frequency (see Quantitative.js). The standard
+    // treatment -- an EF degrading its barrier's PFD -- is a separate
+    // proposal, kept out of this one so the schema change stays
+    // structural.
+    addEscalationFactor(barrierId, opts = {}) {
+      const barrier = this.findById(barrierId);
+      if (!barrier || !['preventativeBarrier', 'mitigativeBarrier'].includes(barrier.type)) {
+        throw new Error(`Escalation factors attach to a barrier, not ${barrierId}`);
+      }
+      const node = this._resolveOrCreateNode('escalationFactor', opts, barrier.pageId);
+      // One placement of a given EF node per BARRIER per page, rather than
+      // per page: the same factor legitimately degrades several barriers
+      // on one page, which the document-wide "one placement per node per
+      // page" rule would otherwise forbid (open question 1).
+      const existing = this.escalationFactors.find(
+        (f) => f.nodeId === node.id && f.barrierId === barrier.id,
+      );
+      if (existing) return existing;
+
+      this.idCounters.placement += 1;
+      const w = Bowtie.Geometry.ESCALATION_FACTOR_W;
+      const h = Bowtie.Geometry.ESCALATION_FACTOR_H;
+      const stack = this.escalationFactorsFor(barrier.id).length;
+      const placement = new Bowtie.Placement({
+        id: `PLACEMENT_${this.idCounters.placement}`,
+        type: 'escalationFactor',
+        nodeId: node.id,
+        // A placement's `x`/`y` are its CENTRE (ShapeRenderer draws each
+        // rect at `x - w / 2`), so a factor centred under its barrier
+        // shares the barrier's x exactly -- no half-width arithmetic.
+        x: opts.x ?? barrier.x,
+        y: opts.y ?? barrier.y + barrier.h + Bowtie.Geometry.ESCALATION_GAP
+          + stack * (h + Bowtie.Geometry.ESCALATION_GAP),
+        w,
+        h,
+        pageId: barrier.pageId,
+        barrierId: barrier.id,
+      });
+      this.escalationFactors.push(placement);
+      this._byPlacementId.set(placement.id, placement);
+      this.idCounters.line += 1;
+      this.lines.push(new Bowtie.Line({
+        id: `LINE_${this.idCounters.line}`,
+        originType: 'escalationFactor',
+        originId: placement.id,
+        pageId: barrier.pageId,
+      }));
+      this._emitChange();
+      return placement;
+    }
+
+    addEscalationBarrier(escalationFactorId, opts = {}) {
+      return this._lineTopology._addEscalationBarrierChainedFrom(escalationFactorId, opts);
+    }
+
+    attachExistingEscalationBarrier(escalationFactorId, escalationBarrierId) {
+      return this._lineTopology.attachExistingEscalationBarrier(escalationFactorId, escalationBarrierId);
+    }
+
+    // Every escalation factor hanging off one barrier placement, in
+    // creation order -- what the renderer stacks and what auto-arrange
+    // reserves room for.
+    escalationFactorsFor(barrierId) {
+      const resolved = this._resolvePlacementId(barrierId);
+      return this.escalationFactors.filter((f) => f.barrierId === resolved);
     }
 
     insertBarrier(kind, direction, anchorId, opts = {}, selectedLineIds = null) {
@@ -460,6 +605,22 @@
       return [...this._warnings.getWarnings(), ...this._quantitative.computeBarrierWarnings()];
     }
 
+    // Rebuilds the placement index from the collections. Called by
+    // anything that replaces a collection wholesale rather than adding or
+    // removing one entry -- deletePage above, and DocumentSerializer's
+    // three load paths. Cheaper to rebuild than to reason about which
+    // entries a filter removed, and it cannot drift.
+    rebuildPlacementIndex() {
+      this._byPlacementId = new Map();
+      [
+        this.threats, this.consequences,
+        this.preventativeBarriers, this.mitigativeBarriers,
+        this.escalationFactors, this.escalationBarriers,
+      ].forEach((collection) => {
+        collection.forEach((placement) => this._byPlacementId.set(placement.id, placement));
+      });
+    }
+
     // --- Lookup ---------------------------------------------------------
 
     // Tries every placement's own internal id first (Line.stops/originId
@@ -467,30 +628,43 @@
     // falls back to resolving `id` as a NODE id against whichever
     // placement (any page) currently references it -- convenient for
     // direct-model callers (tests included) that reasonably expect "the
-    // thing labeled C_1" to just resolve, document-wide. When a node is
+    // thing labeled T_1" to just resolve, document-wide. When a node is
     // placed on more than one page, this returns whichever placement is
     // found first -- PageScopedModel's own findById (used by the real
     // app's rendering/drag/context-menu) narrows this to one specific
     // page instead, where "at most one placement per node per page"
     // (decided) makes the resolution unambiguous.
     findById(id) {
-      const tleOrHazard = this.pages
-        .flatMap((p) => [p.topLevelEvent, p.hazard])
-        .find((el) => el.id === id);
-      if (tleOrHazard) return tleOrHazard;
+      for (const page of this.pages) {
+        if (page.topLevelEvent.id === id) return page.topLevelEvent;
+        if (page.hazard.id === id) return page.hazard;
+      }
+      // The placement-id index (proposals/16). A HIT is authoritative; a
+      // MISS falls through to the same scan this method always did, which
+      // is what makes the index safe to maintain: forgetting to index a
+      // newly-added placement costs a scan, never a wrong answer. Only
+      // REMOVAL has to be exhaustive, and removal happens in exactly two
+      // places (_removePlacementOnly and deletePage) plus the wholesale
+      // replacements DocumentSerializer performs, which rebuild outright.
+      const indexed = this._byPlacementId.get(id);
+      if (indexed) return indexed;
       const direct = (
-        this.causes.find((c) => c.id === id) ||
-        this.outcomes.find((o) => o.id === id) ||
+        this.threats.find((c) => c.id === id) ||
+        this.consequences.find((o) => o.id === id) ||
         this.preventativeBarriers.find((p) => p.id === id) ||
         this.mitigativeBarriers.find((m) => m.id === id) ||
+        this.escalationFactors.find((f) => f.id === id) ||
+        this.escalationBarriers.find((b) => b.id === id) ||
         null
       );
       if (direct) return direct;
       return (
-        this.causes.find((c) => c.nodeId === id) ||
-        this.outcomes.find((o) => o.nodeId === id) ||
+        this.threats.find((c) => c.nodeId === id) ||
+        this.consequences.find((o) => o.nodeId === id) ||
         this.preventativeBarriers.find((p) => p.nodeId === id) ||
         this.mitigativeBarriers.find((m) => m.nodeId === id) ||
+        this.escalationFactors.find((f) => f.nodeId === id) ||
+        this.escalationBarriers.find((b) => b.nodeId === id) ||
         null
       );
     }
@@ -524,7 +698,11 @@
     // portable even if a bundled preset is later edited). Pass null to
     // clear it (e.g. switching back to Simple mode).
     setRiskMatrix(matrix) {
-      this.riskMatrix = matrix;
+      // Back-fills risk-class `rank` when the caller hands over a matrix
+      // that predates that field (see RiskMatrixValidator.
+      // withRiskClassRanks) -- the bundled presets and the import path
+      // already carry it, this is the belt to their braces.
+      this.riskMatrix = Bowtie.withRiskClassRanks(matrix);
       this._emitChange();
     }
 
@@ -549,7 +727,7 @@
     }
 
     // For TLE/Hazard only, going forward (node_library_proposal.md: a
-    // Cause/Outcome/Barrier's name now lives on its node — see renameNode
+    // Threat/Consequence/Barrier's name now lives on its node — see renameNode
     // — this stays page-scoped and unaffected for the two singletons that
     // were never nodes). `description` is optional and left untouched when
     // omitted, so existing 2-arg callers (WelcomeController's wizard,
@@ -596,31 +774,59 @@
     // shared by deleteElement (below, page-scoped, never retires anything
     // any more) and deleteNode's cross-page cascade (above, which retires
     // the NODE's id once for the whole batch).
+    _removeStop(id) {
+      this.lines.forEach((line) => {
+        const idx = line.stops.indexOf(id);
+        if (idx !== -1) line.stops.splice(idx, 1);
+      });
+    }
+
+    // Deleting a barrier takes its escalation factors with it: an EF is
+    // anchored to that barrier and means nothing without it. Recursive
+    // through _removePlacementOnly so each factor's own line goes too.
+    _removeEscalationFactorsOf(barrierId) {
+      this.escalationFactors
+        .filter((f) => f.barrierId === barrierId)
+        .map((f) => f.id)
+        .forEach((factorId) => this._removePlacementOnly(factorId));
+    }
+
     _removePlacementOnly(id) {
       const el = this.findById(id);
       if (!el) return;
+      // Removal must be exhaustive or findById returns a placement that
+      // no longer exists -- see the note in findById.
+      this._byPlacementId.delete(id);
       switch (el.type) {
-        case 'cause':
-          this.causes = this.causes.filter((c) => c.id !== id);
+        case 'threat':
+          this.threats = this.threats.filter((c) => c.id !== id);
           this.lines = this.lines.filter((l) => l.originId !== id);
           break;
-        case 'outcome':
-          this.outcomes = this.outcomes.filter((o) => o.id !== id);
+        case 'consequence':
+          this.consequences = this.consequences.filter((o) => o.id !== id);
           this.lines = this.lines.filter((l) => l.originId !== id);
           break;
         case 'preventativeBarrier':
           this.preventativeBarriers = this.preventativeBarriers.filter((p) => p.id !== id);
-          this.lines.forEach((line) => {
-            const idx = line.stops.indexOf(id);
-            if (idx !== -1) line.stops.splice(idx, 1);
-          });
+          this._removeStop(id);
+          this._removeEscalationFactorsOf(id);
           break;
         case 'mitigativeBarrier':
           this.mitigativeBarriers = this.mitigativeBarriers.filter((m) => m.id !== id);
-          this.lines.forEach((line) => {
-            const idx = line.stops.indexOf(id);
-            if (idx !== -1) line.stops.splice(idx, 1);
-          });
+          this._removeStop(id);
+          this._removeEscalationFactorsOf(id);
+          break;
+        case 'escalationFactor':
+          this.escalationFactors = this.escalationFactors.filter((f) => f.id !== id);
+          // Its escalation line goes with it. The escalation barriers on
+          // that line do NOT: they stay as placements, now orphaned, and
+          // the blocking warning says so -- exactly what happens to a
+          // preventative barrier whose line is truncated away.
+          this.lines = this.lines.filter((l) => l.originId !== id);
+          break;
+        case 'escalationBarrier':
+          this.escalationBarriers = this.escalationBarriers.filter((b) => b.id !== id);
+          this._removeStop(id);
           break;
         default:
           break;
@@ -650,12 +856,12 @@
       return this._lineTopology._donorContinuation(barrierId, excludeLineId);
     }
 
-    attachInputToPreventativeControl(causeId, pcId, inheritDownstream = true) {
-      return this._lineTopology._attachOriginToBarrier('preventativeBarrier', causeId, pcId, inheritDownstream);
+    attachInputToPreventativeControl(threatId, pcId, inheritDownstream = true) {
+      return this._lineTopology._attachOriginToBarrier('preventativeBarrier', threatId, pcId, inheritDownstream);
     }
 
-    attachOutputToMitigativeControl(mcId, outcomeId, inheritDownstream = true) {
-      return this._lineTopology._attachOriginToBarrier('mitigativeBarrier', outcomeId, mcId, inheritDownstream);
+    attachOutputToMitigativeControl(mcId, consequenceId, inheritDownstream = true) {
+      return this._lineTopology._attachOriginToBarrier('mitigativeBarrier', consequenceId, mcId, inheritDownstream);
     }
 
     // --- Posterity of identifiers -------------------------------------
@@ -688,12 +894,31 @@
       return this._quantitative.computeTleLikelihood(pageId, opts);
     }
 
-    computeConsequenceLikelihood(outcomeId, opts = {}) {
-      return this._quantitative.computeConsequenceLikelihood(outcomeId, opts);
+    computeConsequenceLikelihood(consequenceId, opts = {}) {
+      return this._quantitative.computeConsequenceLikelihood(consequenceId, opts);
     }
 
-    getConsequenceRiskClass(outcomeId, opts = {}) {
-      return this._quantitative.getConsequenceRiskClass(outcomeId, opts);
+    getConsequenceRiskClass(consequenceId, opts = {}) {
+      return this._quantitative.getConsequenceRiskClass(consequenceId, opts);
+    }
+
+    // The pre-/post-mitigation pair behind the canvas badges, the
+    // Properties modal and the Risk Summary table -- see
+    // Quantitative.assessConsequence / computeRiskSummary. Same delegation
+    // reasoning as the three methods above.
+    assessConsequence(consequenceId) {
+      return this._quantitative.assessConsequence(consequenceId);
+    }
+
+    computeRiskSummary(pageId = null) {
+      return this._quantitative.computeRiskSummary(pageId);
+    }
+
+    // The barrier owner's view of the document (proposals/09) -- see
+    // Quantitative.computeBarrierRegister. Same delegation reasoning as
+    // the methods above.
+    computeBarrierRegister(pageId = null) {
+      return this._quantitative.computeBarrierRegister(pageId);
     }
 
     // barrier_measures_proposal.md's demand-rate readout -- see

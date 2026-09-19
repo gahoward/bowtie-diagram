@@ -18,7 +18,7 @@
   // points at), passed in explicitly rather than read off `el` so this
   // stays a pure layout function with no model/library dependency of its
   // own.
-  function causeOutcomeBounds(svgRoot, el, displayName) {
+  function threatConsequenceBounds(svgRoot, el, displayName) {
     const maxTextWidth = el.w - PADDING * 2;
     const lines = Bowtie.TextWrap.wrapText(svgRoot, displayName, maxTextWidth, FONT_SIZE);
     const textBlockHeight = (lines.length * LINE_HEIGHT) + LINE_HEIGHT; // + id line
@@ -84,7 +84,7 @@
   }
 
   // Left/right edge midpoints for any axis-aligned rect-shaped node
-  // (Cause, Outcome, PreventativeControl, MitigativeControl).
+  // (Threat, Consequence, PreventativeControl, MitigativeControl).
   function leftEdge(node, bounds) {
     return { x: node.x - bounds.w / 2, y: node.y };
   }
@@ -97,7 +97,7 @@
     FONT_SIZE,
     ID_FONT_SIZE,
     LINE_HEIGHT,
-    causeOutcomeBounds,
+    threatConsequenceBounds,
     topLevelEventBounds,
     hazardLayout,
     controlBounds,

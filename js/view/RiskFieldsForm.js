@@ -5,11 +5,11 @@
   // ContextMenuController's rename modal and NodeLibraryController's
   // edit-in-place form, so the two don't duplicate this. Renders nothing
   // in Simple mode. Per node type:
-  //   - Cause/Outcome: a likelihood-class dropdown in Qualitative mode
+  //   - Threat/Consequence: a likelihood-class dropdown in Qualitative mode
   //     only (Quantitative mode computes likelihood instead of picking it).
-  //   - Outcome only: a severity-class dropdown in EITHER risk mode
+  //   - Consequence only: a severity-class dropdown in EITHER risk mode
   //     (severity is always a direct pick, never computed).
-  //   - Cause only, Quantitative mode only: a frequency value-or-Unknown
+  //   - Threat only, Quantitative mode only: a frequency value-or-Unknown
   //     field (canonical events/hour).
   //   - Preventative/MitigativeBarrier, Quantitative mode only: a measure
   //     picker (BarrierMeasures.list()) plus that measure's own value-or-
@@ -143,21 +143,21 @@
 
     if (mode === 'simple') return { readValues: () => ({ ok: true, values: {} }) };
 
-    if (matrix && mode === 'qualitative' && (node.type === 'cause' || node.type === 'outcome')) {
+    if (matrix && mode === 'qualitative' && (node.type === 'threat' || node.type === 'consequence')) {
       handles.likelihoodClassId = makeSelect(
         'Likelihood',
         matrix.likelihoodClasses.map((c) => ({ id: c.id, label: c.label })),
         node.likelihoodClassId,
       );
     }
-    if (matrix && node.type === 'outcome') {
+    if (matrix && node.type === 'consequence') {
       handles.severityClassId = makeSelect(
         'Severity',
         matrix.severityClasses.map((c) => ({ id: c.id, label: c.label })),
         node.severityClassId,
       );
     }
-    if (mode === 'quantitative' && node.type === 'cause') {
+    if (mode === 'quantitative' && node.type === 'threat') {
       handles.frequency = makeQuantityField('Frequency (events/hour)', node.frequency);
     }
     if (mode === 'quantitative' && (node.type === 'preventativeBarrier' || node.type === 'mitigativeBarrier')) {
@@ -234,8 +234,7 @@
 
     const hint = document.createElement('p');
     hint.className = 'modal-field-hint';
-    hint.textContent = 'RRF, PFD_avg, raw probability, unavailability, and a SIL band all apply the same way -- '
-      + "pick whichever name matches the barrier's own source document.";
+    hint.textContent = "Pick whichever measure the barrier's own source document uses.";
     wrap.appendChild(hint);
 
     const detail = document.createElement('div');
@@ -250,8 +249,11 @@
       const row = measureById[measureId];
       const preserved = protection && !protection.unknown && protection.measure === measureId ? protection : null;
 
+      // Labelled "Value" rather than repeating the measure's own full
+      // label from the select just above it; the measure name still leads
+      // the validation message (`row.label` in readValue below).
       const valueHandle = makeQuantityField(
-        row.label, preserved, detail,
+        'Value', preserved, detail,
         row.uiValueKind === 'select' ? { selectOptions: row.uiOptions } : {},
       );
 

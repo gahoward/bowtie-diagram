@@ -1,5 +1,5 @@
 (function (Bowtie) {
-  // The sole connection point for every Cause/PC (left) and Outcome/MC
+  // The sole connection point for every Threat/PC (left) and Consequence/MC
   // (right). Singleton, uncreatable — matches the role the old "Hazard"
   // node used to play before the Hazard/TLE split.
   class TopLevelEvent {

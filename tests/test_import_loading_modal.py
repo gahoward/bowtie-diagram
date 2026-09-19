@@ -28,10 +28,10 @@ def _spy_on_modals(page):
     }""")
 
 
-def _sample_export_with_one_cause(page):
+def _sample_export_with_one_threat(page):
     return page.evaluate("""() => {
       const m = window.__lastModel;
-      m.addCause({x: 150, y: 200, name: 'Imported Cause'});
+      m.addThreat({x: 150, y: 200, name: 'Imported Threat'});
       return m.toJSON();
     }""")
 
@@ -53,7 +53,7 @@ def _import_via_menu(page):
 
 
 def test_importing_shows_a_non_dismissible_loading_modal_then_clears_it(page):
-    data = _sample_export_with_one_cause(page)
+    data = _sample_export_with_one_threat(page)
     _spy_on_modals(page)
     _mock_native_picker(page, data)
     _import_via_menu(page)
@@ -68,9 +68,9 @@ def test_importing_shows_a_non_dismissible_loading_modal_then_clears_it(page):
     assert page.locator(".modal-overlay", has_text="Importing your diagram").count() == 0
     # ...and the diagram it was importing is actually on screen -- the
     # loading modal must not have closed before the first page rendered.
-    causes = page.evaluate("() => window.__lastModel.causes.map((c) => window.__lastModel.getNode(c.nodeId).name)")
-    assert causes == ["Imported Cause"]
-    assert page.locator("#bowtie-canvas .node.cause").count() == 1
+    threats = page.evaluate("() => window.__lastModel.threats.map((c) => window.__lastModel.getNode(c.nodeId).name)")
+    assert threats == ["Imported Threat"]
+    assert page.locator("#bowtie-canvas .node.threat").count() == 1
 
 
 def test_loading_modal_clears_even_when_the_import_fails_leaving_only_the_error_dialog(page):
@@ -78,7 +78,7 @@ def test_loading_modal_clears_even_when_the_import_fails_leaving_only_the_error_
     screen forever -- it has to close (the `finally` in
     ImportExportController._processImportedText) even though loadDocument
     itself only shows an error dialog and never throws."""
-    data = _sample_export_with_one_cause(page)
+    data = _sample_export_with_one_threat(page)
     data["version"] = 3  # deliberately stale -- see test_import_export.py's version-mismatch guard
     _spy_on_modals(page)
     _mock_native_picker(page, data)
@@ -93,12 +93,12 @@ def test_loading_modal_clears_even_when_the_import_fails_leaving_only_the_error_
     page.get_by_role("button", name="OK", exact=True).click()
 
     # The failed import must not have touched the live model.
-    assert page.evaluate("() => window.__lastModel.causes.length") == 1
+    assert page.evaluate("() => window.__lastModel.threats.length") == 1
 
 
 def test_loading_modal_also_appears_on_the_legacy_hidden_input_path(page, tmp_path):
     page.evaluate("() => { delete window.showOpenFilePicker; }")
-    data = _sample_export_with_one_cause(page)
+    data = _sample_export_with_one_threat(page)
     _spy_on_modals(page)
     file_path = tmp_path / "import.json"
     file_path.write_text(json.dumps(data))
@@ -111,5 +111,5 @@ def test_loading_modal_also_appears_on_the_legacy_hidden_input_path(page, tmp_pa
     loading_calls = [m for m in page.evaluate("() => window.__openedModals") if m["title"] == "Importing"]
     assert len(loading_calls) == 1
     assert page.locator(".modal-overlay", has_text="Importing your diagram").count() == 0
-    causes = page.evaluate("() => window.__lastModel.causes.map((c) => window.__lastModel.getNode(c.nodeId).name)")
-    assert causes == ["Imported Cause"]
+    threats = page.evaluate("() => window.__lastModel.threats.map((c) => window.__lastModel.getNode(c.nodeId).name)")
+    assert threats == ["Imported Threat"]

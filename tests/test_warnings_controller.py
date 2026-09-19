@@ -13,10 +13,10 @@ EXPORT_BUTTON_IDS = ["btn-export-png", "btn-export-svg", "btn-export-json"]
 def _orphan_a_preventative_barrier(page):
     page.evaluate("""() => {
       const m = window.__lastModel;
-      m.addCause({x: 150, y: 200});
-      const cause = m.causes[0];
-      m.addPreventativeControl(cause.id);
-      const line = m._lineFor(cause.id);
+      m.addThreat({x: 150, y: 200});
+      const threat = m.threats[0];
+      m.addPreventativeControl(threat.id);
+      const line = m._lineFor(threat.id);
       m.connectLineDirectlyToTle(line.id, null);
     }""")
     page.wait_for_timeout(80)
@@ -34,9 +34,52 @@ def test_orphaning_a_barrier_shows_the_badge_lists_it_and_disables_export(page):
     badge.click()
     page.wait_for_timeout(50)
     assert page.locator(".modal-title").text_content() == "Warnings"
-    assert page.locator(".warning-list li").count() == 1
-    assert "not connected to any Cause" in page.locator(".warning-list li").text_content()
+    rows = page.locator(".warning-row")
+    assert rows.count() == 1
+    assert "Blocking" in page.locator(".warning-group-head").first.text_content()
+    assert rows.first.locator(".warning-row-id").text_content() == "PB_1"
+    assert "Not connected to any Threat" in rows.first.locator(".warning-row-detail").text_content()
     page.get_by_role("button", name="Close", exact=True).click()
+
+
+def test_show_on_a_warning_row_switches_page_and_focuses_the_node(page):
+    """ui_fitness_proposal.md: a warning row's Show takes the user to the
+    node it names -- page switch plus focus -- instead of leaving them to
+    find it by hand."""
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      m.renamePage(m.pages[0].id, { name: 'Topside' });
+      const p2 = m.addPage({ name: 'Subsea' });
+      const c = m.addThreat({ x: 150, y: 200, pageId: p2.id, name: 'Deep Leak' });
+      const pb = m.addPreventativeControl(c.id);
+      m.addThreat({ x: 150, y: 400, pageId: p2.id, name: 'Other' });
+      // A shared barrier on page two, so Show has lines to focus.
+      m.attachInputToPreventativeControl(m.threats[1].id, pb.id, false);
+    }""")
+    page.wait_for_timeout(80)
+    # Back on page one, orphan the barrier's line on page two via a threat
+    # elsewhere: simplest is to leave PB_1 attached and instead add an
+    # advisory-free blocking case on page two.
+    page.evaluate("""() => {
+      const m = window.__lastModel;
+      const p2 = m.pages[1].id;
+      const c3 = m.addThreat({ x: 150, y: 600, pageId: p2, name: 'Lonely' });
+      m.addPreventativeControl(c3.id);
+      m.connectLineDirectlyToTle(m._lineFor(c3.id).id, null);
+    }""")
+    page.wait_for_timeout(80)
+    assert page.locator(".page-tab.active .page-tab-label").text_content() == "Topside"
+
+    page.locator("#btn-warnings").click()
+    page.wait_for_timeout(50)
+    row = page.locator(".warning-row").first
+    assert row.locator(".warning-row-page").text_content() == "Subsea"
+    row.get_by_role("button", name="Show", exact=True).click()
+    page.wait_for_timeout(120)
+
+    assert page.locator(".modal-overlay").count() == 0, "Show closes the modal"
+    assert page.locator(".page-tab.active .page-tab-label").text_content() == "Subsea"
+    assert page.evaluate("() => document.querySelector('#nodes-layer .node.located') !== null")
 
 
 def test_badge_title_names_the_affected_page(page):
@@ -55,11 +98,11 @@ def test_badge_title_lists_every_affected_page_once_each(page):
       const m = window.__lastModel;
       m.renamePage(m.pages[0].id, { name: 'Topside' });
       const p2 = m.addPage({ name: 'Subsea' });
-      m.addCause({ x: 150, y: 200 });
-      m.addPreventativeControl(m.causes[0].id);
-      m.connectLineDirectlyToTle(m._lineFor(m.causes[0].id).id, null);
-      m.addCause({ x: 150, y: 200, pageId: p2.id });
-      const c2 = m.causes.find((c) => c.pageId === p2.id);
+      m.addThreat({ x: 150, y: 200 });
+      m.addPreventativeControl(m.threats[0].id);
+      m.connectLineDirectlyToTle(m._lineFor(m.threats[0].id).id, null);
+      m.addThreat({ x: 150, y: 200, pageId: p2.id });
+      const c2 = m.threats.find((c) => c.pageId === p2.id);
       m.addPreventativeControl(c2.id);
       m.connectLineDirectlyToTle(m._lineFor(c2.id).id, null);
     }""")
@@ -80,7 +123,7 @@ def _add_pfh_barrier_that_never_limits(page):
     page.evaluate("""() => {
       const m = window.__lastModel;
       m.setMode('quantitative');
-      const c = m.addCause({x: 150, y: 200});
+      const c = m.addThreat({x: 150, y: 200});
       m.renameNode(c.nodeId, { frequency: { value: '1' } });
       const pb = m.addPreventativeControl(c.id);
       m.renameNode(pb.nodeId, { protection: { measure: 'pfh', value: '10' } });

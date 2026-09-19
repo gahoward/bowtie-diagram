@@ -19,9 +19,9 @@ def run_quant(page, body):
 
 def test_tle_likelihood_is_max_of_known_threat_frequencies_with_no_barriers(page):
     result = run_quant(page, """
-      const c1 = m.addCause({});
+      const c1 = m.addThreat({});
       m.getNode(c1.nodeId).frequency = { value: '0.001' };
-      const c2 = m.addCause({});
+      const c2 = m.addThreat({});
       m.getNode(c2.nodeId).frequency = { value: '0.01' };
       const computed = m.computeTleLikelihood(m.pages[0].id, { includeBarriers: false });
       return { value: computed.value.toExactDecimal().toDecimalString(), excluded: computed.excludedThreatCount };
@@ -32,7 +32,7 @@ def test_tle_likelihood_is_max_of_known_threat_frequencies_with_no_barriers(page
 
 def test_tle_likelihood_multiplies_through_known_barriers(page):
     result = run_quant(page, """
-      const c1 = m.addCause({});
+      const c1 = m.addThreat({});
       m.getNode(c1.nodeId).frequency = { value: '0.001' };
       const pb = m.addPreventativeControl(c1.id);
       m.getNode(pb.nodeId).protection = { measure: 'rrf', value: '10' };
@@ -44,7 +44,7 @@ def test_tle_likelihood_multiplies_through_known_barriers(page):
 
 def test_tle_likelihood_skips_unknown_barrier_from_the_product_conservatively(page):
     result = run_quant(page, """
-      const c1 = m.addCause({});
+      const c1 = m.addThreat({});
       m.getNode(c1.nodeId).frequency = { value: '0.001' };
       const pb = m.addPreventativeControl(c1.id);
       m.getNode(pb.nodeId).protection = { unknown: true };
@@ -60,9 +60,9 @@ def test_tle_likelihood_skips_unknown_barrier_from_the_product_conservatively(pa
 
 def test_tle_likelihood_excludes_unknown_threat_from_max_and_flags_the_count(page):
     result = run_quant(page, """
-      const c1 = m.addCause({});
+      const c1 = m.addThreat({});
       m.getNode(c1.nodeId).frequency = { value: '0.001' };
-      const c2 = m.addCause({});
+      const c2 = m.addThreat({});
       m.getNode(c2.nodeId).frequency = { unknown: true };
       const computed = m.computeTleLikelihood(m.pages[0].id, { includeBarriers: false });
       return { value: computed.value.toExactDecimal().toDecimalString(), excluded: computed.excludedThreatCount };
@@ -73,7 +73,7 @@ def test_tle_likelihood_excludes_unknown_threat_from_max_and_flags_the_count(pag
 
 def test_tle_likelihood_is_null_when_every_threat_is_unknown(page):
     result = run_quant(page, """
-      const c1 = m.addCause({});
+      const c1 = m.addThreat({});
       m.getNode(c1.nodeId).frequency = { unknown: true };
       const computed = m.computeTleLikelihood(m.pages[0].id);
       return { isNull: computed.value === null, excluded: computed.excludedThreatCount };
@@ -82,7 +82,7 @@ def test_tle_likelihood_is_null_when_every_threat_is_unknown(page):
     assert result["excluded"] == 1
 
 
-def test_tle_likelihood_with_no_causes_at_all_is_null(page):
+def test_tle_likelihood_with_no_threats_at_all_is_null(page):
     result = run_quant(page, """
       const computed = m.computeTleLikelihood(m.pages[0].id);
       return computed.value === null;
@@ -92,9 +92,9 @@ def test_tle_likelihood_with_no_causes_at_all_is_null(page):
 
 def test_consequence_likelihood_multiplies_tle_by_its_own_mitigative_barriers(page):
     result = run_quant(page, """
-      const c1 = m.addCause({});
+      const c1 = m.addThreat({});
       m.getNode(c1.nodeId).frequency = { value: '0.01' };
-      const o1 = m.addOutcome({});
+      const o1 = m.addConsequence({});
       const mb = m.addMitigativeControl(o1.id);
       m.getNode(mb.nodeId).protection = { measure: 'rrf', value: '2' };
       const computed = m.computeConsequenceLikelihood(o1.id);
@@ -105,11 +105,11 @@ def test_consequence_likelihood_multiplies_tle_by_its_own_mitigative_barriers(pa
 
 def test_consequence_likelihood_inherits_excluded_threat_count_from_tle(page):
     result = run_quant(page, """
-      const c1 = m.addCause({});
+      const c1 = m.addThreat({});
       m.getNode(c1.nodeId).frequency = { value: '0.01' };
-      const c2 = m.addCause({});
+      const c2 = m.addThreat({});
       m.getNode(c2.nodeId).frequency = { unknown: true };
-      const o1 = m.addOutcome({});
+      const o1 = m.addConsequence({});
       const computed = m.computeConsequenceLikelihood(o1.id, { includeBarriers: false });
       return { value: computed.value.toExactDecimal().toDecimalString(), excluded: computed.excludedThreatCount };
     """)
@@ -119,7 +119,7 @@ def test_consequence_likelihood_inherits_excluded_threat_count_from_tle(page):
 
 def test_inherent_vs_residual_differ_only_by_barrier_inclusion(page):
     result = run_quant(page, """
-      const c1 = m.addCause({});
+      const c1 = m.addThreat({});
       m.getNode(c1.nodeId).frequency = { value: '0.001' };
       const pb = m.addPreventativeControl(c1.id);
       m.getNode(pb.nodeId).protection = { measure: 'rrf', value: '10' };
@@ -136,7 +136,7 @@ def test_qualitative_risk_class_uses_manual_likelihood_no_arithmetic(page):
       const m = window.__lastModel;
       m.setMode('qualitative');
       m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
-      const o1 = m.addOutcome({});
+      const o1 = m.addConsequence({});
       m.getNode(o1.nodeId).likelihoodClassId = 'frequent';
       m.getNode(o1.nodeId).severityClassId = 'negligible';
       return m.getConsequenceRiskClass(o1.id);
@@ -149,7 +149,7 @@ def test_qualitative_risk_class_is_null_when_severity_unset(page):
       const m = window.__lastModel;
       m.setMode('qualitative');
       m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
-      const o1 = m.addOutcome({});
+      const o1 = m.addConsequence({});
       m.getNode(o1.nodeId).likelihoodClassId = 'frequent';
       return m.getConsequenceRiskClass(o1.id);
     }""")
@@ -158,10 +158,10 @@ def test_qualitative_risk_class_is_null_when_severity_unset(page):
 
 def test_quantitative_risk_class_bands_the_computed_likelihood(page):
     result = run_quant(page, """
-      const c1 = m.addCause({});
+      const c1 = m.addThreat({});
       // Well within the 'frequent' band (>= 0.1/year canonical hourly).
       m.getNode(c1.nodeId).frequency = { value: Bowtie.convertHourYear(Bowtie.Decimal.parse('1'), 'yearToHour').toDecimalString() };
-      const o1 = m.addOutcome({});
+      const o1 = m.addConsequence({});
       m.getNode(o1.nodeId).severityClassId = 'negligible';
       return m.getConsequenceRiskClass(o1.id);
     """)
@@ -170,9 +170,9 @@ def test_quantitative_risk_class_bands_the_computed_likelihood(page):
 
 def test_quantitative_risk_class_is_null_when_all_threats_unknown(page):
     result = run_quant(page, """
-      const c1 = m.addCause({});
+      const c1 = m.addThreat({});
       m.getNode(c1.nodeId).frequency = { unknown: true };
-      const o1 = m.addOutcome({});
+      const o1 = m.addConsequence({});
       m.getNode(o1.nodeId).severityClassId = 'negligible';
       return m.getConsequenceRiskClass(o1.id);
     """)
@@ -183,7 +183,7 @@ def test_risk_class_is_null_without_an_active_matrix(page):
     result = page.evaluate("""() => {
       const m = window.__lastModel;
       m.setMode('qualitative');
-      const o1 = m.addOutcome({});
+      const o1 = m.addConsequence({});
       m.getNode(o1.nodeId).likelihoodClassId = 'frequent';
       m.getNode(o1.nodeId).severityClassId = 'negligible';
       return m.getConsequenceRiskClass(o1.id);
@@ -232,13 +232,13 @@ def test_tle_aggregation_defaults_to_max(page):
 
 
 def test_sum_aggregation_adds_every_known_threat_on_the_same_topology(page):
-    """Same two-cause topology test_tle_likelihood_is_max_of_known_threat_
+    """Same two-threat topology test_tle_likelihood_is_max_of_known_threat_
     frequencies_with_no_barriers uses (0.001 and 0.01) -- 'max' picks 0.01;
     'sum' must instead answer 0.011, visibly different from either input."""
     result = run_quant(page, """
-      const c1 = m.addCause({});
+      const c1 = m.addThreat({});
       m.getNode(c1.nodeId).frequency = { value: '0.001' };
-      const c2 = m.addCause({});
+      const c2 = m.addThreat({});
       m.getNode(c2.nodeId).frequency = { value: '0.01' };
       const max = m.computeTleLikelihood(m.pages[0].id, { includeBarriers: false });
       m.setTleAggregation('sum');
@@ -255,9 +255,9 @@ def test_sum_aggregation_adds_every_known_threat_on_the_same_topology(page):
 def test_sum_aggregation_still_excludes_unknown_threats(page):
     result = run_quant(page, """
       m.setTleAggregation('sum');
-      const known = m.addCause({});
+      const known = m.addThreat({});
       m.getNode(known.nodeId).frequency = { value: '0.001' };
-      m.addCause({}); // frequency left null -- Unknown
+      m.addThreat({}); // frequency left null -- Unknown
       const computed = m.computeTleLikelihood(m.pages[0].id, { includeBarriers: false });
       return { value: computed.value.toExactDecimal().toDecimalString(), excluded: computed.excludedThreatCount };
     """)
@@ -304,7 +304,7 @@ def test_rrf_and_equivalent_pfd_avg_compute_bit_identical_results(page):
     document using rrf: 10 and one using pfdavg: 0.1 must agree exactly."""
     result = run_quant(page, """
       const mk = (protection) => {
-        const c = m.addCause({});
+        const c = m.addThreat({});
         m.getNode(c.nodeId).frequency = { value: '1E-3' };
         const pb = m.addPreventativeControl(c.id);
         m.getNode(pb.nodeId).protection = protection;
@@ -325,14 +325,14 @@ def test_barrier_order_affects_the_result_once_a_limiting_measure_is_mixed_in(pa
     and only then attenuates (0.5 * 0.1 = 0.05) -- a factor of two
     different, pinning that the fold is no longer order-independent once
     `limit` is mixed with `attenuate`/`divide`. Each ordering gets its own
-    page (rather than two causes on one page) so `computeTleLikelihood`'s
-    own max-of-causes doesn't obscure either individual number."""
+    page (rather than two threats on one page) so `computeTleLikelihood`'s
+    own max-of-threats doesn't obscure either individual number."""
     result = page.evaluate("""() => {
       const m = window.__lastModel;
       m.setMode('quantitative');
 
       const pfdThenPfhPage = m.pages[0];
-      const c1 = m.addCause({ pageId: pfdThenPfhPage.id });
+      const c1 = m.addThreat({ pageId: pfdThenPfhPage.id });
       m.getNode(c1.nodeId).frequency = { value: '1' };
       const pfd = m.addPreventativeControl(c1.id);
       m.getNode(pfd.nodeId).protection = { measure: 'pfdavg', value: '0.1' };
@@ -341,7 +341,7 @@ def test_barrier_order_affects_the_result_once_a_limiting_measure_is_mixed_in(pa
       const pfdThenPfh = m.computeTleLikelihood(pfdThenPfhPage.id).value.toDisplayNumber(6);
 
       const pfhThenPfdPage = m.addPage({ name: 'Reversed order' });
-      const c2 = m.addCause({ pageId: pfhThenPfdPage.id });
+      const c2 = m.addThreat({ pageId: pfhThenPfdPage.id });
       m.getNode(c2.nodeId).frequency = { value: '1' };
       const pfh2 = m.addPreventativeControl(c2.id);
       m.getNode(pfh2.nodeId).protection = { measure: 'pfh', value: '0.5' };
@@ -355,28 +355,28 @@ def test_barrier_order_affects_the_result_once_a_limiting_measure_is_mixed_in(pa
     assert abs(result["pfhThenPfd"] - 0.05) < 1e-9
 
 
-def test_mitigative_barriers_fold_tle_first_not_outcome_first(page):
+def test_mitigative_barriers_fold_tle_first_not_consequence_first(page):
     """The reversed-storage-convention fix (DESIGN_NOTES.md gotcha #1):
-    an Outcome's Line stores stops nearest-Outcome-first, but a demand
+    an Consequence's Line stores stops nearest-Consequence-first, but a demand
     physically reaches the TLE-nearest mitigative barrier FIRST. Order a
-    PFH barrier nearest the Outcome and a PFD barrier nearest the TLE --
-    walking stops as stored (Outcome-first) would apply PFD first then
+    PFH barrier nearest the Consequence and a PFD barrier nearest the TLE --
+    walking stops as stored (Consequence-first) would apply PFD first then
     clamp with PFH; walking TLE-first (correct) clamps first, then
     attenuates -- a different, and cross-checkable, number."""
     result = run_quant(page, """
-      const c1 = m.addCause({});
+      const c1 = m.addThreat({});
       m.getNode(c1.nodeId).frequency = { value: '1' };
-      const o1 = m.addOutcome({});
-      // First mitigative control chained off the Outcome sits nearest the
-      // Outcome (stops[0]); the next one chained sits further toward the
+      const o1 = m.addConsequence({});
+      // First mitigative control chained off the Consequence sits nearest the
+      // Consequence (stops[0]); the next one chained sits further toward the
       // TLE (stops[1]) -- addMitigativeControl always appends toward the
       // TLE, same convention as the preventative side.
-      const nearOutcome = m.addMitigativeControl(o1.id);
-      m.getNode(nearOutcome.nodeId).protection = { measure: 'pfdavg', value: '0.1' };
+      const nearConsequence = m.addMitigativeControl(o1.id);
+      m.getNode(nearConsequence.nodeId).protection = { measure: 'pfdavg', value: '0.1' };
       const nearTle = m.addMitigativeControl(o1.id);
       m.getNode(nearTle.nodeId).protection = { measure: 'pfh', value: '0.5' };
       return m.computeConsequenceLikelihood(o1.id).value.toDisplayNumber(6);
     """)
     # TLE-first (correct): min(1, 0.5) = 0.5, then * 0.1 = 0.05.
-    # Outcome-first (the old bug): 1 * 0.1 = 0.1, then min(0.1, 0.5) = 0.1.
+    # Consequence-first (the old bug): 1 * 0.1 = 0.1, then min(0.1, 0.5) = 0.1.
     assert abs(result - 0.05) < 1e-9
