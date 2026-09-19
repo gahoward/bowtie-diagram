@@ -89,3 +89,59 @@ def create_via_modal(page, name):
     dialog.locator(".create-or-choose-section .modal-field:has-text('Name') input").first.fill(name)
     dialog.get_by_role("button", name="Create", exact=False).click()
     page.wait_for_timeout(80)
+
+
+# --- Waiting without sleeping (proposals/17) -------------------------------
+#
+# Playwright's `expect()` auto-retries, and is the right tool for any
+# assertion about a LOCATOR -- use it directly:
+#
+#     expect(page.locator(".page-tab")).to_have_count(2)
+#
+# It does not cover `page.evaluate`, which is how this suite asserts model
+# state, button disabled-ness, and anything computed in the page. These
+# helpers are the equivalent for those: poll the same expression the test
+# always asserted, and fail with the same comparison if it never settles.
+#
+# A fixed `wait_for_timeout` before an assertion is a bet that the machine
+# is fast enough -- it wastes time when it wins and produces a failure
+# indistinguishable from a real regression when it loses. The only sleeps
+# worth keeping are the ones waiting for a specific DEBOUNCE to elapse (the
+# minimap's 120ms reclone, the recovery snapshot's 2s), and those should
+# say which one in a comment.
+
+_SETTLE_TIMEOUT_MS = 4000
+_SETTLE_INTERVAL_MS = 25
+
+
+def _poll(produce, done):
+    import time
+    deadline = time.monotonic() + _SETTLE_TIMEOUT_MS / 1000
+    value = produce()
+    while not done(value):
+        if time.monotonic() >= deadline:
+            return value
+        time.sleep(_SETTLE_INTERVAL_MS / 1000)
+        value = produce()
+    return value
+
+
+def eventually_equals(produce, expected, message=None):
+    """Poll until `produce()` equals `expected`, then assert it."""
+    value = _poll(produce, lambda v: v == expected)
+    assert value == expected, message or f"expected {expected!r}, last saw {value!r}"
+    return value
+
+
+def eventually_contains(produce, needle, message=None):
+    """Poll until `needle` appears in `produce()`, then assert it."""
+    value = _poll(produce, lambda v: v is not None and needle in v)
+    assert needle in value, message or f"expected {needle!r} in {value!r}"
+    return value
+
+
+def eventually_excludes(produce, needle, message=None):
+    """Poll until `needle` is absent from `produce()`, then assert it."""
+    value = _poll(produce, lambda v: v is not None and needle not in v)
+    assert needle not in value, message or f"expected {needle!r} to be gone from {value!r}"
+    return value

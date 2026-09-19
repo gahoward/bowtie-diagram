@@ -20,6 +20,7 @@ instead.
 """
 import functools
 import http.server
+import os
 import threading
 from pathlib import Path
 
@@ -124,10 +125,35 @@ def base_url():
         httpd.server_close()
 
 
+# Which engine to launch, from BOWTIE_BROWSER (proposals/17). Chromium is
+# the default and what the app is primarily targeted at; the Firefox job
+# exists because RecentFilesController and ExportUtil both branch on the
+# File System Access API, and until now NOTHING executed the fallback
+# side of those branches -- which is what Firefox, Safari, and a page
+# opened over file:// all get.
+BROWSER_NAME = os.environ.get("BOWTIE_BROWSER", "chromium")
+
+# True when the running engine implements the File System Access API.
+#
+# Currently UNUSED, deliberately: test_file_handlers.py and
+# test_recent_files.py already mock showSaveFilePicker/showOpenFilePicker
+# in-page rather than depending on the browser's own, so they are
+# engine-independent by construction. This marker is here for the first
+# real Firefox failure that turns out to be a genuine capability gap --
+# so it gets an explicit skip naming the capability, rather than being
+# quietly deleted or left red.
+SUPPORTS_FILE_SYSTEM_ACCESS = BROWSER_NAME == "chromium"
+
+requires_file_system_access = pytest.mark.skipif(
+    not SUPPORTS_FILE_SYSTEM_ACCESS,
+    reason=f"{BROWSER_NAME} has no File System Access API (window.showSaveFilePicker)",
+)
+
+
 @pytest.fixture(scope="session")
 def browser():
     with sync_playwright() as p:
-        b = p.chromium.launch()
+        b = getattr(p, BROWSER_NAME).launch()
         yield b
         b.close()
 

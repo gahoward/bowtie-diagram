@@ -29,6 +29,42 @@ No dev server needs to be started by hand — `conftest.py` spins up a
 duration of the session, and tears it down afterwards. There is no build
 step for the app itself, so tests run directly against `index.html` as-is.
 
+## Waiting: `expect()` and the `eventually_*` helpers
+
+**Do not put a `wait_for_timeout` before an assertion.** A fixed sleep is
+a bet that the machine is fast enough: it wastes time when it wins, and
+when it loses it produces a failure indistinguishable from a real
+regression. On a loaded CI runner it starts losing.
+
+Two replacements, both auto-retrying:
+
+- **A locator assertion** → Playwright's `expect()`, which retries with
+  proper actionability semantics:
+
+  ```python
+  expect(page.locator(".page-tab")).to_have_count(2)
+  ```
+
+- **Anything computed in the page** (`page.evaluate`, a helper that wraps
+  one) → `eventually_equals` / `eventually_contains` /
+  `eventually_excludes` from `helpers.py`. Python's `expect()` covers
+  locators only, and this suite asserts a lot of model state:
+
+  ```python
+  eventually_equals(lambda: page.evaluate("() => window.__lastModel.name"), "Renamed")
+  ```
+
+**The one sleep worth keeping** is waiting for a specific *debounce* to
+elapse — the minimap's 120 ms reclone, the recovery snapshot's 2 s — and
+it should name which one in a comment. There is nothing to retry there:
+the assertion is that something has *not* happened yet.
+
+`proposals/17` converted the assertion-backed sleeps in the six worst
+files (76 of them). The ~460 that remain are mostly sitting between two
+*actions* rather than before an assertion, where Playwright's built-in
+actionability waiting already covers most cases — that is the next pass,
+and it is a deletion rather than a rewrite.
+
 ## How it's structured
 
 - **`conftest.py`** — the `page` fixture launches a fresh browser tab per

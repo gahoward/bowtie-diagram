@@ -12,6 +12,9 @@ the focused node's own line, up/down between lanes in a column.
 """
 
 
+from playwright.sync_api import expect
+from helpers import eventually_contains, eventually_equals
+
 def _chain(page):
     """Threat → two barriers → top event, plus a consequence with one
     mitigative barrier: enough to walk a whole row."""
@@ -93,11 +96,9 @@ def test_left_walks_back_again(page):
     page.wait_for_timeout(150)
     _focus_node(page, "PB_2")
     page.keyboard.press("ArrowLeft")
-    page.wait_for_timeout(60)
-    assert _focused(page) == "PB_1"
+    eventually_equals(lambda: _focused(page), "PB_1")
     page.keyboard.press("ArrowLeft")
-    page.wait_for_timeout(60)
-    assert _focused(page) == "T_1"
+    eventually_equals(lambda: _focused(page), "T_1")
 
 
 def test_down_and_up_move_between_lanes_in_a_column(page):
@@ -111,14 +112,11 @@ def test_down_and_up_move_between_lanes_in_a_column(page):
     page.wait_for_timeout(150)
     _focus_node(page, "T_1")
     page.keyboard.press("ArrowDown")
-    page.wait_for_timeout(60)
-    assert _focused(page) == "T_2"
+    eventually_equals(lambda: _focused(page), "T_2")
     page.keyboard.press("ArrowDown")
-    page.wait_for_timeout(60)
-    assert _focused(page) == "T_3"
+    eventually_equals(lambda: _focused(page), "T_3")
     page.keyboard.press("ArrowUp")
-    page.wait_for_timeout(60)
-    assert _focused(page) == "T_2"
+    eventually_equals(lambda: _focused(page), "T_2")
 
 
 def test_home_jumps_to_the_top_event(page):
@@ -126,8 +124,7 @@ def test_home_jumps_to_the_top_event(page):
     page.wait_for_timeout(150)
     _focus_node(page, "T_1")
     page.keyboard.press("Home")
-    page.wait_for_timeout(60)
-    assert _focused(page) == page.evaluate("() => window.__lastModel.topLevelEvent.id")
+    eventually_equals(lambda: _focused(page), page.evaluate("() => window.__lastModel.topLevelEvent.id"))
 
 
 def test_down_from_a_barrier_drops_into_its_escalation_stack(page):
@@ -147,8 +144,7 @@ def test_down_from_a_barrier_drops_into_its_escalation_stack(page):
     focused = _focused(page)
     assert focused == page.evaluate("() => window.__lastModel.escalationFactors[0].id")
     page.keyboard.press("ArrowUp")
-    page.wait_for_timeout(80)
-    assert _focused(page) == "PB_1", "and back up to the barrier it degrades"
+    eventually_equals(lambda: _focused(page), "PB_1", "and back up to the barrier it degrades")
 
 
 # --- actions --------------------------------------------------------------
@@ -158,8 +154,7 @@ def test_enter_opens_properties_for_the_focused_node(page):
     page.wait_for_timeout(150)
     _focus_node(page, "PB_1")
     page.keyboard.press("Enter")
-    page.wait_for_timeout(150)
-    assert "Preventative Barrier" in page.locator(".modal-title").text_content()
+    eventually_contains(lambda: page.locator(".modal-title").text_content(), "Preventative Barrier")
     assert page.locator(".modal-field:has-text('Name') input").first.input_value() == "Inspection"
     page.get_by_role("button", name="Cancel", exact=True).click()
 
@@ -178,8 +173,7 @@ def test_shift_f10_opens_the_same_menu_a_right_click_gives(page):
 
     box = page.locator("#bowtie-canvas .node.threat").first.bounding_box()
     page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2, button="right")
-    page.wait_for_timeout(120)
-    assert page.locator(".context-menu-item").all_text_contents() == keyboard_items
+    eventually_equals(lambda: page.locator(".context-menu-item").all_text_contents(), keyboard_items)
     page.keyboard.press("Escape")
 
 
@@ -189,11 +183,9 @@ def test_ctrl_arrow_nudges_the_node_in_one_undo_step(page):
     before = page.evaluate("() => window.__lastModel.threats[0].x")
     _focus_node(page, "T_1")
     page.keyboard.press("Control+ArrowRight")
-    page.wait_for_timeout(100)
-    assert page.evaluate("() => window.__lastModel.threats[0].x") == before + 10
+    eventually_equals(lambda: page.evaluate("() => window.__lastModel.threats[0].x"), before + 10)
     page.click("#btn-undo")
-    page.wait_for_timeout(120)
-    assert page.evaluate("() => window.__lastModel.threats[0].x") == before
+    eventually_equals(lambda: page.evaluate("() => window.__lastModel.threats[0].x"), before)
 
 
 def test_delete_removes_the_focused_node(page):
@@ -203,8 +195,7 @@ def test_delete_removes_the_focused_node(page):
     page.wait_for_timeout(150)
     _focus_node(page, "PB_2")
     page.keyboard.press("Delete")
-    page.wait_for_timeout(150)
-    assert page.evaluate("() => window.__lastModel.preventativeBarriers.length") == 1
+    eventually_equals(lambda: page.evaluate("() => window.__lastModel.preventativeBarriers.length"), 1)
 
 
 def test_escape_leaves_the_canvas(page):
@@ -253,8 +244,7 @@ def test_a_nudge_is_announced(page):
     page.wait_for_timeout(150)
     _focus_node(page, "T_1")
     page.keyboard.press("Control+ArrowRight")
-    page.wait_for_timeout(150)
-    assert "T_1" in page.locator("#canvas-live-region").text_content()
+    eventually_contains(lambda: page.locator("#canvas-live-region").text_content(), "T_1")
 
 
 # --- the context menu as a real menu -------------------------------------
@@ -267,9 +257,8 @@ def test_the_menu_is_navigable_and_returns_focus_to_the_node(page):
     page.wait_for_timeout(150)
     _focus_node(page, "T_1")
     page.keyboard.press("Shift+F10")
-    page.wait_for_timeout(120)
 
-    assert page.locator(".context-menu").get_attribute("role") == "menu"
+    eventually_equals(lambda: page.locator(".context-menu").get_attribute("role"), "menu")
     assert page.locator(".context-menu-item").first.get_attribute("role") == "menuitem"
     first = page.evaluate("() => document.activeElement.textContent")
     page.keyboard.press("ArrowDown")
@@ -277,8 +266,7 @@ def test_the_menu_is_navigable_and_returns_focus_to_the_node(page):
     assert page.evaluate("() => document.activeElement.textContent") != first, "arrows move within"
 
     page.keyboard.press("Escape")
-    page.wait_for_timeout(80)
-    assert page.locator(".context-menu").count() == 0
+    expect(page.locator(".context-menu")).to_have_count(0)
     assert _focused(page) == "T_1", "focus came back to the node"
 
 
@@ -289,8 +277,7 @@ def test_a_right_click_menu_does_not_steal_focus(page):
     page.wait_for_timeout(150)
     box = page.locator("#bowtie-canvas .node.threat").first.bounding_box()
     page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2, button="right")
-    page.wait_for_timeout(120)
-    assert page.locator(".context-menu").count() == 1
+    expect(page.locator(".context-menu")).to_have_count(1)
     focused_tag = page.evaluate("() => document.activeElement.className")
     assert "context-menu-item" not in str(focused_tag)
     page.keyboard.press("Escape")

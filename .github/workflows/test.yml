@@ -40,3 +40,31 @@ jobs:
       # so each worker gets its own and tests share nothing but the files
       # on disk (proposals/17). 637 tests: ~8min serial, ~3min on 4 workers.
       - run: pytest tests/ -n auto
+
+  # A second engine (proposals/17). RecentFilesController and ExportUtil
+  # both branch on the File System Access API, and until this job existed
+  # nothing anywhere executed the fallback side of those branches -- which
+  # is what Firefox, Safari and a file:// page all get. The requirements
+  # baseline also names Edge with heightened security settings as a target.
+  #
+  # continue-on-error while it proves itself: it has never run, the
+  # proposal expected "a handful of genuine failures on first run", and
+  # those should not block unrelated work on day one. Flip it to required
+  # once it has been green for a week -- and when a failure turns out to be
+  # a real capability gap rather than a bug, mark that test with
+  # conftest.requires_file_system_access so the skip names the reason.
+  firefox:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install -r tests/requirements.txt
+      - run: playwright install --with-deps firefox
+      - run: pytest tests/ -n auto
+        env:
+          BOWTIE_BROWSER: firefox

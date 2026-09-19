@@ -8,6 +8,9 @@ nothing -- and the selection Delete acts on.
 """
 
 
+from playwright.sync_api import expect
+from helpers import eventually_equals
+
 def _mod(page):
     """The modifier the controller listens for on this platform."""
     return "Meta" if page.evaluate("() => /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)") else "Control"
@@ -45,8 +48,7 @@ def test_ctrl_s_exports_json_and_clears_the_unsaved_flag(page):
 
     with page.expect_download():
         page.keyboard.press(f"{_mod(page)}+s")
-    page.wait_for_timeout(80)
-    assert page.evaluate("() => window.__lastUnsavedChanges.dirty") is False
+    eventually_equals(lambda: page.evaluate("() => window.__lastUnsavedChanges.dirty"), False)
 
 
 def test_ctrl_s_inside_a_text_field_does_not_export(page):
@@ -61,8 +63,7 @@ def test_ctrl_s_inside_a_text_field_does_not_export(page):
     name = page.locator(".modal-field:has-text('Name') input[type=text]").first
     name.click()
     name.press(f"{_mod(page)}+s")
-    page.wait_for_timeout(150)
-    assert page.evaluate("() => window.__lastUnsavedChanges.dirty") is True, "no export fired"
+    eventually_equals(lambda: page.evaluate("() => window.__lastUnsavedChanges.dirty"), True, "no export fired")
 
 
 def test_a_blocking_warning_disables_the_export_keys_too(page):
@@ -71,8 +72,7 @@ def test_a_blocking_warning_disables_the_export_keys_too(page):
     assert page.locator("#btn-export-json").is_disabled()
 
     page.keyboard.press(f"{_mod(page)}+s")
-    page.wait_for_timeout(200)
-    assert page.evaluate("() => window.__lastUnsavedChanges.dirty") is True, "no export fired"
+    eventually_equals(lambda: page.evaluate("() => window.__lastUnsavedChanges.dirty"), True, "no export fired")
 
 
 def test_shortcuts_are_inert_while_a_modal_is_open(page):
@@ -80,12 +80,10 @@ def test_shortcuts_are_inert_while_a_modal_is_open(page):
     _no_save_picker(page)
     page.click("#menu-trigger-view")
     page.click("#btn-risk-summary")
-    page.wait_for_timeout(120)
-    assert page.locator(".modal-title").text_content() == "Risk Summary"
+    eventually_equals(lambda: page.locator(".modal-title").text_content(), "Risk Summary")
 
     page.keyboard.press(f"{_mod(page)}+s")
-    page.wait_for_timeout(200)
-    assert page.evaluate("() => window.__lastUnsavedChanges.dirty") is True, "no export fired"
+    eventually_equals(lambda: page.evaluate("() => window.__lastUnsavedChanges.dirty"), True, "no export fired")
     assert page.locator(".modal-title").text_content() == "Risk Summary", "and nothing else opened"
 
 
@@ -96,18 +94,15 @@ def test_clicking_a_node_selects_it_and_delete_removes_it_undoably(page):
     node = page.locator("#bowtie-canvas .node.threat").first
     box = node.bounding_box()
     page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-    page.wait_for_timeout(80)
-    assert page.locator("#bowtie-canvas .node.selected").count() == 1
+    expect(page.locator("#bowtie-canvas .node.selected")).to_have_count(1)
 
     page.keyboard.press("Delete")
-    page.wait_for_timeout(120)
-    assert page.evaluate("() => window.__lastModel.threats.length") == 0
-    assert page.locator("#bowtie-canvas .node.threat").count() == 0
+    eventually_equals(lambda: page.evaluate("() => window.__lastModel.threats.length"), 0)
+    expect(page.locator("#bowtie-canvas .node.threat")).to_have_count(0)
 
     page.click("#btn-undo")
-    page.wait_for_timeout(120)
-    assert page.evaluate("() => window.__lastModel.threats.length") == 1
-    assert page.locator("#bowtie-canvas .node.selected").count() == 0, "the restored node is not re-selected"
+    eventually_equals(lambda: page.evaluate("() => window.__lastModel.threats.length"), 1)
+    expect(page.locator("#bowtie-canvas .node.selected")).to_have_count(0)
 
 
 def test_clicking_a_barrier_selects_it_and_escape_clears_the_selection(page):
@@ -126,44 +121,38 @@ def test_clicking_a_barrier_selects_it_and_escape_clears_the_selection(page):
     assert "preventative-barrier" in (selected.first.get_attribute("class") or "")
 
     page.keyboard.press("Escape")
-    page.wait_for_timeout(80)
-    assert page.locator("#bowtie-canvas .node.selected").count() == 0
+    expect(page.locator("#bowtie-canvas .node.selected")).to_have_count(0)
 
 
 def test_the_top_event_and_hazard_are_never_selected(page):
     """Neither can be removed from a page, so neither is a Delete target."""
     box = page.locator("#bowtie-canvas .node.top-level-event").first.bounding_box()
     page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-    page.wait_for_timeout(80)
-    assert page.locator("#bowtie-canvas .node.selected").count() == 0
+    expect(page.locator("#bowtie-canvas .node.selected")).to_have_count(0)
 
 
 def test_delete_with_nothing_selected_changes_nothing(page):
     _add_threat(page)
     page.keyboard.press("Delete")
-    page.wait_for_timeout(120)
-    assert page.evaluate("() => window.__lastModel.threats.length") == 1
+    eventually_equals(lambda: page.evaluate("() => window.__lastModel.threats.length"), 1)
 
 
 def test_clicking_empty_canvas_clears_the_selection(page):
     _add_threat(page)
     box = page.locator("#bowtie-canvas .node.threat").first.bounding_box()
     page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-    page.wait_for_timeout(80)
-    assert page.locator("#bowtie-canvas .node.selected").count() == 1
+    expect(page.locator("#bowtie-canvas .node.selected")).to_have_count(1)
 
     canvas = page.locator("#bowtie-canvas").bounding_box()
     page.mouse.click(canvas["x"] + canvas["width"] / 2, canvas["y"] + canvas["height"] - 20)
-    page.wait_for_timeout(80)
-    assert page.locator("#bowtie-canvas .node.selected").count() == 0
+    expect(page.locator("#bowtie-canvas .node.selected")).to_have_count(0)
 
 
 # --- The sheet ------------------------------------------------------------
 
 def test_question_mark_opens_the_sheet_and_the_menu_item_opens_the_same_one(page):
     page.keyboard.press("Shift+/")
-    page.wait_for_timeout(120)
-    assert page.locator(".modal-title").text_content() == "Keyboard shortcuts"
+    eventually_equals(lambda: page.locator(".modal-title").text_content(), "Keyboard shortcuts")
     rows = page.locator(".shortcut-list dt").all_text_contents()
     assert len(rows) == page.evaluate("() => Bowtie.SHORTCUTS.length")
     assert any(r in ("Ctrl+S", "⌘S") for r in rows)
@@ -172,8 +161,7 @@ def test_question_mark_opens_the_sheet_and_the_menu_item_opens_the_same_one(page
 
     page.click("#menu-trigger-view")
     page.click("#btn-shortcuts")
-    page.wait_for_timeout(120)
-    assert page.locator(".modal-title").text_content() == "Keyboard shortcuts"
+    eventually_equals(lambda: page.locator(".modal-title").text_content(), "Keyboard shortcuts")
     page.get_by_role("button", name="Close", exact=True).click()
 
 

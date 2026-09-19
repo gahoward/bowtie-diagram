@@ -9,6 +9,9 @@ real UI the way a user actually reaches them.
 from conftest import INIT_SCRIPT
 
 
+from playwright.sync_api import expect
+from helpers import eventually_contains, eventually_equals, eventually_excludes
+
 def _fresh_page(browser, base_url):
     """A brand-new tab still on the welcome modal's choice step -- the
     shared `page` fixture already drives past this (see conftest.py), but
@@ -67,9 +70,8 @@ def test_wizard_create_produces_one_correctly_named_described_page(browser, base
         _fill_field(pg, "Page description", "A description")
         pg.get_by_role("button", name="Next", exact=True).click()
         pg.get_by_role("button", name="Create", exact=True).click()
-        pg.wait_for_timeout(150)
 
-        assert pg.locator(".modal-overlay").count() == 0
+        expect(pg.locator(".modal-overlay")).to_have_count(0)
         pages = pg.evaluate("() => window.__lastModel.pages.map((p) => ({name: p.name, description: p.description}))")
         assert pages == [{"name": "First Failure", "description": "A description"}]
         assert pg.locator(".page-tab").count() == 1
@@ -132,14 +134,12 @@ def test_toolbar_title_opens_project_settings_with_the_name_focused(page):
     attribute -- check that attribute directly instead of via get_by_role."""
     assert page.locator("#bowtie-name").get_attribute("title") == "Rename this analysis"
     page.locator("#bowtie-name").click()
-    page.wait_for_timeout(80)
-    assert page.locator(".modal-title").text_content() == "Project Settings"
+    eventually_equals(lambda: page.locator(".modal-title").text_content(), "Project Settings")
     assert page.locator(".settings-tab[aria-selected=true]").text_content() == "General"
     assert page.evaluate("() => document.activeElement.name") == "analysis-name"
     page.keyboard.type("Renamed From Title")
     page.keyboard.press("Enter")
-    page.wait_for_timeout(80)
-    assert page.evaluate("() => window.__lastModel.name") == "Renamed From Title"
+    eventually_equals(lambda: page.evaluate("() => window.__lastModel.name"), "Renamed From Title")
     assert page.locator("#bowtie-name").text_content() == "Renamed From Title"
 
 
@@ -158,9 +158,8 @@ def test_add_page_creates_and_switches_to_it(page):
     page.locator(".page-tab-add").click()
     page.locator(".modal-field:has-text('Page name') input").fill("Page Two")
     page.get_by_role("button", name="Create", exact=True).click()
-    page.wait_for_timeout(150)
 
-    assert page.locator(".page-tab").count() == 2
+    expect(page.locator(".page-tab")).to_have_count(2)
     assert "Page Two" in _active_tab_text(page)
 
 
@@ -170,9 +169,8 @@ def test_editing_a_page_name_description_persists_and_reflects_in_its_tab(page):
     page.locator(".modal-field:has-text('Page name') input").fill("Renamed Page")
     page.locator(".modal-field:has-text('Page description') input").fill("New description")
     page.get_by_role("button", name="Save", exact=True).click()
-    page.wait_for_timeout(150)
 
-    assert "Renamed Page" in page.locator(".page-tab").first.text_content()
+    eventually_contains(lambda: page.locator(".page-tab").first.text_content(), "Renamed Page")
     state = page.evaluate("() => ({name: window.__lastModel.pages[0].name, description: window.__lastModel.pages[0].description})")
     assert state == {"name": "Renamed Page", "description": "New description"}
 
@@ -195,9 +193,8 @@ def test_deleting_a_page_removes_it_and_its_content(page):
 
     page.locator(".page-tab", has_text="Page Two").locator(".page-tab-close").click()
     page.get_by_role("button", name="Delete", exact=True).click()
-    page.wait_for_timeout(150)
 
-    assert page.locator(".page-tab").count() == 1
+    expect(page.locator(".page-tab")).to_have_count(1)
     assert page.evaluate("() => window.__lastModel.threats.length") == 0
 
 
@@ -205,8 +202,8 @@ def test_deleting_the_active_page_switches_to_a_valid_remaining_page(page):
     page.locator(".page-tab-add").click()
     page.locator(".modal-field:has-text('Page name') input").fill("Page Two")
     page.get_by_role("button", name="Create", exact=True).click()
-    page.wait_for_timeout(150)
-    assert "Page Two" in _active_tab_text(page)  # newly added page is active
+    # the newly added page becomes the active one
+    eventually_contains(lambda: _active_tab_text(page), "Page Two")
 
     page.locator(".page-tab", has_text="Page Two").locator(".page-tab-close").click()
     page.get_by_role("button", name="Delete", exact=True).click()
@@ -232,9 +229,8 @@ def test_deleting_a_non_active_page_leaves_the_active_page_untouched(page):
 
     page.locator(".page-tab").nth(1).locator(".page-tab-close").click()
     page.get_by_role("button", name="Delete", exact=True).click()
-    page.wait_for_timeout(150)
 
-    assert page.locator(".page-tab").count() == 1
+    expect(page.locator(".page-tab")).to_have_count(1)
     assert _active_tab_name(page) == active_before
 
 
@@ -249,19 +245,16 @@ def test_cross_page_isolation_both_directions(page):
     page.wait_for_timeout(120)
 
     page.evaluate("() => { window.__lastModel.addThreat({x: 150, y: 200, name: 'P1 Threat'}); }")
-    page.wait_for_timeout(100)
-    assert _node_count(page, ".node.threat") == 1
+    eventually_equals(lambda: _node_count(page, ".node.threat"), 1)
 
     page.locator(".page-tab").nth(1).locator(".page-tab-label").click()
-    page.wait_for_timeout(120)
-    assert _node_count(page, ".node.threat") == 0, "page two must not show page one's threat"
+    eventually_equals(lambda: _node_count(page, ".node.threat"), 0, "page two must not show page one's threat")
 
     page.evaluate("""() => {
       const p2 = window.__lastModel.pages[1].id;
       window.__lastModel.addThreat({x: 150, y: 200, name: 'P2 Threat', pageId: p2});
     }""")
-    page.wait_for_timeout(100)
-    assert _node_count(page, ".node.threat") == 1
+    eventually_equals(lambda: _node_count(page, ".node.threat"), 1)
 
     page.locator(".page-tab").first.locator(".page-tab-label").click()
     page.wait_for_timeout(120)
@@ -347,8 +340,7 @@ def test_many_pages_tab_strip_scrollable_and_jump_dropdown_reaches_all(page):
       const m = window.__lastModel;
       for (let i = 2; i <= 12; i += 1) m.addPage({ name: `A Somewhat Long Page Name ${i}` });
     }""")
-    page.wait_for_timeout(150)
-    assert page.locator(".page-tab").count() == 12
+    expect(page.locator(".page-tab")).to_have_count(12)
 
     strip = page.locator(".page-tabs-scroll")
     assert strip.evaluate("(el) => getComputedStyle(el).overflowX") == "auto"
@@ -361,10 +353,9 @@ def test_many_pages_tab_strip_scrollable_and_jump_dropdown_reaches_all(page):
 
     last_label = "A Somewhat Long Page Name 12"
     items.last.click()
-    page.wait_for_timeout(150)
 
-    assert last_label in _active_tab_name(page)
-    assert page.locator(".page-jump-dropdown[hidden]").count() == 1, "picking an item closes the dropdown"
+    eventually_contains(lambda: _active_tab_name(page), last_label)
+    expect(page.locator(".page-jump-dropdown[hidden]")).to_have_count(1)
 
     # Scrolled into view: the active tab's box now horizontally overlaps
     # the scroll container's own visible box (it wasn't necessarily so
@@ -495,8 +486,7 @@ def test_redo_scoping_a_new_edit_clears_only_its_own_pages_redo(page):
       window.__lastUndo.snapshot(pageId);
       m.moveElement(c.id, 320, 260);
     }""")
-    page.wait_for_timeout(80)
-    assert page.evaluate("() => document.getElementById('btn-redo').disabled") is True
+    eventually_equals(lambda: page.evaluate("() => document.getElementById('btn-redo').disabled"), True)
 
     page.locator(".page-tab").first.locator(".page-tab-label").click()
     page.wait_for_timeout(120)
@@ -531,12 +521,10 @@ def test_undo_picks_the_more_recent_document_tier_rename_over_an_older_page_edit
     page.locator(".page-tab").first.locator(".page-tab-edit").click()
     page.locator(".modal-field:has-text('Page name') input").fill("Renamed")
     page.get_by_role("button", name="Save", exact=True).click()
-    page.wait_for_timeout(120)
-    assert "Renamed" in _active_tab_name(page)
+    eventually_contains(lambda: _active_tab_name(page), "Renamed")
 
     page.keyboard.press("Control+z")
-    page.wait_for_timeout(120)
-    assert "Renamed" not in _active_tab_name(page), "the more recent rename must undo first"
+    eventually_excludes(lambda: _active_tab_name(page), "Renamed", "the more recent rename must undo first")
     y = page.evaluate("() => window.__lastModel.threatsForPage(window.__lastModel.pages[0].id)[0].y")
     assert y == 260, "the older page-tier edit must still be intact"
 
@@ -560,16 +548,14 @@ def test_undo_picks_the_more_recent_page_edit_over_an_older_document_tier_rename
     page.wait_for_timeout(80)
 
     page.keyboard.press("Control+z")
-    page.wait_for_timeout(120)
-    assert _threat_names(page) == [], "the more recent page-tier edit must undo first"
+    eventually_equals(lambda: _threat_names(page), [], "the more recent page-tier edit must undo first")
     assert "Renamed" in _active_tab_name(page), "the older rename must still be intact"
 
 
 def test_switching_tabs_is_never_an_undo_step(page):
     _add_second_page(page)
     page.evaluate("() => window.__lastUndo.reset();")  # discard the addPage step itself
-    page.wait_for_timeout(80)
-    assert page.evaluate("() => document.getElementById('btn-undo').disabled") is True
+    eventually_equals(lambda: page.evaluate("() => document.getElementById('btn-undo').disabled"), True)
 
     page.locator(".page-tab").first.locator(".page-tab-label").click()
     page.wait_for_timeout(100)
@@ -611,8 +597,7 @@ def test_drag_gesture_undo_is_attributed_to_the_dragged_pages_own_stack(page):
     assert moved_y != original_y
 
     page.keyboard.press("Control+z")
-    page.wait_for_timeout(120)
-    assert page.evaluate("() => window.__lastModel.threats[0].y") == original_y
+    eventually_equals(lambda: page.evaluate("() => window.__lastModel.threats[0].y"), original_y)
 
 
 def test_undo_after_add_page_removes_it(page):
@@ -620,8 +605,7 @@ def test_undo_after_add_page_removes_it(page):
     assert page.locator(".page-tab").count() == 2
 
     page.keyboard.press("Control+z")
-    page.wait_for_timeout(120)
-    assert page.locator(".page-tab").count() == 1
+    expect(page.locator(".page-tab")).to_have_count(1)
 
 
 def test_undo_after_delete_page_fully_restores_page_and_content(page):
@@ -634,12 +618,10 @@ def test_undo_after_delete_page_fully_restores_page_and_content(page):
 
     page.locator(".page-tab", has_text="Page Two").locator(".page-tab-close").click()
     page.get_by_role("button", name="Delete", exact=True).click()
-    page.wait_for_timeout(150)
-    assert page.locator(".page-tab").count() == 1
+    expect(page.locator(".page-tab")).to_have_count(1)
 
     page.keyboard.press("Control+z")
-    page.wait_for_timeout(150)
-    assert page.locator(".page-tab").count() == 2
+    expect(page.locator(".page-tab")).to_have_count(2)
     names = page.evaluate("() => window.__lastModel.pages.map((p) => p.name)")
     assert "Page Two" in names
     assert "P2 Threat" in _threat_names(page)
@@ -653,8 +635,7 @@ def test_undo_after_rename_page_reverts_name_and_description(page):
     page.locator(".modal-field:has-text('Page name') input").fill("Renamed")
     page.locator(".modal-field:has-text('Page description') input").fill("New desc")
     page.get_by_role("button", name="Save", exact=True).click()
-    page.wait_for_timeout(120)
-    assert "Renamed" in _active_tab_name(page)
+    eventually_contains(lambda: _active_tab_name(page), "Renamed")
 
     page.keyboard.press("Control+z")
     page.wait_for_timeout(120)
@@ -701,9 +682,8 @@ def test_load_demo_shows_both_of_its_pages(browser, base_url):
     pg = _fresh_page(browser, base_url)
     try:
         pg.get_by_role("button", name="Explore the demo", exact=True).click()
-        pg.wait_for_timeout(250)
 
-        assert pg.locator(".page-tab").count() == 2
+        expect(pg.locator(".page-tab")).to_have_count(2)
         names = pg.evaluate("() => window.__lastModel.pages.map((p) => p.name)")
         assert names == ["Pipeline Release", "Bund Containment Failure"]
         assert pg.evaluate("() => window.__lastModel.getWarnings().length") == 0

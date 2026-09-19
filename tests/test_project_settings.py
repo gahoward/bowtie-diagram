@@ -9,6 +9,9 @@ friends) live in Preferences instead -- see test_preferences.py.
 """
 
 
+from playwright.sync_api import expect
+from helpers import eventually_contains, eventually_equals
+
 def _open_project_settings(page, tab=None):
     page.click("#menu-trigger-settings")
     page.click("#btn-project-settings")
@@ -66,9 +69,8 @@ def test_project_settings_renames_the_document(page):
     name_input = page.locator("input[name=analysis-name]")
     name_input.fill("My Renamed Analysis")
     name_input.blur()
-    page.wait_for_timeout(80)
 
-    assert page.evaluate("() => window.__lastModel.name") == "My Renamed Analysis"
+    eventually_equals(lambda: page.evaluate("() => window.__lastModel.name"), "My Renamed Analysis")
 
 
 def test_committing_a_rename_does_not_drop_focus_to_body(page):
@@ -80,9 +82,8 @@ def test_committing_a_rename_does_not_drop_focus_to_body(page):
     name_input = page.locator("input[name=analysis-name]")
     name_input.fill("Tabbed Away")
     name_input.press("Tab")
-    page.wait_for_timeout(80)
 
-    assert page.evaluate("() => window.__lastModel.name") == "Tabbed Away"
+    eventually_equals(lambda: page.evaluate("() => window.__lastModel.name"), "Tabbed Away")
     assert page.evaluate("() => document.activeElement.tagName") != "BODY"
 
 
@@ -91,8 +92,7 @@ def test_a_blank_name_is_rejected_and_reverted(page):
     name_input = page.locator("input[name=analysis-name]")
     name_input.fill("   ")
     name_input.blur()
-    page.wait_for_timeout(80)
-    assert page.evaluate("() => window.__lastModel.name") == "Untitled Bowtie"
+    eventually_equals(lambda: page.evaluate("() => window.__lastModel.name"), "Untitled Bowtie")
     assert name_input.input_value() == "Untitled Bowtie"
 
 
@@ -103,8 +103,7 @@ def test_project_settings_identifier_display_mode_lives_on_the_general_tab_only(
 
     page.click("#menu-trigger-add")
     page.click("#btn-manage-ids")
-    page.wait_for_timeout(100)
-    assert page.locator("input[name=identifier-display-mode-toggle]").count() == 0
+    expect(page.locator("input[name=identifier-display-mode-toggle]")).to_have_count(0)
     assert page.locator(".modal-title").text_content() == "Node Library"
 
 
@@ -114,8 +113,7 @@ def test_project_settings_switching_identifier_mode_to_custom_backfills_ids(page
 
     _open_project_settings(page)
     page.locator("input[name=identifier-display-mode-toggle][value=custom]").check()
-    page.wait_for_timeout(80)
-    assert "Node Library" in page.locator(".settings-row:has-text('Identifiers') .settings-row-help").text_content()
+    eventually_contains(lambda: page.locator(".settings-row:has-text('Identifiers') .settings-row-help").text_content(), "Node Library")
     _done(page)
 
     identifier = page.evaluate("""() => {
@@ -134,14 +132,12 @@ def test_risk_tab_uses_the_wizards_mode_cards_and_hides_the_matrix_in_simple_mod
     assert page.locator(".modal-field:has-text('Display frequencies')").count() == 0, "display unit is a Preference now"
 
     page.locator("input[name=analysis-mode][value=qualitative]").check()
-    page.wait_for_timeout(80)
-    assert page.locator(".modal-field:has-text('Risk matrix')").count() == 1
+    expect(page.locator(".modal-field:has-text('Risk matrix')")).to_have_count(1)
     assert "selected" in page.locator(".mode-card[data-mode=qualitative]").get_attribute("class")
     assert page.evaluate("() => window.__lastModel.mode") == "qualitative"
 
     page.locator("input[name=analysis-mode][value=simple]").check()
-    page.wait_for_timeout(80)
-    assert page.locator(".modal-field:has-text('Risk matrix')").count() == 0
+    expect(page.locator(".modal-field:has-text('Risk matrix')")).to_have_count(0)
     _done(page)
 
 
@@ -165,8 +161,7 @@ def test_matrix_summary_and_legend_appear_once_a_matrix_is_active(page):
     assert any("D - Broadly Acceptable" in t for t in items)
 
     page.locator("select[name=risk-matrix]").select_option("")
-    page.wait_for_timeout(80)
-    assert page.locator(".risk-class-legend").count() == 0, "cleared alongside the matrix itself"
+    expect(page.locator(".risk-class-legend")).to_have_count(0)
 
 
 def test_quantitative_tab_tle_aggregation_toggle_updates_model_and_canvas(page):
@@ -236,9 +231,8 @@ def test_quantitative_tab_defaults_reject_out_of_range_values(page):
     df_input = page.locator(".modal-field:has-text('Dangerous fraction') input[type=text]")
     df_input.fill("1.5")
     df_input.blur()
-    page.wait_for_timeout(80)
 
-    assert page.evaluate("() => window.__lastModel.dangerousFraction") == "1", "out-of-range input must be rejected"
+    eventually_equals(lambda: page.evaluate("() => window.__lastModel.dangerousFraction"), "1", "out-of-range input must be rejected")
     assert df_input.input_value() == "1"
 
 
@@ -332,9 +326,8 @@ def test_import_risk_matrix_rejects_an_invalid_file(page):
       }];
     }""")
     page.get_by_role("button", name="Import Risk Matrix…", exact=True).click()
-    page.wait_for_timeout(150)
 
-    assert page.locator(".modal-title", has_text="Cannot Import Risk Matrix").count() == 1
+    expect(page.locator(".modal-title", has_text="Cannot Import Risk Matrix")).to_have_count(1)
     page.get_by_role("button", name="OK", exact=True).click()
     assert page.evaluate("() => window.__lastModel.riskMatrix") is None
 
