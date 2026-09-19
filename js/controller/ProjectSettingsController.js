@@ -6,13 +6,11 @@
     { value: 'sum', text: 'Sum of all threats' },
   ];
 
-  const TABS = [
-    { id: 'general', label: 'General' },
-    { id: 'risk', label: 'Risk analysis' },
-    { id: 'quantitative', label: 'Quantitative' }, // only while mode === 'quantitative'
-  ];
-
   const el = Bowtie.Dom.el;
+
+  function presets() {
+    return (window.Bowtie && Bowtie.RISK_MATRIX_PRESETS) || {};
+  }
 
   // Settings › Project Settings… (ui_fitness_proposal.md S2): one home for
   // every setting that is SAVED WITH THE DOCUMENT -- the analysis name,
@@ -28,11 +26,17 @@
   // that mode) so nothing scrolls; every row is label · control · one-line
   // helper. Every change applies immediately; the button is Done.
   //
+  // The form's markup lives in SettingsFormView.js (proposals/15 part 2).
+  // What stays here: the model reads and writes, the active tab, the
+  // focus-preserving refresh suppression, and the risk-matrix import
+  // flow -- which is a sequence of decisions about a file rather than
+  // markup, and so did not move.
+  //
   // Scope note: risk matrix selection is bundled-preset selection PLUS
-  // import/export of a hand-authored custom one (see _buildMatrixRow
-  // below) -- not a live, click-to-edit cell grid. Import/export covers the
-  // practical need (author or tweak a matrix in a spreadsheet/text editor,
-  // matching the RiskMatrixDefinition JSON shape any bundled preset under
+  // import/export of a hand-authored custom one -- not a live,
+  // click-to-edit cell grid. Import/export covers the practical need
+  // (author or tweak a matrix in a spreadsheet/text editor, matching the
+  // RiskMatrixDefinition JSON shape any bundled preset under
   // js/data/risk-matrices/*.json already demonstrates) without the much
   // larger surface a full in-browser grid editor would be.
   class ProjectSettingsController {
@@ -89,231 +93,105 @@
     }
 
     _availableTabs() {
-      return TABS.filter((t) => t.id !== 'quantitative' || this.model.mode === 'quantitative');
+      return Bowtie.SettingsFormView.TABS
+        .filter((t) => t.id !== 'quantitative' || this.model.mode === 'quantitative');
+    }
+
+    _rebuild() {
+      this.modal.setBody(this._buildBody());
+    }
+
+    // A text field's commit must not trigger the rebuild its own model
+    // change would otherwise cause -- see _suppressNextRefresh above.
+    _commit(write) {
+      return (value) => {
+        this._suppressNextRefresh = true;
+        write(value);
+      };
+    }
+
+    // Every value the form shows, read here so the view reads nothing.
+    _viewState() {
+      const tabs = this._availableTabs();
+      if (!tabs.some((t) => t.id === this._activeTab)) this._activeTab = 'risk';
+      return {
+        activeTab: this._activeTab,
+        availableTabs: tabs,
+        name: this.model.name,
+        identifierDisplayMode: this.model.identifierDisplayMode,
+        mode: this.model.mode,
+        riskMatrix: this.model.riskMatrix,
+        presets: presets(),
+        aggregationOptions: AGGREGATION_OPTIONS,
+        tleAggregation: this.model.tleAggregation,
+        dangerousFraction: this.model.dangerousFraction,
+        proofTestIntervalH: this.model.proofTestIntervalH,
+      };
+    }
+
+    // The two quantitative fields' validators. Decimal parsing lives
+    // here rather than in the view: what counts as a valid figure is
+    // domain knowledge, and js/view/ has no business knowing about
+    // Decimal.
+    _validators() {
+      const zero = Bowtie.Decimal.parse('0');
+      const one = Bowtie.Decimal.parse('1');
+      const inRange = (text, check) => {
+        try {
+          return check(Bowtie.Decimal.parse(text));
+        } catch {
+          return false;
+        }
+      };
+      return {
+        dangerousFraction: (v) => inRange(v, (d) => !d.lessThan(zero) && !d.greaterThan(one)),
+        proofTestInterval: (v) => inRange(v, (d) => d.greaterThan(zero)),
+      };
     }
 
     _buildBody() {
-      const body = el('div', 'settings-body');
-      body.appendChild(el('p', 'modal-subtitle', 'Saved with the document. Changes apply immediately.'));
-
-      const tabs = this._availableTabs();
-      if (!tabs.some((t) => t.id === this._activeTab)) this._activeTab = 'risk';
-
-      const nav = el('div', 'settings-tabs');
-      nav.setAttribute('role', 'tablist');
-      tabs.forEach((tab) => {
-        const btn = el('button', 'settings-tab', tab.label);
-        btn.type = 'button';
-        btn.dataset.tab = tab.id;
-        btn.setAttribute('role', 'tab');
-        btn.setAttribute('aria-selected', String(tab.id === this._activeTab));
-        btn.addEventListener('click', () => {
-          this._activeTab = tab.id;
-          this.modal.setBody(this._buildBody());
-        });
-        nav.appendChild(btn);
+      const validate = this._validators();
+      return Bowtie.SettingsFormView.body(this._viewState(), {
+        onSelectTab: (id) => {
+          this._activeTab = id;
+          this._rebuild();
+        },
+        onCommitName: this._commit((v) => this.model.setName(v)),
+        onPickIdentifierMode: (v) => this.model.setIdentifierDisplayMode(v),
+        onSelectMode: (mode) => this.model.setMode(mode),
+        onSelectMatrix: (presetId) => {
+          if (presetId === null) {
+            this.model.setRiskMatrix(null);
+            return;
+          }
+          // Embedded as a full, independent copy (per the design doc:
+          // exports stay self-contained even if the bundled preset is
+          // later edited).
+          this.model.setRiskMatrix(JSON.parse(JSON.stringify(presets()[presetId])));
+        },
+        onImportMatrix: () => this._importRiskMatrix(),
+        onExportMatrix: () => {
+          const denormalized = Bowtie.denormalizeRiskMatrixForExport(this.model.riskMatrix);
+          Bowtie.ExportUtil.exportJsonObject(denormalized, `${denormalized.id || 'risk-matrix'}.json`);
+        },
+        onPickAggregation: (v) => this.model.setTleAggregation(v),
+        validateDangerousFraction: validate.dangerousFraction,
+        onCommitDangerousFraction: this._commit((v) => this.model.setQuantitativeDefaults({ dangerousFraction: v })),
+        validateProofTestInterval: validate.proofTestInterval,
+        onCommitProofTestInterval: this._commit((v) => this.model.setQuantitativeDefaults({ proofTestIntervalH: v })),
       });
-      body.appendChild(nav);
-
-      const panel = el('div', 'settings-panel');
-      panel.dataset.tab = this._activeTab;
-      if (this._activeTab === 'general') this._buildGeneral(panel);
-      else if (this._activeTab === 'risk') this._buildRiskAnalysis(panel);
-      else this._buildQuantitative(panel);
-      body.appendChild(panel);
-      return body;
     }
 
-    // label · control · helper. `.modal-field` so the label text sits
-    // inside the same element as its control (what every test in the
-    // suite addresses a field by); `.settings-row` lays it out as a row.
-    _row(labelText, control, helpText) {
-      const row = el('div', 'modal-field settings-row');
-      row.appendChild(el('span', 'settings-row-label', labelText));
-      row.appendChild(control);
-      if (helpText) row.appendChild(el('p', 'settings-row-help', helpText));
-      return row;
-    }
+    // --- Risk matrix import ------------------------------------------------
+    //
+    // "Import Risk Matrix…" validates a hand-authored or hand-edited
+    // RiskMatrixDefinition JSON file with the exact same rules a bundled
+    // preset is built with (RiskMatrixValidator.js) rather than a second,
+    // driftable reimplementation. Prefers the real native "Open" dialog
+    // (mirroring ImportExportController's own whole-document import) and
+    // falls back to the hidden <input type=file> everywhere that API
+    // doesn't exist.
 
-    _radios(name, options, current, onPick) {
-      const control = el('div', 'settings-options');
-      options.forEach((opt) => {
-        const optionRow = el('label', 'modal-checkbox-row');
-        const radio = document.createElement('input');
-        radio.type = 'radio';
-        radio.name = name;
-        radio.value = opt.value;
-        radio.checked = current === opt.value;
-        radio.addEventListener('change', () => { if (radio.checked) onPick(opt.value); });
-        optionRow.append(radio, el('span', null, opt.text));
-        control.appendChild(optionRow);
-      });
-      return control;
-    }
-
-    // A text field committed on change (blur/Enter), reverting to the
-    // model's own value when `validate` rejects the entry -- the same
-    // change-on-blur / _suppressNextRefresh pattern for every text field
-    // in this modal.
-    _textInput(name, value, validate, commit) {
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.name = name;
-      input.value = value;
-      input.addEventListener('change', () => {
-        const next = input.value.trim();
-        if (!validate(next)) {
-          input.value = value;
-          return;
-        }
-        this._suppressNextRefresh = true;
-        commit(next);
-      });
-      return input;
-    }
-
-    // --- General ---------------------------------------------------------
-
-    _buildGeneral(panel) {
-      panel.appendChild(this._row(
-        'Name',
-        this._textInput('analysis-name', this.model.name, (v) => v.length > 0, (v) => this.model.setName(v)),
-        'Shown in the toolbar and used as the export file name.',
-      ));
-
-      // node_library_proposal.md "Display identifiers": switching to
-      // 'custom' backfills every node's blank identifier with its own
-      // current id (BowtieModel.setIdentifierDisplayMode does the
-      // backfill; the helper just says so).
-      const custom = this.model.identifierDisplayMode === 'custom';
-      panel.appendChild(this._row(
-        'Identifiers',
-        this._radios('identifier-display-mode-toggle', [
-          { value: 'internal', text: 'Generated IDs' },
-          { value: 'custom', text: 'Custom labels' },
-        ], this.model.identifierDisplayMode, (v) => this.model.setIdentifierDisplayMode(v)),
-        custom
-          ? 'Every node shows its generated id as a starting label — edit them in the Node Library. New nodes get no label automatically.'
-          : 'Generated IDs are T_1, PB_1, …; custom labels are whatever you type per node.',
-      ));
-    }
-
-    // --- Risk analysis ---------------------------------------------------
-
-    _buildRiskAnalysis(panel) {
-      const cards = Bowtie.buildRiskModeCards({
-        selected: this.model.mode,
-        name: 'analysis-mode',
-        onSelect: (mode) => this.model.setMode(mode),
-      });
-      panel.appendChild(this._row('Mode', cards.el, null));
-
-      if (this.model.mode !== 'simple') panel.appendChild(this._buildMatrixRow());
-    }
-
-    _buildMatrixRow() {
-      const control = el('div', 'settings-stack');
-
-      const select = document.createElement('select');
-      select.name = 'risk-matrix';
-      const noneOpt = document.createElement('option');
-      noneOpt.value = '';
-      noneOpt.textContent = '(none selected)';
-      select.appendChild(noneOpt);
-      const presets = (window.Bowtie && Bowtie.RISK_MATRIX_PRESETS) || {};
-      Object.values(presets).forEach((preset) => {
-        const opt = document.createElement('option');
-        opt.value = preset.id;
-        opt.textContent = preset.name;
-        select.appendChild(opt);
-      });
-      const current = this.model.riskMatrix;
-      const currentIsPreset = current && presets[current.id];
-      // An imported/custom matrix isn't one of the bundled presets -- give
-      // it its own (selectable-only-by-code) option rather than silently
-      // falling back to "(none selected)", which would misstate that
-      // nothing is active.
-      if (current && !currentIsPreset) {
-        const customOpt = document.createElement('option');
-        customOpt.value = current.id;
-        customOpt.textContent = `${current.name} (imported)`;
-        select.appendChild(customOpt);
-      }
-      select.value = current ? current.id : '';
-      select.addEventListener('change', () => {
-        if (!select.value) {
-          this.model.setRiskMatrix(null);
-          return;
-        }
-        if (!presets[select.value]) return; // the informational "(imported)" option -- re-import to restore it
-        // Embedded as a full, independent copy (per the design doc: exports
-        // stay self-contained even if the bundled preset is later edited).
-        this.model.setRiskMatrix(JSON.parse(JSON.stringify(presets[select.value])));
-      });
-      control.appendChild(select);
-
-      if (current) control.appendChild(this._buildMatrixSummary(current));
-      control.appendChild(this._buildMatrixImportExportRow(current));
-
-      return this._row(
-        'Risk matrix',
-        control,
-        'Bundled presets, or import a hand-authored one. Exports embed a full copy so the file stays self-contained.',
-      );
-    }
-
-    // Design review finding 02: the canvas risk badge only ever draws a
-    // bare `riskClass.id` (a single letter) — nothing else in the app
-    // showed what that letter actually means, short of exporting the
-    // document and reading the matrix JSON by hand. This is the persistent
-    // reference that pairs with the badge's own hover tooltip
-    // (CanvasView._renderRiskBadge): the same colour + letter, plus the
-    // full label every shipped preset already carries, on one line with
-    // the matrix's own shape.
-    _buildMatrixSummary(matrix) {
-      const wrap = el('div', 'risk-matrix-summary');
-      wrap.appendChild(el('span', 'risk-matrix-shape',
-        `${matrix.severityClasses.length} severity × ${matrix.likelihoodClasses.length} likelihood classes →`));
-      const legend = el('div', 'risk-class-legend');
-      Bowtie.riskClassesByRank(matrix).forEach((riskClass) => {
-        const item = el('div', 'risk-class-legend-item');
-        const swatch = el('span', 'risk-class-legend-swatch', riskClass.id);
-        swatch.style.background = riskClass.colour || '#888';
-        item.appendChild(swatch);
-        item.appendChild(el('span', null, riskClass.label));
-        legend.appendChild(item);
-      });
-      wrap.appendChild(legend);
-      return wrap;
-    }
-
-    // "Import Risk Matrix..." / "Export Risk Matrix..." (see the class doc
-    // comment's scope note): a hand-authored or hand-edited
-    // RiskMatrixDefinition JSON file, validated with the exact same rules
-    // a bundled preset is built with (RiskMatrixValidator.js) rather than a
-    // second, driftable reimplementation.
-    _buildMatrixImportExportRow(current) {
-      const row = el('div', 'settings-button-row');
-
-      const importBtn = el('button', 'modal-btn modal-btn-small', 'Import Risk Matrix…');
-      importBtn.type = 'button';
-      importBtn.addEventListener('click', () => this._importRiskMatrix());
-      row.appendChild(importBtn);
-
-      const exportBtn = el('button', 'modal-btn modal-btn-small', 'Export Risk Matrix…');
-      exportBtn.type = 'button';
-      exportBtn.disabled = !current;
-      exportBtn.addEventListener('click', () => {
-        const denormalized = Bowtie.denormalizeRiskMatrixForExport(this.model.riskMatrix);
-        Bowtie.ExportUtil.exportJsonObject(denormalized, `${denormalized.id || 'risk-matrix'}.json`);
-      });
-      row.appendChild(exportBtn);
-      return row;
-    }
-
-    // Prefers the real native "Open" dialog (mirrors ImportExportController's
-    // own whole-document import); falls back to the hidden <input
-    // type=file> everywhere that API doesn't exist.
     async _importRiskMatrix() {
       const result = await Bowtie.ExportUtil.pickJsonFileText();
       if (result.supported) {
@@ -353,48 +231,6 @@
       const body = document.createElement('div');
       body.appendChild(el('p', null, message));
       Bowtie.ModalView.openModal({ title: 'Cannot Import Risk Matrix', bodyEl: body, actions: [{ label: 'OK', primary: true }] });
-    }
-
-    // --- Quantitative ----------------------------------------------------
-    //
-    // Everything that only means something once likelihoods are computed:
-    // how the TLE combines its threats (design review finding 11) and
-    // barrier_measures_proposal.md's ProjectDefaults -- the dangerous
-    // fraction and standby proof-test interval a barrier's own protection
-    // falls back to when it doesn't set its own override. All persisted,
-    // since they change what a saved figure MEANS, not just how it's shown.
-
-    _buildQuantitative(panel) {
-      panel.appendChild(this._row(
-        'Combine threats at the top event by',
-        this._radios('tle-aggregation', AGGREGATION_OPTIONS, this.model.tleAggregation, (v) => this.model.setTleAggregation(v)),
-        'Highest = the conservative worst-initiator reading. Sum = the independent-initiator LOPA convention. '
-          + 'Changes what the saved numbers mean.',
-      ));
-
-      const zero = Bowtie.Decimal.parse('0');
-      const one = Bowtie.Decimal.parse('1');
-      const inRange = (text, check) => {
-        try {
-          return check(Bowtie.Decimal.parse(text));
-        } catch {
-          return false;
-        }
-      };
-      panel.appendChild(this._row(
-        'Dangerous fraction',
-        this._textInput('dangerous-fraction', this.model.dangerousFraction,
-          (v) => inRange(v, (d) => !d.lessThan(zero) && !d.greaterThan(one)),
-          (v) => this.model.setQuantitativeDefaults({ dangerousFraction: v })),
-        'Fallback when a barrier sets none (0–1).',
-      ));
-      panel.appendChild(this._row(
-        'Proof-test interval (hours)',
-        this._textInput('proof-test-interval', this.model.proofTestIntervalH,
-          (v) => inRange(v, (d) => d.greaterThan(zero)),
-          (v) => this.model.setQuantitativeDefaults({ proofTestIntervalH: v })),
-        'Standby barriers, unless a barrier overrides it.',
-      ));
     }
   }
 

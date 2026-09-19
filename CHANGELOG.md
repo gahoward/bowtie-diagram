@@ -11,13 +11,25 @@
   delete, an auto-arrange, an import. `BowtieModel` also gained a
   placement-id index for `findById`, worth about a third off a
   500-placement render; the coalescing is the part that mattered.
-- **One DOM helper instead of eleven** (`proposals/15`). `function el(…)`
-  was defined eleven times in three mutually incompatible shapes, all
-  sharing the name: moving element-building code between an HTML file and
-  an SVG one passed lint and then failed silently at runtime. There is
-  now one of each, in `js/view/Dom.js` and `js/view/Svg.js`. The Risk
-  Summary and Barrier Register also share one modal shell, which fixed a
-  real inconsistency in CSV filenames that the duplication had hidden.
+- **Controllers out of the rendering business** (`proposals/15`). Three
+  screens that a controller used to build inline — the welcome flow, the
+  Node Library and Project Settings — now live in `js/view/` as
+  `WelcomeView.js`, `NodeLibraryView.js` and `SettingsFormView.js`, each
+  taking plain data and handler callbacks. Between them those three
+  controllers went from **123 DOM-construction calls to 7**, and the
+  seven that remain each build a one-paragraph dialog. No test changed,
+  which for a pure extraction is the whole argument.
+- **Three copies of a control became one** (`proposals/15`). `function
+  el(…)` had been defined eleven times in three mutually incompatible
+  shapes, all sharing the name — moving element-building code between an
+  HTML file and an SVG one passed lint and then failed silently at
+  runtime; there is now one of each in `js/view/Dom.js` and
+  `js/view/Svg.js`. The same pattern turned up a level up:
+  `js/view/FormControls.js` now owns the tablist that Project Settings
+  and the Node Library had each grown privately, and the radio row that
+  had three copies. The Risk Summary and Barrier Register likewise share
+  one modal shell, which fixed a real inconsistency in CSV filenames
+  that the duplication had hidden.
 
 - **The canvas is now keyboard-operable and screen-reader navigable**
   (`proposals/13`) — until now every surface but the canvas was, so a

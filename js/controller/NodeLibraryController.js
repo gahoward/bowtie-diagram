@@ -1,16 +1,5 @@
 (function (Bowtie) {
-  const TYPES = [
-    { id: 'threat', label: 'Threats', singular: 'threat' },
-    { id: 'consequence', label: 'Consequences', singular: 'consequence' },
-    { id: 'preventativeBarrier', label: 'Preventative', singular: 'preventative barrier' },
-    { id: 'mitigativeBarrier', label: 'Mitigative', singular: 'mitigative barrier' },
-    { id: 'escalationFactor', label: 'Escalation', singular: 'escalation factor' },
-    { id: 'escalationBarrier', label: 'Esc. barriers', singular: 'escalation barrier' },
-  ];
-
   const el = Bowtie.Dom.el;
-
-  const button = Bowtie.Dom.button;
 
   // Add › Node Library… (ui_fitness_proposal.md S4): the manager for the
   // shared node library (node_library_proposal.md ask 2) merged with the
@@ -21,6 +10,11 @@
   // rather than a second inline copy of the form; the retired-identifier
   // controls sit collapsed under a disclosure per tab. Sits under Add
   // because the library is where "Choose existing" nodes come from.
+  //
+  // The markup lives in NodeLibraryView.js (proposals/15 part 2). What
+  // stays here is what a controller is for: the model reads that turn
+  // into the view's plain data, the model writes its handlers make, the
+  // tab/disclosure/focus state, and the two confirmation dialogs.
   class NodeLibraryController {
     // `openProperties(el)` opens the Properties modal for a placement-
     // shaped `el` -- the node's first placement when it has one (so the
@@ -84,122 +78,85 @@
       Bowtie.ModalView.openModal({ title: 'Cannot Do That', bodyEl: body, actions: [{ label: 'OK', primary: true }] });
     }
 
-    _buildBody() {
-      const wrap = el('div', 'node-library');
-
-      const tabs = el('div', 'settings-tabs');
-      tabs.setAttribute('role', 'tablist');
-      TYPES.forEach((type) => {
-        const count = this.model.library[type.id].length;
-        const tab = button(`${type.label} (${count})`, 'settings-tab');
-        tab.dataset.type = type.id;
-        tab.setAttribute('role', 'tab');
-        tab.setAttribute('aria-selected', String(type.id === this._activeType));
-        tab.addEventListener('click', () => {
-          this._activeType = type.id;
-          this._focusNodeId = null;
-          this.modal.setBody(this._buildBody());
-        });
-        tabs.appendChild(tab);
-      });
-      wrap.appendChild(tabs);
-
-      const type = TYPES.find((t) => t.id === this._activeType);
-      const panel = el('div', 'node-library-panel');
-      panel.dataset.type = type.id;
-      panel.appendChild(this._buildAddNodeRow(type));
-      panel.appendChild(this._buildTable(type));
-      panel.appendChild(this._buildRetiredSection(type));
-      wrap.appendChild(panel);
-      return wrap;
+    _rebuild() {
+      this.modal.setBody(this._buildBody());
     }
 
-    // A library node with zero placements is a normal "staging" state
-    // (ask 2) -- this is how one gets created directly, without also
-    // creating a placement (unlike every "Add ..." entry point, which
-    // always creates both together).
-    _buildAddNodeRow(type) {
-      const row = el('div', 'node-library-add-row');
-      const nameInput = document.createElement('input');
-      nameInput.type = 'text';
-      nameInput.placeholder = `New ${type.singular} name…`;
-      row.appendChild(nameInput);
-      const addBtn = button('+ Add to library', 'modal-btn');
-      const add = () => {
-        const name = nameInput.value.trim();
-        if (!name) return;
-        try {
-          this.model.addNode(type.id, { name });
-          nameInput.value = '';
-        } catch (err) {
-          this._showError(err.message);
-        }
+    // Every model read the view needs, resolved here into plain data --
+    // placements become the page names they are shown as, so the view
+    // never learns what a placement is.
+    _viewState() {
+      const counts = {};
+      Bowtie.NodeLibraryView.TYPES.forEach((type) => { counts[type.id] = this.model.library[type.id].length; });
+      const rows = this.model.library[this._activeType].map((node) => ({
+        nodeId: node.id,
+        displayId: this.model.displayIdentifierFor(node),
+        name: node.name,
+        description: node.description,
+        pageNames: this._pageNamesFor(node.id),
+      }));
+      return {
+        activeType: this._activeType,
+        counts,
+        rows,
+        retired: this.model.retiredIds[this._activeType] || [],
+        retiredOpen: Boolean(this._retiredOpen[this._activeType]),
+        liveNodes: this.model.library[this._activeType],
+        focusNodeId: this._focusNodeId,
       };
-      addBtn.addEventListener('click', add);
-      nameInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          add();
-        }
+    }
+
+    _pageNamesFor(nodeId) {
+      const placements = this.model.placementsForNode(nodeId);
+      return [...new Set(placements.map((p) => (this.model.getPage(p.pageId) || {}).name))];
+    }
+
+    _buildBody() {
+      return Bowtie.NodeLibraryView.body(this._viewState(), {
+        onSelectType: (id) => {
+          this._activeType = id;
+          this._focusNodeId = null;
+          this._rebuild();
+        },
+        onAddNode: (name) => this._addNode(name),
+        onEditNode: (nodeId) => this._editNode(nodeId),
+        onDeleteNode: (nodeId) => this._confirmDeleteNode(nodeId),
+        onToggleRetiredOpen: (open) => { this._retiredOpen[this._activeType] = open; },
+        onToggleRetiredId: (entryId, reEnabled) => {
+          if (reEnabled) this.model.disableRetiredId(this._activeType, entryId);
+          else this.model.reEnableId(this._activeType, entryId);
+        },
+        onReassign: (nodeId, entryId) => {
+          try {
+            this.model.reassignId(nodeId, entryId);
+          } catch (err) {
+            this._showError(err.message);
+          }
+        },
       });
-      row.appendChild(addBtn);
-      return row;
     }
 
-    _buildTable(type) {
-      const nodes = this.model.library[type.id];
-      if (nodes.length === 0) {
-        return el('p', 'id-manager-empty', `No ${type.label.toLowerCase()} yet.`);
+    // True when the name was accepted, which is what clears the field.
+    _addNode(name) {
+      try {
+        this.model.addNode(this._activeType, { name });
+        return true;
+      } catch (err) {
+        this._showError(err.message);
+        return false;
       }
-      const wrap = el('div', 'node-library-table-wrap');
-      const table = el('table', 'node-library-table');
-      const thead = document.createElement('thead');
-      const head = document.createElement('tr');
-      ['ID', 'Name', 'Placed on', ''].forEach((text) => head.appendChild(el('th', null, text)));
-      thead.appendChild(head);
-      table.appendChild(thead);
-      const tbody = document.createElement('tbody');
-      nodes.forEach((node) => tbody.appendChild(this._buildRow(node)));
-      table.appendChild(tbody);
-      wrap.appendChild(table);
-      return wrap;
     }
 
-    _buildRow(node) {
-      const tr = el('tr', 'node-library-row');
-      tr.dataset.nodeId = node.id;
-      if (node.id === this._focusNodeId) tr.classList.add('focused');
-
-      tr.appendChild(el('td', 'id-manager-id', this.model.displayIdentifierFor(node)));
-      const nameCell = el('td', 'node-library-name', node.name);
-      if (node.description) nameCell.title = node.description;
-      tr.appendChild(nameCell);
-
-      const placements = this.model.placementsForNode(node.id);
-      const pagesCell = el('td', 'node-library-pages');
-      if (placements.length === 0) {
-        pagesCell.appendChild(el('span', 'node-library-tag', 'Not placed yet'));
-      } else {
-        const names = [...new Set(placements.map((p) => (this.model.getPage(p.pageId) || {}).name))];
-        pagesCell.textContent = names.join(', ');
-      }
-      tr.appendChild(pagesCell);
-
-      const actions = el('td', 'node-library-actions');
-      const editBtn = button('Edit', 'modal-btn modal-btn-small');
-      editBtn.addEventListener('click', () => {
-        const placement = placements[0] || { type: node.type, nodeId: node.id, id: null };
-        this.openProperties(placement);
-      });
-      const deleteBtn = button('Delete', 'modal-btn modal-btn-small');
-      deleteBtn.addEventListener('click', () => this._confirmDeleteNode(node, placements));
-      actions.append(editBtn, deleteBtn);
-      tr.appendChild(actions);
-      return tr;
+    _editNode(nodeId) {
+      const node = this.model.getNode(nodeId);
+      const placements = this.model.placementsForNode(nodeId);
+      this.openProperties(placements[0] || { type: node.type, nodeId, id: null });
     }
 
-    _confirmDeleteNode(node, placements) {
-      const pageNames = [...new Set(placements.map((p) => (this.model.getPage(p.pageId) || {}).name))];
+    _confirmDeleteNode(nodeId) {
+      const node = this.model.getNode(nodeId);
+      const placements = this.model.placementsForNode(nodeId);
+      const pageNames = this._pageNamesFor(nodeId);
       const body = document.createElement('div');
       body.appendChild(el('p', null, placements.length === 0
         ? `Delete ${this.model.displayIdentifierFor(node)} (${node.name})? It has no placements on any page.`
@@ -214,82 +171,6 @@
           { label: 'Delete', primary: true, onClick: () => this.model.deleteNode(node.id) },
         ],
       });
-    }
-
-    // --- Retired (posterity of ids) ----------------------------------------
-    //
-    // Collapsed by default -- posterity is a rarely-visited feature, and
-    // it used to sit at the same level as the live list on every one of
-    // the four types. Open state is remembered per type across rebuilds.
-
-    _buildRetiredSection(type) {
-      const retired = this.model.retiredIds[type.id] || [];
-      const details = el('details', 'node-library-retired');
-      details.open = Boolean(this._retiredOpen[type.id]);
-      details.addEventListener('toggle', () => { this._retiredOpen[type.id] = details.open; });
-      details.appendChild(el('summary', null, `Retired identifiers (${retired.length})`));
-
-      const body = el('div', 'node-library-retired-body');
-      if (retired.length === 0) {
-        body.appendChild(el('p', 'id-manager-empty', 'No retired identifiers yet.'));
-      } else {
-        const list = el('div', 'id-manager-list');
-        retired.forEach((entry) => list.appendChild(this._buildRetiredRow(type.id, entry)));
-        body.appendChild(list);
-      }
-
-      const reEnabled = retired.filter((e) => e.reEnabled);
-      const liveNodes = this.model.library[type.id];
-      if (reEnabled.length > 0 && liveNodes.length > 0) {
-        body.appendChild(this._buildReassignRow(liveNodes, reEnabled));
-      }
-      details.appendChild(body);
-      return details;
-    }
-
-    // No page-context label (node_library_proposal.md: "no page history is
-    // captured" -- a deleted node may have had several placements across
-    // several pages; recording where isn't worth showing) -- just the id
-    // and its re-enable/disable status, mirroring `{ id, reEnabled }`.
-    _buildRetiredRow(type, entry) {
-      const row = el('div', 'id-manager-row');
-      row.appendChild(el('span', 'id-manager-id', entry.id));
-      row.appendChild(el('span', 'id-manager-status', entry.reEnabled ? 'Re-enabled' : 'Retired'));
-      const toggleBtn = button(entry.reEnabled ? 'Disable' : 'Re-enable', 'modal-btn modal-btn-small');
-      toggleBtn.addEventListener('click', () => {
-        if (entry.reEnabled) this.model.disableRetiredId(type, entry.id);
-        else this.model.reEnableId(type, entry.id);
-      });
-      row.appendChild(toggleBtn);
-      return row;
-    }
-
-    _buildReassignRow(liveNodes, reEnabled) {
-      const row = el('div', 'id-manager-reassign');
-      const nodeSelect = document.createElement('select');
-      liveNodes.forEach((node) => {
-        const opt = document.createElement('option');
-        opt.value = node.id;
-        opt.textContent = `${node.id} — ${node.name}`;
-        nodeSelect.appendChild(opt);
-      });
-      const idSelect = document.createElement('select');
-      reEnabled.forEach((entry) => {
-        const opt = document.createElement('option');
-        opt.value = entry.id;
-        opt.textContent = entry.id;
-        idSelect.appendChild(opt);
-      });
-      const assignBtn = button('Assign', 'modal-btn modal-btn-primary modal-btn-small');
-      assignBtn.addEventListener('click', () => {
-        try {
-          this.model.reassignId(nodeSelect.value, idSelect.value);
-        } catch (err) {
-          this._showError(err.message);
-        }
-      });
-      row.append(nodeSelect, idSelect, assignBtn);
-      return row;
     }
   }
 
