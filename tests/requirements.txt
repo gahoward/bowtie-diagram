@@ -13,3 +13,10 @@ playwright==1.56.0
 # its own static-file server, which is correct rather than merely
 # tolerated: tests share nothing but the files on disk.
 pytest-xdist==3.8.0
+
+# axe-core for tests/test_accessibility.py (proposals/18). The wheel
+# bundles axe.min.js, so the accessibility job needs no CDN fetch and no
+# Node -- test.yml's `test` job is deliberately both offline and
+# Node-free, and a vendored 550 KB axe.min.js in the repo was the only
+# other way to keep it that way.
+axe-core-python==0.1.0

@@ -25,9 +25,13 @@
       loadedWorkNotOnDisk = true;
       unsavedChanges.markDirty();
     };
+    // `onDisabled` is wired further down, once importExport exists --
+    // the notice is useless without the export it points at.
+    let onRecoveryDisabled = null;
     const recovery = new Bowtie.RecoveryController(rawModel, {
       isDirty: () => unsavedChanges.dirty,
       onRecovered: markNotOnDisk,
+      onDisabled: (reason) => { if (onRecoveryDisabled) onRecoveryDisabled(reason); },
     });
     // Where the File System Access API exists, the handles of files
     // opened or saved natively, so the start screen can re-open them.
@@ -339,8 +343,76 @@
         getDisplayUnit: () => preferences.getDisplayUnit(),
         openProjectSettings: (opts) => projectSettings.open(opts),
         openPreferences: () => preferences.open(),
+        getRecoveryState: () => ({ disabled: recovery.disabled, reason: recovery.disabledReason }),
       },
     );
+
+    // --- Failure visibility (proposals/19) --------------------------------
+    //
+    // Two ways this app could lose a user's work without saying anything.
+
+    // 1. Automatic recovery stopping. Told once, plainly, with the one
+    // action that replaces what just stopped working -- and then left
+    // standing in the status strip, because a dialog dismissed is a
+    // dialog forgotten.
+    onRecoveryDisabled = (reason) => {
+      statusStrip.render();
+      const body = document.createElement('div');
+      body.className = 'recovery-disabled';
+      const line = document.createElement('p');
+      line.textContent = `${reason} Exporting to a file is now the only protection for this work.`;
+      body.appendChild(line);
+      Bowtie.ModalView.openModal({
+        title: 'Automatic recovery has stopped',
+        bodyEl: body,
+        actions: [
+          { label: 'Export to JSON now', primary: true, onClick: () => { importExport.exportJson(); return false; } },
+          { label: 'Close' },
+        ],
+      });
+    };
+
+    // 2. An uncaught exception. Until now one left the app wedged with
+    // no message at all, and the user's instinctive next move -- reload
+    // -- is the one that loses everything since the last export.
+    //
+    // Deliberately NOT a catch around everything: the app's own
+    // deliberate throws (LineTopology's cycle check, loadFromJSON's
+    // validation, safeAttach's rollback) are caught where they happen
+    // and stay that way. This is strictly the net under the paths
+    // nobody predicted.
+    let fatalShown = false;
+    const showFatal = (err) => {
+      // A wedged render loop throws every frame; one dialog per frame
+      // would bury the export this exists to offer.
+      if (fatalShown) return;
+      fatalShown = true;
+      // If the handler itself throws, the user gets nothing at all --
+      // so it touches no model state beyond what the export needs.
+      try {
+        Bowtie.ModalView.openModal({
+          title: 'Something went wrong',
+          bodyEl: Bowtie.FatalErrorView.body(err),
+          dismissible: false,
+          actions: [
+            { label: 'Export to JSON now', primary: true, onClick: () => { importExport.exportJson(); return false; } },
+            { label: 'Reload', onClick: () => { window.location.reload(); return false; } },
+            // Many uncaught errors are cosmetic, and an app that forces
+            // a reload on a stray render error is worse than one that
+            // lets an informed user carry on. The dialog has already
+            // said the state may be unreliable.
+            { label: 'Continue anyway' },
+          ],
+        });
+      } catch {
+        // Nothing further to try; the browser console still has the
+        // original error.
+      }
+    };
+    window.addEventListener('error', (e) => showFatal(e.error || e.message));
+    // The other half: every async path in the app -- import, export, the
+    // file pickers -- fails this way rather than through window.onerror.
+    window.addEventListener('unhandledrejection', (e) => showFatal(e.reason));
 
     // Keys for what the menus already do, plus Delete on the selected
     // node and `?` for the sheet listing all of it. Constructed after

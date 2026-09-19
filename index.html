@@ -2,20 +2,28 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<!-- Without this a tablet renders an emulated 980px viewport and
+     scales the whole app down (proposals/18). -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bowtie Diagram Editor</title>
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
   <div id="app" class="pre-welcome">
-    <div id="toolbar">
+    <header id="toolbar">
+      <!-- The app's name, for heading navigation. Visually hidden: the
+           toolbar already shows the analysis title, and a second visible
+           one would just take space. Inside the header so it sits in a
+           landmark rather than loose in the document (proposals/18). -->
+      <h1 class="sr-only">Bowtie Diagram Editor</h1>
       <div class="toolbar-group toolbar-left">
-        <button id="btn-undo" type="button" class="icon-btn" disabled title="Undo (Ctrl+Z)">
+        <button id="btn-undo" type="button" class="icon-btn" disabled title="Undo (Ctrl+Z)" aria-label="Undo">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M9 14 4 9l5-5"/>
             <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>
           </svg>
         </button>
-        <button id="btn-redo" type="button" class="icon-btn" disabled title="Redo (Ctrl+Y)">
+        <button id="btn-redo" type="button" class="icon-btn" disabled title="Redo (Ctrl+Y)" aria-label="Redo">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M15 14l5-5-5-5"/>
             <path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>
@@ -67,14 +75,18 @@
       </div>
       <button id="bowtie-name" type="button" class="toolbar-name" title="Rename this analysis">Untitled Bowtie</button>
       <div class="toolbar-group toolbar-right">
-        <button id="btn-warnings" type="button" class="warning-badge" hidden title="Warnings">
+        <button id="btn-warnings" type="button" class="warning-badge" hidden title="Warnings" aria-label="Warnings">
           <span class="warning-icon">&#9888;</span><span class="warning-count">0</span>
         </button>
       </div>
       <input id="import-file-input" type="file" accept="application/json,.json" hidden>
       <input id="import-risk-matrix-input" type="file" accept="application/json,.json" hidden>
-    </div>
-    <div id="canvas-wrapper">
+    </header>
+    <!-- Landmarks (proposals/18): a screen-reader user navigates by
+         these, and axe reported the whole app as content outside any
+         landmark. header/main/footer rather than role="..." on a div --
+         the elements carry the roles natively. -->
+    <main id="canvas-wrapper">
       <!-- role="application" so arrow keys reach the canvas's own
            navigation rather than being eaten by the screen reader's
            browse mode; every node carries a self-describing aria-label to
@@ -90,13 +102,13 @@
            ("Removed T_1 from the page"). Polite, so it never interrupts
            what the user is already hearing. -->
       <div id="canvas-live-region" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
-    </div>
+    </main>
     <!-- One bottom bar: the page tabs (rebuilt wholesale by PageTabsView,
          hence its own element) and the document's status strip beside it. -->
-    <div id="bottom-bar">
+    <footer id="bottom-bar">
       <div id="page-tabs"></div>
       <div id="status-strip-container"></div>
-    </div>
+    </footer>
   </div>
 
   <script src="js/model/Decimal.js"></script>
@@ -141,6 +153,7 @@
   <script src="js/view/NodeLibraryView.js"></script>
   <script src="js/view/SettingsFormView.js"></script>
   <script src="js/view/WelcomeView.js"></script>
+  <script src="js/view/FatalErrorView.js"></script>
   <script src="js/view/CreateOrChooseNodeModal.js"></script>
   <script src="js/view/RiskFieldsForm.js"></script>
   <script src="js/view/PropertiesModal.js"></script>

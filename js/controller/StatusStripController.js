@@ -14,12 +14,17 @@
   // Every segment is a button that opens the settings page it came from,
   // so the strip is also the shortest route to changing any of it.
   class StatusStripController {
-    constructor(model, container, { getDisplayUnit, openProjectSettings, openPreferences }) {
+    constructor(model, container, {
+      getDisplayUnit, openProjectSettings, openPreferences, getRecoveryState,
+    }) {
       this.model = model;
       this.container = container;
       this.getDisplayUnit = getDisplayUnit;
       this.openProjectSettings = openProjectSettings;
       this.openPreferences = openPreferences;
+      // `() => ({ disabled, reason })` (proposals/19). Optional, so a
+      // caller that has no RecoveryController simply gets no segment.
+      this.getRecoveryState = getRecoveryState || (() => ({ disabled: false }));
 
       // One delegated listener rather than one per segment: render()
       // rebuilds the strip from scratch on every model change.
@@ -81,6 +86,21 @@
           'quantitative',
           'How multiple threats combine at the top event — click to change',
         ));
+      }
+
+      // Last, and only when it applies: automatic recovery having
+      // stopped is not part of the document's frame of reference, it is
+      // a warning about this session (proposals/19). Said once in a
+      // dialog is not said -- the dialog is gone a second later, and the
+      // user goes on believing their work is being kept.
+      //
+      // Not a `.status-segment`: every other segment opens the setting
+      // it names, and there is no setting that turns this back on.
+      const recovery = this.getRecoveryState();
+      if (recovery.disabled) {
+        const warning = el('span', 'status-recovery-off', '⚠ Recovery off');
+        warning.title = `${recovery.reason || ''} Export to a file to keep your work.`.trim();
+        strip.appendChild(warning);
       }
 
       this.container.replaceChildren(strip);

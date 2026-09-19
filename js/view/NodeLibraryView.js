@@ -12,6 +12,12 @@
   // The dividing line, same as the rest of js/view/: a view renders from
   // state and never mutates the model.
 
+  // One panel is on screen at a time and the whole body is rebuilt on
+  // every tab change, so a single fixed id is correct here -- there is
+  // never a second Node Library panel to collide with. It is what the
+  // tabs' `aria-controls` points at (proposals/18).
+  const PANEL_ID = 'node-library-panel';
+
   // Display labels for the six node types: the tab label, the singular
   // used in "New <singular> name…", and the lowercased plural in the
   // empty message. Names, so they live with the markup that shows them.
@@ -180,10 +186,13 @@
       activeId: state.activeType,
       dataKey: 'type',
       onSelect: handlers.onSelectType,
+      panelId: PANEL_ID,
     }));
 
     const type = TYPES.find((t) => t.id === state.activeType);
     const panel = el('div', 'node-library-panel');
+    panel.id = PANEL_ID;
+    panel.setAttribute('role', 'tabpanel');
     panel.dataset.type = type.id;
     panel.appendChild(addNodeRow(type, handlers.onAddNode));
     panel.appendChild(nodeTable(type, state.rows, state.focusNodeId, handlers));

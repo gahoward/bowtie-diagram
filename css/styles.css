@@ -2177,3 +2177,43 @@ html, body {
 .page-jump-item:hover {
   background: #eef2ff;
 }
+
+/* Automatic recovery has stopped (proposals/19). Not a `.status-segment`
+   -- every other segment opens the setting it names, and nothing here
+   can be turned back on -- so it is styled as a standing warning rather
+   than a control. */
+.status-recovery-off {
+  color: #b45309;
+  font-weight: 600;
+  cursor: help;
+}
+
+/* The fatal error dialog (proposals/19). The stack is collapsed and
+   monospaced: something to paste into a bug report, not something to
+   read at the moment of the crash. */
+.fatal-error p {
+  margin: 0 0 10px;
+}
+
+.fatal-error-details {
+  margin-top: 4px;
+}
+
+.fatal-error-details summary {
+  cursor: pointer;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.fatal-error-stack {
+  margin: 8px 0 0;
+  padding: 8px;
+  max-height: 180px;
+  overflow: auto;
+  background: #f3f4f6;
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

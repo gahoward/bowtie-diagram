@@ -19,15 +19,23 @@
     // UnsavedChangesController sets its own flag from the same
     // `onChange`, and nothing here should depend on which listener the
     // model happens to call first.
-    constructor(rawModel, { isDirty, debounceMs, onRecovered } = {}) {
+    constructor(rawModel, { isDirty, debounceMs, onRecovered, onDisabled } = {}) {
       this.model = rawModel;
       this.isDirty = isDirty || (() => true);
       this.onRecovered = onRecovered;
+      // Called ONCE, the first time snapshotting stops working
+      // (proposals/19). Crash insurance that switches itself off in
+      // silence is worse than none, because the user goes on believing
+      // it is there.
+      this.onDisabled = onDisabled;
       this.debounceMs = debounceMs === undefined ? DEBOUNCE_MS : debounceMs;
       this.timer = null;
-      // Set after a QuotaExceededError: retrying on every subsequent
-      // change would just throw again, once per keystroke.
+      // Set after a failed write: retrying on every subsequent change
+      // would just throw again, once per keystroke.
       this.disabled = false;
+      // Why, in the user's terms -- the status strip and the dialog both
+      // show this rather than inventing their own wording.
+      this.disabledReason = null;
 
       if (rawModel) rawModel.onChange(() => this._schedule());
     }
@@ -57,14 +65,33 @@
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
         return true;
       } catch (err) {
-        // Out of quota (or localStorage blocked entirely -- a private
-        // window, or file:// in some browsers). Drop whatever is stored
-        // rather than leave a stale half-document behind, and stop
-        // trying for the rest of the session.
-        if (err && err.name === 'QuotaExceededError') this.disabled = true;
-        this.clear();
+        this._stop(err);
         return false;
       }
+    }
+
+    // A failed write stops the feature -- but it must NOT clear what is
+    // already stored (proposals/19). The previous snapshot may be a
+    // couple of seconds stale; stale coverage beats none, and the old
+    // code's `clear()` threw away the user's last line of defence at the
+    // exact moment it stopped being renewed. Only a SUCCESSFUL write
+    // replaces a snapshot now.
+    //
+    // Disabling on any failure, not only QuotaExceededError: if
+    // localStorage is blocked outright (a private window, file:// in
+    // some browsers) every retry throws too, so retrying every two
+    // seconds for the rest of the session achieves nothing. The two
+    // cases differ only in what the user is told -- a blocked store is
+    // the browser's setting and not something they can act on, whereas
+    // a full one means "export to a file now".
+    _stop(err) {
+      if (this.disabled) return;
+      this.disabled = true;
+      clearTimeout(this.timer);
+      this.disabledReason = err && err.name === 'QuotaExceededError'
+        ? 'This document is too large for the browser\'s storage, so it can no longer be saved for recovery.'
+        : 'This browser is not allowing local storage, so work cannot be saved for recovery.';
+      if (this.onDisabled) this.onDisabled(this.disabledReason);
     }
 
     // Metadata only (no `document`): what the start screen's card shows.

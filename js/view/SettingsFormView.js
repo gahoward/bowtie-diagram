@@ -10,18 +10,51 @@
   // validation, and the error dialog. That is a sequence of decisions
   // about a file, not markup, and it stays in the controller.
 
+  // See NodeLibraryView's PANEL_ID: one panel on screen, whole body
+  // rebuilt on every tab change.
+  const PANEL_ID = 'settings-panel';
+
   const TABS = [
     { id: 'general', label: 'General' },
     { id: 'risk', label: 'Risk analysis' },
     { id: 'quantitative', label: 'Quantitative' }, // only while mode === 'quantitative'
   ];
 
+  let nextRowId = 0;
+
   // label · control · helper. `.modal-field` so the label text sits
   // inside the same element as its control (what every test in the
   // suite addresses a field by); `.settings-row` lays it out as a row.
+  //
+  // The label text used to be a bare `<span>`, which named nothing: axe
+  // caught it the moment proposals/18 pointed it at this modal, as a
+  // CRITICAL "Form elements must have labels". Every text field in
+  // Project Settings was anonymous to a screen reader.
+  //
+  // Two cases, because `control` is sometimes one form element and
+  // sometimes a composite:
+  //   - an input/select/textarea gets a real `<label for>`;
+  //   - anything else (a radio group, the mode cards, the matrix stack)
+  //     becomes a named `role="group"`, since `<label for>` may only
+  //     point at a labellable element.
   function row(labelText, control, helpText) {
     const wrap = el('div', 'modal-field settings-row');
-    wrap.appendChild(el('span', 'settings-row-label', labelText));
+    nextRowId += 1;
+    const labellable = ['INPUT', 'SELECT', 'TEXTAREA'].includes(control.tagName);
+
+    if (labellable) {
+      if (!control.id) control.id = `settings-control-${nextRowId}`;
+      const labelEl = el('label', 'settings-row-label', labelText);
+      labelEl.htmlFor = control.id;
+      wrap.appendChild(labelEl);
+    } else {
+      const labelEl = el('span', 'settings-row-label', labelText);
+      labelEl.id = `settings-row-label-${nextRowId}`;
+      control.setAttribute('role', 'group');
+      control.setAttribute('aria-labelledby', labelEl.id);
+      wrap.appendChild(labelEl);
+    }
+
     wrap.appendChild(control);
     if (helpText) wrap.appendChild(el('p', 'settings-row-help', helpText));
     return wrap;
@@ -106,6 +139,9 @@
 
     const select = document.createElement('select');
     select.name = 'risk-matrix';
+    // Inside the `.settings-stack` composite, so the row's group name
+    // does not name this control -- it needs its own.
+    select.setAttribute('aria-label', 'Risk matrix');
     const noneOpt = document.createElement('option');
     noneOpt.value = '';
     noneOpt.textContent = '(none selected)';
@@ -250,9 +286,12 @@
       activeId: state.activeTab,
       dataKey: 'tab',
       onSelect: handlers.onSelectTab,
+      panelId: PANEL_ID,
     }));
 
     const panel = el('div', 'settings-panel');
+    panel.id = PANEL_ID;
+    panel.setAttribute('role', 'tabpanel');
     panel.dataset.tab = state.activeTab;
     if (state.activeTab === 'general') generalPanel(panel, state, handlers);
     else if (state.activeTab === 'risk') riskPanel(panel, state, handlers);

@@ -71,6 +71,34 @@ browser's clipboard. It stubs `navigator.clipboard` now.
 Marking the first kind keeps a gap visible. Marking the second kind is
 how a suite goes green by deleting its own coverage.
 
+## Accessibility
+
+`test_accessibility.py` runs **axe-core** over ten app states — the
+start screen, the new-bowtie wizard, the editor with the demo loaded, an
+open toolbar menu, and each major modal.
+
+**`critical` and `serious` fail the build; `moderate` and `minor`
+print.** A contrast-ratio quibble should not block a release; a missing
+dialog role should.
+
+axe ships inside the pinned `axe-core-python` wheel, so the suite stays
+**offline and Node-free** — both properties `test.yml` is deliberate
+about.
+
+`test_chrome_keyboard.py` is the other half, and the more important one.
+axe checks that attributes are present and consistent; it cannot check
+that pressing Down actually moves focus. A widget that sets `role="tab"`
+and implements no arrow keys passes every linter and is *worse* than one
+with no roles at all, because the roles promise assistive-technology
+users navigation that silently does nothing. That was the real state of
+both settings tablists before `proposals/18`. So: if you add a role, add
+a test that presses the key.
+
+Two exclusions are deliberate and documented in the file rather than
+silent — `color-contrast` (the palette is its own proposal) and the
+minimap's duplicate ids (it clones the canvas layer wholesale, by
+design).
+
 ## Waiting: `expect()` and the `eventually_*` helpers
 
 **Do not put a `wait_for_timeout` before an assertion.** A fixed sleep is

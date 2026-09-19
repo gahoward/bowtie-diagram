@@ -59,12 +59,7 @@
       if (els.exportAllPngBtn) {
         els.exportAllPngBtn.addEventListener('click', () => this._exportAllPages('png'));
       }
-      els.exportJsonBtn.addEventListener('click', async () => {
-        const saved = await Bowtie.ExportUtil.exportJson(
-          this.model, `${this._baseName()}.json`, (handle) => this._rememberFile(handle),
-        );
-        if (saved && this.onExported) this.onExported();
-      });
+      els.exportJsonBtn.addEventListener('click', () => this.exportJson());
       // Prefers the real native "Open" dialog (File System Access API);
       // `pickJsonFileText` resolves `{ supported: false }` both when that
       // API doesn't exist at all (Firefox, Safari, file://) and when it
@@ -84,6 +79,23 @@
         els.importFileInput.click();
       });
       els.importFileInput.addEventListener('change', (e) => this._onImportFile(e));
+    }
+
+    // A real method rather than only a click handler, because the fatal
+    // error dialog (proposals/19) needs to reach it too -- and must NOT
+    // reach it by clicking #btn-export-json, which WarningsController
+    // disables whenever the document has a blocking warning.
+    //
+    // That guard is right for the ordinary path: it stops a broken
+    // analysis being handed to a colleague. It would be exactly wrong as
+    // a crash escape hatch, where the alternative to an imperfect file
+    // is no file at all.
+    async exportJson() {
+      const saved = await Bowtie.ExportUtil.exportJson(
+        this.model, `${this._baseName()}.json`, (handle) => this._rememberFile(handle),
+      );
+      if (saved && this.onExported) this.onExported();
+      return saved;
     }
 
     _rememberFile(handle) {

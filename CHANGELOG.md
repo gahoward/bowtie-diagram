@@ -11,6 +11,35 @@
   delete, an auto-arrange, an import. `BowtieModel` also gained a
   placement-id index for `findById`, worth about a third off a
   500-placement render; the coalescing is the part that mattered.
+- **The app now says when something has gone wrong** (`proposals/19`).
+  Two silent failures, both in the part of the app whose whole job is not
+  losing work. An uncaught exception used to leave the editor wedged with
+  no message at all — and the user's instinctive next move, reloading, is
+  exactly the one that loses everything since the last export. There is
+  now a dialog that says so plainly and offers **Export to JSON now**,
+  alongside Reload and Continue anyway, with the stack collapsed
+  underneath for a bug report. Separately, automatic crash recovery used
+  to switch itself off on a full browser quota **and delete the snapshot
+  it already had** — silently, on exactly the large documents most worth
+  protecting. It now keeps the last good snapshot, says once that it has
+  stopped and why, and leaves a standing "Recovery off" warning in the
+  status strip.
+- **The application chrome is now usable with a screen reader**
+  (`proposals/18`). `proposals/13` did the hard surface — the canvas —
+  and the easy one had been left behind: every modal in the app,
+  including the welcome gate that blocks all use of it, was an anonymous
+  `<div>` with no dialog role or name; the toolbar menus never announced
+  that they opened a menu or whether they were open; and the Project
+  Settings and Node Library tab strips set `role="tab"` while
+  implementing no arrow keys at all, promising navigation that silently
+  did nothing. All three are now complete widgets with proper keyboard
+  behaviour, the page has landmarks and a heading, icon-only buttons have
+  names, and a viewport meta tag stops tablets rendering an emulated
+  980px page. **axe-core now runs over ten app states in CI**, which is
+  what stops the next modal shipping without a role.
+  - It immediately found a real defect nobody had noticed: every text
+    field in Project Settings was completely unlabelled, because the row
+    builder used a `<span>` rather than a `<label>`.
 - **Controllers out of the rendering business** (`proposals/15`). Three
   screens that a controller used to build inline — the welcome flow, the
   Node Library and Project Settings — now live in `js/view/` as

@@ -97,8 +97,13 @@
         .filter((t) => t.id !== 'quantitative' || this.model.mode === 'quantitative');
     }
 
+    // Rebuilding the body destroys the tab that had focus, so focus is
+    // put back on its replacement -- but only if a tab had it, so a
+    // mouse user's focus is never yanked into the strip (proposals/18).
     _rebuild() {
+      const hadTabFocus = Bowtie.FormControls.tabHasFocus();
       this.modal.setBody(this._buildBody());
+      if (hadTabFocus) Bowtie.FormControls.focusSelectedTab(this.modal.dialog);
     }
 
     // A text field's commit must not trigger the rebuild its own model
