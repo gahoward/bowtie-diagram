@@ -136,16 +136,28 @@ def test_a_single_mutation_renders_on_the_next_frame(page):
     model call with no wait at all. Nothing in the app does that: every
     render-dependent path either waits (the tests), flushes explicitly
     (main.js's flushRender, for a drag release and a page switch), or
-    awaits a paint (ImportExportController)."""
-    render_count = _count_renders_during(page, lambda: page.evaluate(
-        "() => { window.__lastModel.addThreat({x: 150, y: 200}); }"
-    ))
-    assert render_count == 0, "a mutation must not render synchronously any more"
+    awaits a paint (ImportExportController).
 
-    rendered = _count_renders_during(page, lambda: page.evaluate("""
-        () => new Promise((resolve) => {
-          window.__lastModel.addThreat({x: 170, y: 220});
-          requestAnimationFrame(() => requestAnimationFrame(resolve));
-        })
-    """))
-    assert rendered == 1, "one mutation must produce exactly one render, on the next frame"
+    Both counts are taken inside ONE page.evaluate. Reading the
+    synchronous count from Python would put a round-trip between the
+    mutation and the read, and an animation frame can fire in that gap --
+    which is exactly how the first version of this test passed alone and
+    failed under load."""
+    immediate, after_frame = page.evaluate("""
+    () => new Promise((resolve) => {
+      let count = 0;
+      const proto = Object.getPrototypeOf(window.__lastView);
+      const orig = proto.render;
+      proto.render = function (...args) { count += 1; return orig.apply(this, args); };
+
+      window.__lastModel.addThreat({ x: 150, y: 200 });
+      const immediate = count;          // same synchronous turn as the mutation
+
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        proto.render = orig;
+        resolve([immediate, count]);
+      }));
+    })
+    """)
+    assert immediate == 0, "a mutation must not render synchronously any more"
+    assert after_frame == 1, "one mutation must produce exactly one render, on the next frame"
