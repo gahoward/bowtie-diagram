@@ -20,7 +20,22 @@
   // if this builder fails, the user gets no dialog and no export.
   function describe(err) {
     if (!err) return 'No error detail was available.';
-    if (err instanceof Error) return err.stack || `${err.name}: ${err.message}`;
+    if (err instanceof Error) {
+      // `stack` is NOT the same thing in every engine, which the Firefox
+      // job caught on its first run against this file: Chromium's begins
+      // with "Error: <message>" and then the frames, while **Firefox's is
+      // the frames alone**. Returning `err.stack` therefore dropped the
+      // single most useful line -- the message -- for every Firefox user,
+      // in the one dialog whose whole job is to carry something into a
+      // bug report.
+      //
+      // So compose rather than choose, and only skip the header where the
+      // engine already put it there.
+      const stack = err.stack || '';
+      const head = `${err.name}: ${err.message}`;
+      if (!stack) return head;
+      return stack.startsWith(err.name) ? stack : `${head}\n${stack}`;
+    }
     try {
       return typeof err === 'string' ? err : JSON.stringify(err);
     } catch {

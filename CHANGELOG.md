@@ -40,6 +40,9 @@
   - It immediately found a real defect nobody had noticed: every text
     field in Project Settings was completely unlabelled, because the row
     builder used a `<span>` rather than a `<label>`.
+  - The Firefox job found another: the new crash dialog showed **no error
+    message at all on Firefox**, because Chromium's `Error.stack` begins
+    with the message and Firefox's is the frames alone.
 - **Controllers out of the rendering business** (`proposals/15`). Three
   screens that a controller used to build inline — the welcome flow, the
   Node Library and Project Settings — now live in `js/view/` as

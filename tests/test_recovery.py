@@ -219,20 +219,28 @@ def test_a_snapshot_from_an_older_schema_fails_the_way_a_stale_export_does(brows
 # and the documents most worth protecting are the large ones.
 
 def _fail_writes_after(pg, n):
-    """Make localStorage.setItem throw QuotaExceededError after `n` calls."""
+    """Make localStorage.setItem throw QuotaExceededError after `n` calls.
+
+    Patched on `Storage.prototype`, NOT on the `localStorage` instance.
+    Assigning `localStorage.setItem = fn` works in Chromium but in
+    Firefox stores an *entry keyed "setItem"* and leaves the real method
+    untouched -- `Storage` exposes its keys as named properties, so a
+    property write is an item write. The first Firefox run caught this
+    as three silent test failures.
+    """
     pg.evaluate(
         """(n) => {
           window.__writes = 0;
-          const store = window.localStorage;
-          const orig = store.setItem.bind(store);
-          store.setItem = (k, v) => {
+          const proto = window.Storage.prototype;
+          const orig = proto.setItem;
+          proto.setItem = function patched(k, v) {
             window.__writes += 1;
             if (window.__writes > n) {
               const err = new Error('quota');
               err.name = 'QuotaExceededError';
               throw err;
             }
-            return orig(k, v);
+            return orig.call(this, k, v);
           };
         }""",
         n,

@@ -8,7 +8,10 @@ in feeds the same validated import path
 `page` fixture (it already drives past this flow) and drive a fresh page
 directly, so the modal itself is still on screen to assert against.
 """
+from playwright.sync_api import expect
+
 from conftest import INIT_SCRIPT, complete_new_bowtie_wizard
+from helpers import eventually_equals
 
 
 def _fresh_page(browser, base_url):
@@ -255,11 +258,14 @@ def test_dropping_a_json_file_on_the_dropzone_imports_it(browser, base_url):
     pg = _fresh_page(browser, base_url)
     try:
         assert pg.evaluate(_DROP_JS, ".welcome-dropzone") is True
-        pg.wait_for_timeout(150)
-        assert pg.evaluate("() => window.__lastModel.name") == "Dropped Bowtie"
+        # Retried, not slept for: the import is asynchronous (a FileReader,
+        # then loadDocument's own paint wait), so a fixed sleep here is a
+        # bet on how loaded the machine is -- and it started losing under
+        # -n auto once the suite grew (proposals/17).
+        eventually_equals(lambda: pg.evaluate("() => window.__lastModel.name"), "Dropped Bowtie")
         # A successful import must dismiss the (non-dismissible-by-click)
         # welcome modal, same as the wizard/browse paths do.
-        assert pg.locator(".modal-overlay").count() == 0
+        expect(pg.locator(".modal-overlay")).to_have_count(0)
     finally:
         assert pg.errors == []
         pg.close()
@@ -271,9 +277,8 @@ def test_dropping_a_json_file_anywhere_on_the_start_screen_imports_it(browser, b
     pg = _fresh_page(browser, base_url)
     try:
         assert pg.evaluate(_DROP_JS, ".welcome-start-main") is True
-        pg.wait_for_timeout(150)
-        assert pg.evaluate("() => window.__lastModel.name") == "Dropped Bowtie"
-        assert pg.locator(".modal-overlay").count() == 0
+        eventually_equals(lambda: pg.evaluate("() => window.__lastModel.name"), "Dropped Bowtie")
+        expect(pg.locator(".modal-overlay")).to_have_count(0)
     finally:
         assert pg.errors == []
         pg.close()

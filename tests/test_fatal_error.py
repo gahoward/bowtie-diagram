@@ -144,3 +144,58 @@ def test_the_dialog_cannot_be_dismissed_by_escape_or_backdrop(browser, base_url)
         assert pg.locator(".fatal-error").count() == 1
     finally:
         pg.close()
+
+
+# --- FatalErrorView.describe, both engines' stack shapes -------------------
+#
+# Pure function, so `blank_page` (proposals/17) rather than a driven app.
+# These exist because the first Firefox run showed the two engines
+# disagree about what `Error.prototype.stack` contains, and the dialog
+# was silently dropping the message on one of them.
+
+def _describe(pg, expr):
+    return pg.evaluate(f"() => Bowtie.FatalErrorView.describe({expr})")
+
+
+def test_describe_keeps_a_chromium_style_stack_as_is(blank_page):
+    """Chromium's stack already begins with 'Error: <message>'."""
+    out = _describe(blank_page, """(() => {
+      const e = new Error('boom');
+      e.stack = 'Error: boom\\n    at foo (bar.js:1:1)';
+      return e;
+    })()""")
+    assert out == "Error: boom\n    at foo (bar.js:1:1)"
+    assert out.count("boom") == 1, "the message must not be duplicated"
+
+
+def test_describe_prepends_the_message_to_a_firefox_style_stack(blank_page):
+    """Firefox's stack is the frames ALONE. Returning it unchanged lost
+    the one line a bug report actually needs."""
+    out = _describe(blank_page, """(() => {
+      const e = new Error('boom');
+      e.stack = 'foo@bar.js:1:1\\nbaz@bar.js:2:2';
+      return e;
+    })()""")
+    assert out.startswith("Error: boom\n")
+    assert "foo@bar.js:1:1" in out
+
+
+def test_describe_survives_anything_a_rejection_can_carry(blank_page):
+    """`unhandledrejection` hands over the rejection value, which can be
+    anything. If this throws, the user gets no dialog and no export."""
+    assert _describe(blank_page, "undefined") == "No error detail was available."
+    assert _describe(blank_page, "null") == "No error detail was available."
+    assert _describe(blank_page, "'just a string'") == "just a string"
+    assert _describe(blank_page, "({ code: 42 })") == '{"code":42}'
+    # A circular object makes JSON.stringify throw; String() is the net.
+    out = _describe(blank_page, "(() => { const o = {}; o.self = o; return o; })()")
+    assert "object" in out.lower()
+
+
+def test_describe_handles_an_error_with_no_stack_at_all(blank_page):
+    out = _describe(blank_page, """(() => {
+      const e = new Error('boom');
+      e.stack = '';
+      return e;
+    })()""")
+    assert out == "Error: boom"
