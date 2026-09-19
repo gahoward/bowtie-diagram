@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- **Large diagrams are usable again** (`proposals/16`). Every render is
+  now coalesced into one animation frame, so a burst of changes costs one
+  render rather than one each. Building a 1000-placement document through
+  the model API went from **148 seconds to 0.72**; 500 placements from 31
+  seconds to 0.23. Only drags were coalesced before, which covered the
+  case that had been measured and none of the others — a cascading
+  delete, an auto-arrange, an import. `BowtieModel` also gained a
+  placement-id index for `findById`, worth about a third off a
+  500-placement render; the coalescing is the part that mattered.
+- **One DOM helper instead of eleven** (`proposals/15`). `function el(…)`
+  was defined eleven times in three mutually incompatible shapes, all
+  sharing the name: moving element-building code between an HTML file and
+  an SVG one passed lint and then failed silently at runtime. There is
+  now one of each, in `js/view/Dom.js` and `js/view/Svg.js`. The Risk
+  Summary and Barrier Register also share one modal shell, which fixed a
+  real inconsistency in CSV filenames that the duplication had hidden.
+
 - **The canvas is now keyboard-operable and screen-reader navigable**
   (`proposals/13`) — until now every surface but the canvas was, so a
   keyboard-only user could start a bowtie and then do nothing with it.
