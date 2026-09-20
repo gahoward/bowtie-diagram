@@ -2,6 +2,44 @@
 
 ## Unreleased
 
+- **Escalation factors now change the numbers** (`proposals/21`, **schema
+  v14**). `proposals/08` drew them and warned about them, and stopped
+  there: a barrier with three uncontrolled escalation factors and a
+  barrier with none produced identical likelihoods, identical risk
+  classes and identical Barrier Register rows. The diagram said one
+  barrier was degraded; every figure in the document said it was not.
+  An escalation factor's Properties now carries a **Degradation** —
+  either "multiply the barrier's measure by" or "the barrier can do no
+  better than" — and an **uncontrolled** factor's degradation is
+  composed into its barrier before the barrier is applied.
+  - **Which factors apply is the same question the warning already
+    asked.** A factor with an escalation barrier on it does not degrade,
+    by the same predicate that raises the existing uncontrolled-factor
+    advisory, so the warning and the arithmetic cannot disagree about a
+    diagram.
+  - **Nothing became approximate.** A multiplier is an exact `Rational`
+    multiply and a floor is a clamp; the app still has exactly one
+    sanctioned rounding point.
+  - It is visible wherever the barrier is: a second line under the
+    barrier on the canvas (`×10 worse`), a claimed-and-effective hover
+    title, a **"Degraded by"** column in the Barrier Register and its
+    CSV export, and the factor's dashed line drawn more heavily when it
+    is actually moving the numbers.
+  - Putting the **Properties** dialog under the accessibility gate for
+    the first time immediately found an unrelated defect: the barrier
+    measure picker had no accessible name at all. It does now, and both
+    Properties states are checked in CI from here on.
+  - **This can change the figures in a document you already have.** A
+    file with escalation factors reports different likelihoods once a
+    degradation is stated on one — because the factors were always
+    drawn there and were always being ignored. That is a correction, not
+    a regression, and it is why the field defaults to *no degradation*:
+    your numbers move when you say they should, not when you upgrade.
+    The bump itself exists for the other direction — a v13 editor handed
+    a v14 file drops the field and re-exports an analysis whose
+    likelihoods have quietly become less conservative than you made
+    them.
+
 - **Large diagrams are usable again** (`proposals/16`). Every render is
   now coalesced into one animation frame, so a burst of changes costs one
   render rather than one each. Building a 1000-placement document through

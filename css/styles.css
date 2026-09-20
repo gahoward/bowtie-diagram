@@ -436,6 +436,13 @@ html, body {
   stroke-width: 1.5;
 }
 
+/* ...and heavier again when the factor is actually degrading the
+   barrier's claim (proposals/21): same hue, same dashes, so it reads as
+   emphasis on the existing relationship rather than as a new one. */
+.connection.escalation.degrading {
+  stroke-width: 3;
+}
+
 .node text {
   font-size: 13px;
   fill: var(--node-text);
@@ -2339,4 +2346,13 @@ html, body {
   color: #4b5563;
   font-size: 13px;
   cursor: pointer;
+}
+
+/* A degraded barrier in the Barrier Register (proposals/21). Amber, not
+   red: an uncontrolled escalation factor is an advisory, not a blocking
+   warning, and the red in this table already means "export is blocked". */
+.barrier-register-degraded {
+  color: #b45309;
+  font-weight: 600;
+  cursor: help;
 }

@@ -109,6 +109,37 @@ def test_an_open_toolbar_menu_is_accessible(page):
     _assert_accessible(page, "an open toolbar menu")
 
 
+# The Properties modal is not in the table below because it is not
+# reached from a menu -- and it is the one modal whose fields are built
+# by RiskFieldsForm rather than by a view of its own, so it is the state
+# that would go on missing from this file by default. Quantitative mode,
+# because that is where the form grows the measure picker and (on an
+# escalation factor) the Degradation control (proposals/21).
+QUANTITATIVE_WITH_A_FACTOR = """() => {
+  const m = window.__lastModel;
+  m.setMode('quantitative');
+  m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
+  const t = m.addThreat({x: 150, y: 200, name: 'Overpressure'});
+  m.renameNode(t.nodeId, {frequency: {value: '1'}});
+  const b = m.addPreventativeControl(t.id, {name: 'Relief valve'});
+  m.renameNode(b.nodeId, {protection: {measure: 'pfdavg', value: '1E-2'}});
+  m.addEscalationFactor(b.id, {name: 'Untested'});
+}"""
+
+
+@pytest.mark.parametrize("selector,state", [
+    (".node.preventative-barrier", "a barrier's Properties in Quantitative mode"),
+    (".node.escalation-factor", "an escalation factor's Properties in Quantitative mode"),
+])
+def test_properties_modal_is_accessible(page, selector, state):
+    page.evaluate(QUANTITATIVE_WITH_A_FACTOR)
+    page.wait_for_timeout(150)
+    box = page.locator(f"#bowtie-canvas {selector}").first.bounding_box()
+    page.mouse.dblclick(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.wait_for_selector(".modal-dialog")
+    _assert_accessible(page, state)
+
+
 # One test per modal rather than one looping test: a failure names the
 # modal in the test id, which is what a CI log is read for.
 @pytest.mark.parametrize(

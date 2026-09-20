@@ -201,7 +201,7 @@
           }
         }
       } else if (placement.type === 'preventativeBarrier' || placement.type === 'mitigativeBarrier') {
-        parts.push(...this._barrierInfoLines(model, node).lines);
+        parts.push(...this._barrierInfoLines(model, node, placement).lines);
         const origins = model.linesThrough(placement.id)
           .map((line) => model.findById(line.originId))
           .filter(Boolean)
@@ -290,16 +290,34 @@
       return lines;
     }
 
-    _barrierInfoLines(model, node) {
+    // `placement`, when given, brings in what this barrier's uncontrolled
+    // escalation factors cost it (proposals/21): the degradation is a
+    // property of the placement, not of the library node, since the same
+    // barrier can be degraded on one page and untouched on another.
+    _barrierInfoLines(model, node, placement) {
       if (model.mode !== 'quantitative' || !node.protection) return { lines: [], title: null };
       if (node.protection.unknown) return { lines: ['Barrier: Unknown'], title: null };
       const measure = Bowtie.BarrierMeasures.list().find((m) => m.id === node.protection.measure);
       if (!measure) return { lines: [], title: null };
       const value = Bowtie.Decimal.parse(node.protection.value).toDisplayNumber(3);
       const defaults = { dangerousFraction: model.dangerousFraction, proofTestIntervalH: model.proofTestIntervalH };
+      const degradation = placement ? model.degradationSummaryFor(placement.id) : null;
+      if (!degradation) {
+        return {
+          lines: [`${measure.short}: ${value}`],
+          title: Bowtie.BarrierMeasures.describe(node.protection, defaults),
+        };
+      }
+      // The claimed figure keeps its place -- it is what the analyst
+      // entered and what Properties shows -- with the short form of the
+      // degradation on its own line beneath it, so a degraded barrier can
+      // never look like an undegraded one at a glance. The full
+      // claimed-and-effective reading, and the count behind it, go in the
+      // hover title rather than onto the diagram.
+      const factors = `${degradation.factors} uncontrolled escalation factor${degradation.factors === 1 ? '' : 's'}`;
       return {
-        lines: [`${measure.short}: ${value}`],
-        title: Bowtie.BarrierMeasures.describe(node.protection, defaults),
+        lines: [`${measure.short}: ${value}`, degradation.describe],
+        title: [degradation.effect, factors].filter(Boolean).join('\n'),
       };
     }
 
@@ -455,7 +473,7 @@
         extend(pb.x, result.bounds.labelCenterY, result.bounds.labelHalfWidth, result.bounds.labelHalfHeight);
 
         const pbNode = model.getNode(pb.nodeId);
-        const { lines: infoLines, title: infoTitle } = this._barrierInfoLines(model, pbNode);
+        const { lines: infoLines, title: infoTitle } = this._barrierInfoLines(model, pbNode, pb);
         if (infoLines.length > 0) {
           // _barrierInfoLines only ever returns lines in Quantitative mode
           // (see its own guard) -- always the protection figure, so always
@@ -479,7 +497,7 @@
         extend(mb.x, result.bounds.labelCenterY, result.bounds.labelHalfWidth, result.bounds.labelHalfHeight);
 
         const mbNode = model.getNode(mb.nodeId);
-        const { lines: infoLines, title: infoTitle } = this._barrierInfoLines(model, mbNode);
+        const { lines: infoLines, title: infoTitle } = this._barrierInfoLines(model, mbNode, mb);
         if (infoLines.length > 0) {
           // Same as the Preventative Barrier case above: always
           // Quantitative mode's protection figure, so always emphasized.

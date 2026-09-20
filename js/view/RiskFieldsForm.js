@@ -163,6 +163,9 @@
     if (mode === 'quantitative' && (node.type === 'preventativeBarrier' || node.type === 'mitigativeBarrier')) {
       handles.protection = buildBarrierProtectionField(container, node.protection, makeQuantityField, makeOptionalTextField);
     }
+    if (mode === 'quantitative' && node.type === 'escalationFactor') {
+      handles.degradation = buildDegradationField(container, node.degradation, makeQuantityField);
+    }
 
     // Returns `{ ok: true, values }` for the caller to merge into its
     // renameNode opts, or `{ ok: false, error }` for it to show inline and
@@ -187,7 +190,127 @@
           if (!read.ok) return read;
           values.protection = read.quantity;
         }
+        if (handles.degradation) {
+          const read = handles.degradation.readValue();
+          if (!read.ok) return read;
+          values.degradation = read.quantity;
+        }
         return { ok: true, values };
+      },
+    };
+  }
+
+  // Unique suffixes for the <label for> pairs below. Two Properties
+  // modals never coexist, but a single one can hold more than one
+  // labelled control, and an id has to be unique in the document.
+  let nextFieldId = 0;
+
+  // How much worse the barrier this escalation factor is anchored to
+  // actually performs while the factor is live (proposals/21).
+  //
+  // Two modes, because analysts use both: a dimensionless multiplier
+  // (the conventional treatment) and a "no better than" claim (what they
+  // more often say out loud). Nothing is required -- the default is no
+  // degradation at all, which is what every document upgraded from v13
+  // carries, and it is why upgrading moves no figure.
+  //
+  // The floor's units are deliberately described rather than named. A
+  // factor is dimensionless and always means the same thing, but a floor
+  // is stated in the BARRIER'S operand units -- and one escalation
+  // factor NODE can be placed under several barriers with different
+  // measures, so there is no single unit this label could honestly
+  // claim.
+  //
+  // The select is this control's ONE state: four options, not three plus
+  // a checkbox. Every other quantity in this form carries its own
+  // "Unknown" tickbox, but here that would be a third presence control
+  // sitting inside the second one -- and, because makeQuantityField
+  // ticks Unknown whenever there is no value yet, it would leave anyone
+  // who picked a mode typing into a disabled box.
+  const DEGRADATION_MODES = [
+    { value: '', label: 'No degradation' },
+    { value: 'factor', label: 'Multiply the barrier’s measure by' },
+    { value: 'floor', label: 'The barrier can do no better than' },
+    { value: 'unknown', label: 'Degraded by an unknown amount' },
+  ];
+
+  function buildDegradationField(container, current, makeQuantityField) {
+    // A <label> rather than the <div> makeQuantityField uses, because
+    // this wrapper holds exactly one control and can therefore label it
+    // implicitly. (makeQuantityField's wrapper holds two, the second of
+    // which is itself a <label>, and nested labels are invalid.)
+    const wrap = document.createElement('label');
+    wrap.className = 'modal-field';
+    const label = document.createElement('span');
+    label.textContent = 'Degradation';
+    wrap.appendChild(label);
+
+    const select = document.createElement('select');
+    select.name = 'degradation-mode';
+    DEGRADATION_MODES.forEach((m) => {
+      const o = document.createElement('option');
+      o.value = m.value;
+      o.textContent = m.label;
+      select.appendChild(o);
+    });
+    if (current && current.unknown) select.value = 'unknown';
+    else select.value = current && current.mode ? current.mode : '';
+    wrap.appendChild(select);
+    container.appendChild(wrap);
+
+    const valueWrap = document.createElement('div');
+    container.appendChild(valueWrap);
+    const valueHandle = makeQuantityField('Value', current && current.mode ? current : null, valueWrap);
+    valueHandle.input.name = 'degradation-value';
+    // See DEGRADATION_MODES: the borrowed Unknown tickbox is the select's
+    // last option instead, so the value box is always ready to type in.
+    valueHandle.unknownCheckbox.checked = false;
+    valueHandle.input.disabled = false;
+    if (valueHandle.unknownCheckbox.parentNode) valueHandle.unknownCheckbox.parentNode.hidden = true;
+
+    const hint = document.createElement('p');
+    hint.className = 'modal-field-hint';
+    valueWrap.appendChild(hint);
+
+    const sync = () => {
+      const mode = select.value;
+      valueWrap.hidden = mode === '' || mode === 'unknown';
+      hint.textContent = mode === 'floor'
+        ? 'In the barrier’s own units: a maximum RRF for an RRF barrier, a minimum PFD or rate otherwise.'
+        : 'How many times worse the barrier performs while this factor is live.';
+    };
+    select.addEventListener('change', sync);
+    sync();
+
+    return {
+      readValue() {
+        const mode = select.value;
+        if (!mode) return { ok: true, quantity: null };
+        if (mode === 'unknown') return { ok: true, quantity: { unknown: true } };
+        const text = valueHandle.input.value.trim();
+        if (!text) {
+          return {
+            ok: false,
+            error: 'Degradation is empty — enter a value, or choose No degradation.',
+          };
+        }
+        let parsed;
+        try {
+          parsed = Bowtie.Decimal.parse(text);
+        } catch {
+          return { ok: false, error: 'Degradation must be a number — for example 10 or 1E-1.' };
+        }
+        const zero = Bowtie.Decimal.parse('0');
+        if (!parsed.greaterThan(zero)) {
+          return { ok: false, error: 'Degradation must be greater than 0.' };
+        }
+        // A multiplier below 1 would make the barrier BETTER, which is
+        // not a degradation -- it is an escalation factor claiming
+        // credit, and the diagram says the opposite.
+        if (mode === 'factor' && parsed.lessThan(Bowtie.Decimal.parse('1'))) {
+          return { ok: false, error: 'A degradation makes a barrier worse — use 1 or more.' };
+        }
+        return { ok: true, quantity: { mode, value: text } };
       },
     };
   }
@@ -205,7 +328,12 @@
 
     const wrap = document.createElement('div');
     wrap.className = 'modal-field barrier-protection-field';
-    const span = document.createElement('span');
+    // A real <label for> rather than the bare <span> this carried
+    // before: axe's `select-name` rule caught the measure picker as an
+    // unnamed control the first time this modal was put under the
+    // proposals/18 gate. This wrapper holds several controls, so it
+    // cannot label one of them by wrapping.
+    const span = document.createElement('label');
     span.textContent = 'Barrier measure';
     wrap.appendChild(span);
 
@@ -228,6 +356,9 @@
       });
       measureSelect.appendChild(optgroup);
     });
+    nextFieldId += 1;
+    measureSelect.id = `barrier-measure-${nextFieldId}`;
+    span.htmlFor = measureSelect.id;
     const initialMeasureId = (currentProtection && !currentProtection.unknown && currentProtection.measure) || 'rrf';
     measureSelect.value = initialMeasureId;
     wrap.appendChild(measureSelect);

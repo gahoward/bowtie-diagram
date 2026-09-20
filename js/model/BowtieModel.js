@@ -605,6 +605,26 @@
       return !line || line.stops.length === 0;
     }
 
+    // Whether this factor is actually moving the numbers (proposals/21):
+    // Quantitative mode, uncontrolled, carrying a degradation that
+    // composes to something, and hanging off a barrier that claims
+    // something for it to degrade. ConnectionRenderer draws such a
+    // factor's line more heavily -- open question 3 -- so "this one
+    // changes the arithmetic" is visible without opening Properties.
+    // A degradation on a barrier marked Unknown changes nothing (the
+    // fold skips that barrier entirely), and a line drawn heavily for it
+    // would be the diagram claiming an effect the arithmetic does not
+    // have.
+    isEscalationFactorDegrading(escalationFactor) {
+      if (this.mode !== 'quantitative') return false;
+      if (!this.isEscalationFactorUncontrolled(escalationFactor)) return false;
+      const node = this.getNode(escalationFactor.nodeId);
+      if (!Bowtie.BarrierMeasures.hasEffect([node && node.degradation])) return false;
+      const barrier = this.findById(escalationFactor.barrierId);
+      const barrierNode = barrier ? this.getNode(barrier.nodeId) : null;
+      return Boolean(barrierNode && barrierNode.protection && !barrierNode.protection.unknown);
+    }
+
     escalationFactorsFor(barrierId) {
       const resolved = this._resolvePlacementId(barrierId);
       return this.escalationFactors.filter((f) => f.barrierId === resolved);
@@ -993,6 +1013,15 @@
     // the methods above.
     computeBarrierRegister(pageId = null) {
       return this._quantitative.computeBarrierRegister(pageId);
+    }
+
+    // What a barrier's uncontrolled escalation factors cost it
+    // (proposals/21) -- see Quantitative.degradationSummaryFor. Same
+    // delegation reasoning as the methods above, and the one place both
+    // the Barrier Register column and the canvas hover title read it
+    // from, so neither can word it differently.
+    degradationSummaryFor(barrierId) {
+      return this._quantitative.degradationSummaryFor(barrierId);
     }
 
     // barrier_measures_proposal.md's demand-rate readout -- see

@@ -26,7 +26,7 @@
   // export follows.
   const EXPORT_COLUMNS = [
     'page', 'rank', 'id', 'name', 'side', 'type', 'owner', 'effectiveness',
-    'measure', 'measure_value', 'demand_rate', 'demand_rate_unit', 'protects', 'warnings',
+    'measure', 'measure_value', 'degradation', 'demand_rate', 'demand_rate_unit', 'protects', 'warnings',
   ];
 
   const el = Bowtie.Dom.el;
@@ -98,6 +98,7 @@
             row.barrierType || '', row.owner || '', row.effectiveness || '',
             measure ? measure.id : (unknown ? 'unknown' : ''),
             measure ? row.protection.value : '',
+            row.degradation ? row.degradation.describe : '',
             row.demandRate ? rateNumber(row.demandRate, displayUnit) : '',
             row.demandRate ? unit : '',
             row.protects.join(' '),
@@ -161,11 +162,24 @@
       return wrap;
     }
 
+    // What this barrier's uncontrolled escalation factors cost it
+    // (proposals/21). Before this, a barrier with three of them and a
+    // barrier with none produced identical rows -- the diagram said one
+    // was degraded and this table, whose whole job is saying which
+    // barriers need attention, said nothing.
+    _degradationCell(row) {
+      if (!row.degradation) return el('td', null, '—');
+      const cell = el('td', 'barrier-register-degraded', row.degradation.describe);
+      const n = row.degradation.factors;
+      cell.title = `${n} uncontrolled escalation factor${n === 1 ? '' : 's'} on this barrier`;
+      return cell;
+    }
+
     _buildHead() {
       const thead = document.createElement('thead');
       const tr = document.createElement('tr');
       const columns = ['#', 'Barrier', 'Side', 'Type', 'Owner', 'Effectiveness'];
-      if (this._quantitative()) columns.push('Measure', 'Demand');
+      if (this._quantitative()) columns.push('Measure', 'Degraded by', 'Demand');
       columns.push('Protects', '');
       columns.forEach((label) => tr.appendChild(el('th', null, label)));
       thead.appendChild(tr);
@@ -192,6 +206,7 @@
 
       if (this._quantitative()) {
         tr.appendChild(this._measureCell(row));
+        tr.appendChild(this._degradationCell(row));
         tr.appendChild(this._demandCell(row));
       }
 
@@ -218,7 +233,12 @@
         dangerousFraction: this.model.dangerousFraction,
         proofTestIntervalH: this.model.proofTestIntervalH,
       };
-      const description = Bowtie.BarrierMeasures.describe(row.protection, defaults);
+      // With a degradation, the summary already carries the
+      // claimed-and-effective line (proposals/21) -- read it from there
+      // rather than recomposing it, so this tooltip and the canvas's say
+      // the same thing.
+      const description = (row.degradation && row.degradation.effect)
+        || Bowtie.BarrierMeasures.describe(row.protection, defaults);
       if (description) td.title = description;
       return td;
     }

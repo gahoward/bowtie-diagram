@@ -159,6 +159,14 @@
       return this.realModel.computeDemandRateAt(barrierId);
     }
 
+    // What this barrier's uncontrolled escalation factors cost it
+    // (proposals/21) -- CanvasView (constructed with this facade) puts it
+    // in the barrier's hover title. Barrier-id-scoped, so a straight
+    // passthrough like the two above.
+    degradationSummaryFor(barrierId) {
+      return this.realModel.degradationSummaryFor(barrierId);
+    }
+
     // Escalation factors (proposals/08) are id-scoped like every barrier
     // operation: the barrier or factor id decides the page, so these are
     // straight passthroughs rather than page-injecting wrappers.
@@ -176,6 +184,10 @@
 
     escalationFactorsFor(barrierId) {
       return this.realModel.escalationFactorsFor(barrierId);
+    }
+
+    isEscalationFactorDegrading(escalationFactor) {
+      return this.realModel.isEscalationFactorDegrading(escalationFactor);
     }
 
     addThreat(opts = {}) {

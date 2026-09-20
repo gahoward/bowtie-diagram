@@ -415,20 +415,50 @@
     return !!row && row.op === 'limit';
   }
 
+  // The same min/max rules `apply` uses, run on the already-rounded
+  // display number rather than on the exact operand (proposals/21). This
+  // is the second display-only arithmetic in this file, alongside the
+  // reciprocal in `describe` below, and for the same reason: `divide`
+  // means the degraded figure is `RRF / k`, and Decimal deliberately
+  // never divides. Nothing here is ever fed back into a calculation --
+  // the number that matters is computed exactly by `apply`.
+  function degradedDisplayNumber(shown, op, degradation) {
+    const { factor, floor: rawFloor } = composeDegradations(degradation);
+    if (!factor && !rawFloor) return null;
+    const floor = resolveFloor(rawFloor, op);
+    const k = factor ? factor.toDisplayNumber(3) : 1;
+    const cap = floor ? floor.toDisplayNumber(3) : null;
+    if (op === 'divide') {
+      const value = shown / k;
+      return cap !== null && cap < value ? cap : value;
+    }
+    const value = shown * k;
+    return cap !== null && cap > value ? cap : value;
+  }
+
   // A one-line human description of what a barrier's entered value
   // normalises to -- barrier_measures_proposal.md's "live normalised
   // readout... so the conversion is visible rather than hidden". Display
   // only (uses toDisplayNumber, never fed back into a calculation) --
   // CanvasView shows this in the barrier's own hover title.
-  function describe(protection, defaults) {
+  //
+  // With `degradation` (proposals/21) it appends what the claim is
+  // actually worth once the barrier's uncontrolled escalation factors
+  // are counted, in the same units as the claim itself -- claimed and
+  // effective in one line, so neither can be read without the other.
+  function describe(protection, defaults, degradation) {
     if (!protection || protection.unknown) return null;
     const row = MEASURES[protection.measure];
     if (!row) return null;
     const operand = row.toOperand(protection, defaults);
     const shown = operand.toDisplayNumber(3);
-    if (row.op === 'divide') return `${row.label} — equivalent PFD: ${(1 / shown).toPrecision(3)}`;
-    if (row.op === 'limit') return `${row.label} — limiting rate: ${shown}/hr`;
-    return `${row.label} — equivalent PFD: ${shown}`;
+    const label = row.op === 'limit' ? 'limiting rate' : 'equivalent PFD';
+    const suffix = row.op === 'limit' ? '/hr' : '';
+    const reading = (value) => (row.op === 'divide' ? (1 / value).toPrecision(3) : value);
+    let text = `${row.label} — ${label}: ${reading(shown)}${suffix}`;
+    const degraded = degradedDisplayNumber(shown, row.op, degradation);
+    if (degraded !== null) text += ` (degraded: ${reading(degraded)}${suffix})`;
+    return text;
   }
 
   // Whether this measure assumes low-demand operation (everything except

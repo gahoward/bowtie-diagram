@@ -240,7 +240,12 @@
         x: factor.x,
         y: (barrierBounds.cy !== undefined ? barrierBounds.cy : barrier.y) + barrierBounds.h / 2,
       };
-      frag.appendChild(makeLine(factorTop, barrierBottom, 'escalation', {
+      // A factor that is actually degrading its barrier's claim
+      // (proposals/21, open question 3) gets the same dashed line drawn
+      // more heavily -- no new colour, and nothing said that the
+      // arithmetic does not do.
+      const degrading = model.isEscalationFactorDegrading(factor);
+      frag.appendChild(makeLine(factorTop, barrierBottom, `escalation${degrading ? ' degrading' : ''}`, {
         'data-role': 'escalation-line',
         'data-line-id': (model.lines.find((l) => l.originId === factor.id) || {}).id || '',
       }));

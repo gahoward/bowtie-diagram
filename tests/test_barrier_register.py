@@ -207,7 +207,8 @@ def test_columns_follow_the_mode(page):
     _open(page)
     quant_headers = page.locator(".barrier-register-table thead th").all_text_contents()
     assert quant_headers == [
-        "#", "Barrier", "Side", "Type", "Owner", "Effectiveness", "Measure", "Demand", "Protects", "",
+        "#", "Barrier", "Side", "Type", "Owner", "Effectiveness",
+        "Measure", "Degraded by", "Demand", "Protects", "",
     ]
     _close(page)
 
@@ -229,7 +230,8 @@ def test_a_row_reads_the_way_the_canvas_does(page):
     assert cells[4] == "Ops"
     assert cells[5] == "High"
     assert cells[6] == "RRF: 10", "the same short form the canvas prints under the barrier"
-    assert cells[8] == "T_1"
+    assert cells[7] == "—", "nothing degrades this barrier"
+    assert cells[9] == "T_1"
     _close(page)
 
 
@@ -300,6 +302,7 @@ def test_export_writes_one_row_per_barrier_with_its_figures(page):
     assert inspection[7] == "high"
     assert inspection[8] == "rrf"
     assert inspection[9] == "10"
-    assert inspection[10] == "0.01" and inspection[11] == "events/hour"
-    assert inspection[12] == "T_1"
+    assert inspection[10] == "", "no escalation factors, so nothing degrades it"
+    assert inspection[11] == "0.01" and inspection[12] == "events/hour"
+    assert inspection[13] == "T_1"
     _close(page)

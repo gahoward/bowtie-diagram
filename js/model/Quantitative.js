@@ -65,7 +65,7 @@
         if (!barrier) return;
         const node = this.model.getNode(barrier.nodeId);
         const before = value;
-        const degradation = this._degradationsFor(barrier);
+        const degradation = this._degradationsFor(barrier.id);
         value = Bowtie.BarrierMeasures.apply(value, node.protection, defaults, degradation);
         if (onBarrier) {
           // `undegraded` lets a caller report claimed vs effective
@@ -84,16 +84,44 @@
     // to this barrier placement (proposals/21), or null when there are
     // none -- which is the overwhelmingly common case, so it short-
     // circuits before touching the escalation arrays at all.
-    _degradationsFor(barrier) {
+    _degradationsFor(barrierId) {
       const { model } = this;
       if (model.escalationFactors.length === 0) return null;
-      const factors = model.escalationFactorsFor(barrier.id);
+      const factors = model.escalationFactorsFor(barrierId);
       if (factors.length === 0) return null;
       const degradations = factors
         .filter((f) => model.isEscalationFactorUncontrolled(f))
         .map((f) => model.getNode(f.nodeId).degradation)
         .filter(Boolean);
       return degradations.length > 0 ? degradations : null;
+    }
+
+    // `{ describe, factors, effect }` for a barrier whose uncontrolled
+    // escalation factors carry a stated degradation, or null. `describe`
+    // is the short form the register column shows; `effect` is
+    // BarrierMeasures.describe's claimed-and-effective line, which the
+    // canvas hover title and the register's Measure tooltip both show.
+    // One producer, so no two surfaces can word the same degradation
+    // differently.
+    degradationSummaryFor(barrierId) {
+      const degradations = this._degradationsFor(barrierId);
+      if (!degradations || !Bowtie.BarrierMeasures.hasEffect(degradations)) return null;
+      const { factor, floor } = Bowtie.BarrierMeasures.composeDegradations(degradations);
+      const parts = [];
+      if (factor) parts.push(`×${factor.toDisplayNumber(3)} worse`);
+      if (floor) parts.push('claim capped');
+      const placement = this.model.findById(barrierId);
+      const node = placement ? this.model.getNode(placement.nodeId) : null;
+      // A barrier marked Unknown is skipped by the fold entirely, so its
+      // factors are degrading nothing. Reporting a cost here would have
+      // the register (and the diagram) claim an effect the arithmetic
+      // does not have.
+      if (!node || !node.protection || node.protection.unknown) return null;
+      return {
+        describe: parts.join(', '),
+        factors: degradations.length,
+        effect: Bowtie.BarrierMeasures.describe(node.protection, this._defaults(), degradations),
+      };
     }
 
     // Max, over every Threat on `pageId` with a KNOWN frequency, of
@@ -373,6 +401,11 @@
           owner: node.owner,
           effectiveness: node.effectiveness,
           protection: quantitative ? (node.protection || null) : null,
+          // What the uncontrolled escalation factors on this barrier
+          // actually cost it (proposals/21), or null when nothing
+          // degrades it. This table exists to say which barriers need
+          // attention, and a degraded barrier is the definition of one.
+          degradation: quantitative ? this.degradationSummaryFor(placement.id) : null,
           demandRate: quantitative ? this.computeDemandRateAt(placement.id) : null,
           protects: protectedOrigins(placement.id),
           warnings,

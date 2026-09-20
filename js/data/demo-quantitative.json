@@ -603,7 +603,11 @@
         "protection": null,
         "barrierType": null,
         "owner": "Maintenance",
-        "effectiveness": null
+        "effectiveness": null,
+        "degradation": {
+          "mode": "factor",
+          "value": "10"
+        }
       }
     ],
     "escalationBarrier": [
