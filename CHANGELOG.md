@@ -11,6 +11,26 @@
   delete, an auto-arrange, an import. `BowtieModel` also gained a
   placement-id index for `findById`, worth about a third off a
   500-placement render; the coalescing is the part that mattered.
+- **A document can now say who produced it** (`proposals/20`, **schema
+  v13**). `README.md` and `DESIGN_NOTES.md` both describe an exported
+  bowtie as something that may be an audit artifact — and the document
+  itself carried no identity at all. There is now a **Document** tab in
+  Project Settings holding reference, revision, status, date, prepared
+  by, checked by, approved by, organisation, notes and a revision
+  history, and a **printed cover sheet** carrying all of it, with
+  `reference · revision · date · page` at the foot of every diagram
+  sheet. Both CSV exports can optionally carry the same block above the
+  table.
+  - **The tool records what the user states; it does not enforce a
+    process.** Every field is optional free text, nothing is validated,
+    no sign-off order exists, and a missing revision produces no warning
+    and blocks no export. Anything stronger belongs in whatever system
+    actually governs your documents — faking it in an offline browser
+    tool would look like assurance it cannot provide.
+  - Old files upgrade automatically. The bump exists for the other
+    direction: a v12 editor handed a v13 file would silently drop the
+    whole block, and of everything in the document that is the worst
+    thing to lose quietly.
 - **The app now says when something has gone wrong** (`proposals/19`).
   Two silent failures, both in the part of the app whose whole job is not
   losing work. An uncaught exception used to leave the editor wedged with
