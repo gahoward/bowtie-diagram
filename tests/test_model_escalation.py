@@ -245,7 +245,10 @@ def test_escalation_content_round_trips_through_json(page):
         warnings: restored.getWarnings().length,
       };
     }""")
-    assert result["version"] == 12, "escalation factors are schema v12"
+    # Escalation factors ARRIVED in v12; an export carries whatever the
+    # current version is, which later additive bumps keep moving. The
+    # round-tripped content below is what this test is actually about.
+    assert result["version"] == page.evaluate("() => Bowtie.BowtieModel.SCHEMA_VERSION")
     assert result["keys"] == ["escalationFactors", "escalationBarriers"]
     assert result["libraryKeys"] == ["escalationFactor", "escalationBarrier"]
     assert result["retiredKeys"] == ["escalationFactor", "escalationBarrier"]

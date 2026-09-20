@@ -117,6 +117,30 @@
       model.rebuildPlacementIndex();
     },
 
+    // Every field optional and defaulted (proposals/20), so a v12
+    // document -- or a hand-built fixture, or a half-written one --
+    // reads as "nothing stated" rather than throwing. Unknown keys are
+    // dropped rather than carried: the block is a fixed set of
+    // statements, not a bag.
+    documentMetadataFromJSON(raw) {
+      const empty = Bowtie.BowtieModel.emptyDocumentMetadata();
+      const src = raw && typeof raw === 'object' ? raw : {};
+      const out = {};
+      Object.keys(empty).forEach((key) => {
+        if (key === 'history') return;
+        out[key] = typeof src[key] === 'string' ? src[key] : empty[key];
+      });
+      out.history = Array.isArray(src.history)
+        ? src.history.map((e) => ({
+          revision: typeof (e || {}).revision === 'string' ? e.revision : '',
+          date: typeof (e || {}).date === 'string' ? e.date : '',
+          author: typeof (e || {}).author === 'string' ? e.author : '',
+          summary: typeof (e || {}).summary === 'string' ? e.summary : '',
+        }))
+        : [];
+      return out;
+    },
+
     // --- Whole-document serialization ---------------------------------
 
     toJSON(model) {
@@ -129,6 +153,13 @@
         dangerousFraction: model.dangerousFraction,
         proofTestIntervalH: model.proofTestIntervalH,
         identifierDisplayMode: model.identifierDisplayMode,
+        // proposals/20. Copied rather than referenced, like idCounters
+        // and retiredIds below -- a serialized document must not alias
+        // the live model's arrays.
+        document: {
+          ...model.document,
+          history: model.document.history.map((e) => ({ ...e })),
+        },
         idCounters: { ...model.idCounters },
         retiredIds: {
           threat: model.retiredIds.threat.map((e) => ({ ...e })),
@@ -202,6 +233,7 @@
       model.dangerousFraction = data.dangerousFraction || '1';
       model.proofTestIntervalH = data.proofTestIntervalH || String(Bowtie.HOURS_PER_YEAR);
       model.identifierDisplayMode = data.identifierDisplayMode || 'internal';
+      model.document = this.documentMetadataFromJSON(data.document);
       if (data.pages && data.pages.length > 0) {
         model.pages = data.pages.map((p) => this.pageHeaderFromJSON(p));
       } else if (data.topLevelEvent && data.hazard) {
@@ -374,6 +406,7 @@
       model.tleAggregation = fresh.tleAggregation;
       model.dangerousFraction = fresh.dangerousFraction;
       model.proofTestIntervalH = fresh.proofTestIntervalH;
+      model.document = fresh.document;
       model.idCounters = fresh.idCounters;
       model.retiredIds = fresh.retiredIds;
       // Assigned wholesale above, so the index this model was carrying

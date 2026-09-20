@@ -10,7 +10,7 @@
 (function (Bowtie) {
   Bowtie.DEMO_DATA_VARIANTS = {
   "simple": {
-    "version": 12,
+    "version": 13,
     "name": "Demo: Pipeline Overpressure Release",
     "idCounters": {
       "page": 2,
@@ -600,6 +600,25 @@
       ]
     },
     "identifierDisplayMode": "internal",
+    "document": {
+      "reference": "HAZOP-2026-014",
+      "revision": "A",
+      "status": "Draft",
+      "date": "2026-03-12",
+      "author": "A. Fenwick (Process Safety)",
+      "checkedBy": "",
+      "approvedBy": "",
+      "organisation": "Northfield Terminal",
+      "notes": "Worked example shipped with the editor. Illustrative figures only — not a real assessment of any real facility.",
+      "history": [
+        {
+          "revision": "A",
+          "date": "2026-03-12",
+          "author": "A. Fenwick",
+          "summary": "First draft for internal comment."
+        }
+      ]
+    },
     "mode": "simple",
     "riskMatrix": null,
     "escalationFactors": [
@@ -627,7 +646,7 @@
     ]
   },
   "qualitative": {
-    "version": 12,
+    "version": 13,
     "name": "Demo: Pipeline Overpressure Release",
     "idCounters": {
       "page": 2,
@@ -1217,6 +1236,31 @@
       ]
     },
     "identifierDisplayMode": "internal",
+    "document": {
+      "reference": "HAZOP-2026-014",
+      "revision": "B",
+      "status": "For review",
+      "date": "2026-04-02",
+      "author": "A. Fenwick (Process Safety)",
+      "checkedBy": "R. Oduya (Operations)",
+      "approvedBy": "",
+      "organisation": "Northfield Terminal",
+      "notes": "Worked example shipped with the editor. Illustrative figures only — not a real assessment of any real facility.",
+      "history": [
+        {
+          "revision": "A",
+          "date": "2026-03-12",
+          "author": "A. Fenwick",
+          "summary": "First draft for internal comment."
+        },
+        {
+          "revision": "B",
+          "date": "2026-04-02",
+          "author": "A. Fenwick",
+          "summary": "Likelihood and severity classes assigned; sent for operations review."
+        }
+      ]
+    },
     "mode": "qualitative",
     "riskMatrix": {
       "id": "leaflet5",
@@ -1426,7 +1470,7 @@
     ]
   },
   "quantitative": {
-    "version": 12,
+    "version": 13,
     "name": "Demo: Pipeline Overpressure Release",
     "idCounters": {
       "page": 2,
@@ -2051,6 +2095,37 @@
       ]
     },
     "identifierDisplayMode": "internal",
+    "document": {
+      "reference": "HAZOP-2026-014",
+      "revision": "C",
+      "status": "Issued",
+      "date": "2026-05-20",
+      "author": "A. Fenwick (Process Safety)",
+      "checkedBy": "R. Oduya (Operations)",
+      "approvedBy": "M. Halvorsen (Technical Authority)",
+      "organisation": "Northfield Terminal",
+      "notes": "Worked example shipped with the editor. Illustrative figures only — not a real assessment of any real facility.",
+      "history": [
+        {
+          "revision": "A",
+          "date": "2026-03-12",
+          "author": "A. Fenwick",
+          "summary": "First draft for internal comment."
+        },
+        {
+          "revision": "B",
+          "date": "2026-04-02",
+          "author": "A. Fenwick",
+          "summary": "Likelihood and severity classes assigned; sent for operations review."
+        },
+        {
+          "revision": "C",
+          "date": "2026-05-20",
+          "author": "A. Fenwick",
+          "summary": "Barrier measures quantified (PFD/RRF); issued."
+        }
+      ]
+    },
     "mode": "quantitative",
     "riskMatrix": {
       "id": "leaflet5",

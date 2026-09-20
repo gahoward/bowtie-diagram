@@ -7,7 +7,8 @@ every bump changed the meaning of a field. It stops being right the
 moment someone else has an export: each later bump would strand their
 file with no way forward but editing JSON by hand.
 
-`tests/fixtures/schema-v10.json` and `schema-v11.json` are the
+`tests/fixtures/schema-v10.json`, `schema-v11.json` and
+`schema-v12.json` are the
 quantitative demo exactly as each version exported it, and they are
 **frozen** — never regenerate it from a later
 build, or the migration is only ever tested against what today's code
@@ -22,6 +23,7 @@ from pathlib import Path
 FIXTURES = Path(__file__).parent / "fixtures"
 V10 = json.loads((FIXTURES / "schema-v10.json").read_text())
 V11 = json.loads((FIXTURES / "schema-v11.json").read_text())
+V12 = json.loads((FIXTURES / "schema-v12.json").read_text())
 
 
 def _load(page, doc):
@@ -45,24 +47,32 @@ def _names(page, collection):
 # --- the chain ------------------------------------------------------------
 
 def test_the_chain_reaches_the_current_version_from_v10(page):
-    assert page.evaluate("() => Bowtie.BowtieModel.SCHEMA_VERSION") == 12
-    assert page.evaluate("() => Bowtie.Migrations.canMigrate(10)") is True
-    assert page.evaluate("() => Bowtie.Migrations.canMigrate(11)") is True
-    assert page.evaluate("() => Bowtie.Migrations.canMigrate(12)") is False, "already current"
+    """Written against SCHEMA_VERSION rather than a literal, so a bump
+    that forgets its migration entry fails HERE -- which is the point of
+    the test -- instead of only failing this assertion's own arithmetic."""
+    current = page.evaluate("() => Bowtie.BowtieModel.SCHEMA_VERSION")
+    assert current == 13
+    for version in range(10, current):
+        assert page.evaluate("(v) => Bowtie.Migrations.canMigrate(v)", version) is True, \
+            f"v{version} must have a path to v{current}"
+    assert page.evaluate("(v) => Bowtie.Migrations.canMigrate(v)", current) is False, "already current"
     assert page.evaluate("() => Bowtie.Migrations.canMigrate(9)") is False, "predates the chain"
 
 
 def test_a_v10_file_walks_every_step_of_the_chain(page):
-    """Two bumps now sit between v10 and current, so this is the case the
-    chain exists for: each step runs in order, on the output of the last."""
+    """Several bumps now sit between v10 and current, so this is the case
+    the chain exists for: each step runs in order, on the output of the
+    last, and the earliest step's work survives all of them."""
+    current = page.evaluate("() => Bowtie.BowtieModel.SCHEMA_VERSION")
     result = page.evaluate("(doc) => Bowtie.Migrations.migrateDocument(doc)", V10)
     assert result["ok"] is True
-    assert len(result["applied"]) == 2
-    assert result["applied"][0].startswith("v10 → v11")
-    assert result["applied"][1].startswith("v11 → v12")
-    assert result["doc"]["version"] == 12
+    assert [line.split(":")[0] for line in result["applied"]] == [
+        f"v{v} → v{v + 1}" for v in range(10, current)
+    ]
+    assert result["doc"]["version"] == current
     assert result["doc"]["library"]["threat"][0]["id"] == "T_1", "the rename still happened"
     assert result["doc"]["escalationFactors"] == [], "and the additive step filled in the rest"
+    assert result["doc"]["document"]["revision"] == "", "and the newest step too"
 
 
 def test_the_v11_to_v12_step_adds_escalation_shape_and_changes_nothing_else(page):
@@ -70,7 +80,7 @@ def test_the_v11_to_v12_step_adds_escalation_shape_and_changes_nothing_else(page
     step must leave every existing key exactly as it found it."""
     result = page.evaluate("(doc) => Bowtie.Migrations.migrateDocument(doc)", V11)
     assert result["ok"] is True
-    assert [line.split(":")[0] for line in result["applied"]] == ["v11 → v12"]
+    assert [line.split(":")[0] for line in result["applied"]] == ["v11 → v12", "v12 → v13"]
     doc = result["doc"]
     assert doc["escalationFactors"] == [] and doc["escalationBarriers"] == []
     assert doc["library"]["escalationFactor"] == [] and doc["library"]["escalationBarrier"] == []
@@ -150,7 +160,7 @@ def test_the_upgraded_document_exports_at_the_current_version(page):
     page.wait_for_timeout(150)
     page.get_by_role("button", name="OK", exact=True).click()
     exported = page.evaluate("() => window.__lastModel.toJSON()")
-    assert exported["version"] == 12
+    assert exported["version"] == 13
     assert "threats" in exported and "causes" not in exported
     assert [n["id"] for n in exported["library"]["threat"]] == ["T_1", "T_2", "T_3", "T_4", "T_5"]
 
@@ -196,29 +206,75 @@ def test_the_current_version_loads_with_no_notice(page):
     assert _dirty(page) is False, "an ordinary import is exactly what is on disk"
 
 
+def test_the_v12_to_v13_step_adds_the_document_block_and_changes_nothing_else(page):
+    """The document identity block (proposals/20) is purely additive, so
+    this step must leave every existing key exactly as it found it."""
+    result = page.evaluate("(doc) => Bowtie.Migrations.migrateDocument(doc)", V12)
+    assert result["ok"] is True
+    assert [line.split(":")[0] for line in result["applied"]] == ["v12 → v13"]
+    doc = result["doc"]
+
+    assert doc["document"] == {
+        "reference": "", "revision": "", "status": "", "date": "",
+        "author": "", "checkedBy": "", "approvedBy": "",
+        "organisation": "", "notes": "", "history": [],
+    }, "an old document states nothing, rather than guessing"
+
+    for key in V12:
+        if key == "version":
+            continue
+        assert doc[key] == V12[key], f"{key} must be untouched"
+
+
+def test_a_v12_file_carries_its_content_through_the_upgrade(page):
+    """The fixture is a real v12 export with a full diagram in it -- the
+    additive step must not cost any of it."""
+    assert _load(page, V12) is True
+    page.wait_for_timeout(200)
+    assert page.evaluate("() => window.__lastModel.threats.length") == len(V12["threats"])
+    assert page.evaluate("() => window.__lastModel.escalationFactors.length") == len(V12["escalationFactors"])
+    assert page.evaluate("() => window.__lastModel.document.revision") == ""
+
+
 # --- chain integrity (cases the shipped chain cannot produce) -------------
+#
+# Each of these invents a step BEYOND the current version rather than
+# naming one, so a schema bump does not silently turn "a gap in the
+# chain" into "the real chain" and quietly stop testing anything. The
+# page is fresh per test, so mutating the globals here leaks nowhere.
+
 
 def test_a_gap_in_the_chain_is_a_refusal_not_a_leap(page):
     """A missing step must never be skipped over: half-upgrading a
     document is worse than refusing it."""
     page.evaluate("""() => {
-      Bowtie.BowtieModel.SCHEMA_VERSION = 14;
+      const current = Bowtie.BowtieModel.SCHEMA_VERSION;
+      // Target two versions ahead but supply only the LAST leg, so the
+      // step from `current` is the one that is missing.
+      Bowtie.BowtieModel.SCHEMA_VERSION = current + 2;
       Bowtie.Migrations.MIGRATIONS.push({
-        from: 13, to: 14, describe: 'Only the last leg', migrate: (d) => d,
+        from: current + 1, to: current + 2, describe: 'Only the last leg', migrate: (d) => d,
       });
     }""")
-    assert page.evaluate("() => Bowtie.Migrations.canMigrate(10)") is False, "12 -> 13 is missing"
-    assert page.evaluate("() => Bowtie.Migrations.canMigrate(13)") is True
+    assert page.evaluate("() => Bowtie.Migrations.canMigrate(10)") is False, "the step from current is missing"
+    assert page.evaluate(
+        "() => Bowtie.Migrations.canMigrate(Bowtie.BowtieModel.SCHEMA_VERSION - 1)"
+    ) is True
 
 
 def test_a_step_that_does_not_advance_is_refused_rather_than_looped_on(page):
     """`to <= from` in a malformed entry would otherwise spin the chain
     walk forever, hanging the tab instead of declining the file."""
     page.evaluate("""() => {
-      Bowtie.BowtieModel.SCHEMA_VERSION = 13;
-      Bowtie.Migrations.MIGRATIONS.push({ from: 12, to: 12, describe: 'Goes nowhere', migrate: (d) => d });
+      const current = Bowtie.BowtieModel.SCHEMA_VERSION;
+      Bowtie.BowtieModel.SCHEMA_VERSION = current + 1;
+      Bowtie.Migrations.MIGRATIONS.push({
+        from: current, to: current, describe: 'Goes nowhere', migrate: (d) => d,
+      });
     }""")
-    assert page.evaluate("() => Bowtie.Migrations.canMigrate(12)") is False
+    assert page.evaluate(
+        "() => Bowtie.Migrations.canMigrate(Bowtie.BowtieModel.SCHEMA_VERSION - 1)"
+    ) is False
     assert _load(page, V10) is False
     assert _modal_title(page) == "Unsupported File Version"
 
@@ -227,9 +283,11 @@ def test_a_migration_that_throws_refuses_the_file_rather_than_half_loading_it(pa
     """A broken migration is a bug in that migration -- but it must not
     land as an uncaught error over a partly-loaded document."""
     page.evaluate("""() => {
-      Bowtie.BowtieModel.SCHEMA_VERSION = 13;
+      const current = Bowtie.BowtieModel.SCHEMA_VERSION;
+      Bowtie.BowtieModel.SCHEMA_VERSION = current + 1;
       Bowtie.Migrations.MIGRATIONS.push({
-        from: 12, to: 13, describe: 'Throws', migrate: () => { throw new Error('bad step'); },
+        from: current, to: current + 1, describe: 'Throws',
+        migrate: () => { throw new Error('bad step'); },
       });
     }""")
     before = page.evaluate("() => window.__lastModel.threats.length")

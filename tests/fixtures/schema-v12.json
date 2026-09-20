@@ -1,5 +1,5 @@
 {
-  "version": 13,
+  "version": 12,
   "name": "Demo: Pipeline Overpressure Release",
   "idCounters": {
     "page": 2,
@@ -330,33 +330,39 @@
         "id": "T_1",
         "type": "threat",
         "name": "Valve Inadvertently Opened",
-        "description": "",
+        "description": "Typical LOPA initiating event frequency, ~0.1/yr.",
         "identifier": "",
-        "likelihoodClassId": "occasional",
+        "likelihoodClassId": null,
         "severityClassId": null,
-        "frequency": null,
+        "frequency": {
+          "value": "1.14E-5"
+        },
         "protection": null
       },
       {
         "id": "T_2",
         "type": "threat",
         "name": "Flange Leak",
-        "description": "",
+        "description": "Typical LOPA initiating event frequency, ~0.01/yr.",
         "identifier": "",
-        "likelihoodClassId": "probable",
+        "likelihoodClassId": null,
         "severityClassId": null,
-        "frequency": null,
+        "frequency": {
+          "value": "1.14E-6"
+        },
         "protection": null
       },
       {
         "id": "T_3",
         "type": "threat",
         "name": "Corrosion or Erosion",
-        "description": "",
+        "description": "Typical LOPA initiating event frequency, ~0.01/yr.",
         "identifier": "",
-        "likelihoodClassId": "remote",
+        "likelihoodClassId": null,
         "severityClassId": null,
-        "frequency": null,
+        "frequency": {
+          "value": "1.14E-6"
+        },
         "protection": null
       },
       {
@@ -367,18 +373,22 @@
         "identifier": "",
         "likelihoodClassId": null,
         "severityClassId": null,
-        "frequency": null,
+        "frequency": {
+          "unknown": true
+        },
         "protection": null
       },
       {
         "id": "T_5",
         "type": "threat",
         "name": "Bund Wall Cracking",
-        "description": "",
+        "description": "Typical LOPA initiating event frequency, ~0.05/yr.",
         "identifier": "",
-        "likelihoodClassId": "improbable",
+        "likelihoodClassId": null,
         "severityClassId": null,
-        "frequency": null,
+        "frequency": {
+          "value": "5.7E-6"
+        },
         "protection": null
       }
     ],
@@ -389,7 +399,7 @@
         "name": "Pool Fire",
         "description": "",
         "identifier": "",
-        "likelihoodClassId": "remote",
+        "likelihoodClassId": null,
         "severityClassId": "major",
         "frequency": null,
         "protection": null
@@ -400,7 +410,7 @@
         "name": "Flash Fire",
         "description": "",
         "identifier": "",
-        "likelihoodClassId": "improbable",
+        "likelihoodClassId": null,
         "severityClassId": "critical",
         "frequency": null,
         "protection": null
@@ -411,7 +421,7 @@
         "name": "Explosion",
         "description": "",
         "identifier": "",
-        "likelihoodClassId": "highly_improbable",
+        "likelihoodClassId": null,
         "severityClassId": "catastrophic",
         "frequency": null,
         "protection": null
@@ -433,7 +443,7 @@
         "name": "Ground/Water Contamination",
         "description": "",
         "identifier": "",
-        "likelihoodClassId": "improbable",
+        "likelihoodClassId": null,
         "severityClassId": "marginal",
         "frequency": null,
         "protection": null
@@ -449,7 +459,10 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "protection": null,
+        "protection": {
+          "measure": "rrf",
+          "value": "10"
+        },
         "barrierType": "hardware",
         "owner": "Process Engineering",
         "effectiveness": "high"
@@ -463,7 +476,10 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "protection": null,
+        "protection": {
+          "measure": "pfdavg",
+          "value": "0.5"
+        },
         "barrierType": "human",
         "owner": "Maintenance",
         "effectiveness": "medium"
@@ -477,7 +493,9 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "protection": null,
+        "protection": {
+          "unknown": true
+        },
         "barrierType": "hardware",
         "owner": "Process Engineering",
         "effectiveness": "medium"
@@ -491,7 +509,10 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "protection": null,
+        "protection": {
+          "measure": "sil",
+          "value": "2"
+        },
         "barrierType": "human",
         "owner": "HSE",
         "effectiveness": "medium"
@@ -507,7 +528,10 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "protection": null,
+        "protection": {
+          "measure": "rrf",
+          "value": "3"
+        },
         "barrierType": "hardware",
         "owner": "Fire Safety",
         "effectiveness": "high"
@@ -521,7 +545,12 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "protection": null,
+        "protection": {
+          "measure": "rateRunning",
+          "value": "1E-6",
+          "rateUnit": "perHour",
+          "dangerousFraction": "0.5"
+        },
         "barrierType": "hardware",
         "owner": "Instrumentation",
         "effectiveness": "high"
@@ -535,7 +564,10 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "protection": null,
+        "protection": {
+          "measure": "unavailability",
+          "value": "0.25"
+        },
         "barrierType": "passive",
         "owner": "Civil/Structural",
         "effectiveness": "high"
@@ -549,7 +581,10 @@
         "likelihoodClassId": null,
         "severityClassId": null,
         "frequency": null,
-        "protection": null,
+        "protection": {
+          "measure": "rrf",
+          "value": "20"
+        },
         "barrierType": "human",
         "owner": "Emergency Response",
         "effectiveness": "medium"
@@ -589,32 +624,7 @@
     ]
   },
   "identifierDisplayMode": "internal",
-  "document": {
-    "reference": "HAZOP-2026-014",
-    "revision": "B",
-    "status": "For review",
-    "date": "2026-04-02",
-    "author": "A. Fenwick (Process Safety)",
-    "checkedBy": "R. Oduya (Operations)",
-    "approvedBy": "",
-    "organisation": "Northfield Terminal",
-    "notes": "Worked example shipped with the editor. Illustrative figures only — not a real assessment of any real facility.",
-    "history": [
-      {
-        "revision": "A",
-        "date": "2026-03-12",
-        "author": "A. Fenwick",
-        "summary": "First draft for internal comment."
-      },
-      {
-        "revision": "B",
-        "date": "2026-04-02",
-        "author": "A. Fenwick",
-        "summary": "Likelihood and severity classes assigned; sent for operations review."
-      }
-    ]
-  },
-  "mode": "qualitative",
+  "mode": "quantitative",
   "riskMatrix": {
     "id": "leaflet5",
     "name": "Leaflet 5 (Ships) Annex D",

@@ -34,6 +34,10 @@
     // Document-wide settings -- ProjectSettingsController/WelcomeController
     // hold the real model directly.
     'setMode', 'setRiskMatrix', 'setIdentifierDisplayMode', 'setTleAggregation', 'setQuantitativeDefaults',
+    // Document identity (proposals/20) -- ProjectSettingsController's
+    // Document tab holds the real model directly, like every other
+    // document-wide setting above.
+    'setDocumentMetadata', 'addDocumentRevision', 'removeDocumentRevision',
     // Whole-document (re)load -- only ever called by ImportExportController
     // (a real import) or by UndoController itself (restoring a
     // document-level snapshot); never something a page-scoped canvas
@@ -101,6 +105,12 @@
     get dangerousFraction() { return this.realModel.dangerousFraction; }
 
     get proofTestIntervalH() { return this.realModel.proofTestIntervalH; }
+
+    // proposals/20. PrintView renders the cover sheet and each sheet's
+    // footer from this, and it is constructed with the facade. Read-only
+    // here, same as every document-wide value above; the three setters
+    // are document-scoped (DOCUMENT_SCOPED).
+    get document() { return this.realModel.document; }
 
     getNode(nodeId) { return this.realModel.getNode(nodeId); }
 

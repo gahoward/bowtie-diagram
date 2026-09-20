@@ -66,7 +66,7 @@ def test_the_add_menu_and_node_library_say_threats_and_consequences(page):
 def test_the_exported_document_uses_the_new_keys(page):
     _add_one_of_each(page)
     doc = page.evaluate("() => window.__lastModel.toJSON()")
-    assert doc["version"] == 12
+    assert doc["version"] == 13
     assert "threats" in doc and "consequences" in doc
     assert "causes" not in doc and "outcomes" not in doc
     assert {"threat", "consequence"}.issubset(doc["library"])

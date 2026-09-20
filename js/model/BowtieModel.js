@@ -44,7 +44,7 @@
   // always did and its migration only fills in the empty collections.
   // The bump still happens, because a v11 editor handed a v12 file would
   // silently drop every escalation factor in it.
-  const SCHEMA_VERSION = 12;
+  const SCHEMA_VERSION = 13;
 
   class BowtieModel {
     constructor() {
@@ -115,6 +115,28 @@
       // SCHEMA_VERSION -- same reasoning as tleAggregation above.
       this.dangerousFraction = '1';
       this.proofTestIntervalH = String(Bowtie.HOURS_PER_YEAR);
+      // Who produced this analysis, when, at what revision, and who
+      // accepted it (proposals/20). README.md and DESIGN_NOTES.md both
+      // describe an export as something that may be an audit artifact,
+      // and several decisions in this codebase are justified by exactly
+      // that framing -- while the document itself carried no identity at
+      // all. Two exports a month apart were indistinguishable except by
+      // a file timestamp, which does not survive being emailed.
+      //
+      // Every field is optional free text (or a plain ISO date). The
+      // tool RECORDS WHAT THE USER STATES; it does not enforce a
+      // process. There is no sign-off order, no locking, no "cannot
+      // export unless approved" -- that belongs in whatever system
+      // actually governs the organisation's documents, and faking it in
+      // an offline browser tool would look like assurance it cannot
+      // provide.
+      //
+      // Unlike tleAggregation and the quantitative defaults above, this
+      // DOES bump SCHEMA_VERSION even though it is additive: a v12
+      // editor handed a v13 file would silently drop the whole block,
+      // and of all the fields in this document that is the worst one to
+      // lose quietly (proposals/12's forward-only policy).
+      this.document = Bowtie.BowtieModel.emptyDocumentMetadata();
       this.idCounters = {
         page: 0,
         threat: 0,
@@ -715,6 +737,41 @@
       this._emitChange();
     }
 
+    // proposals/20. Optional keys, like setQuantitativeDefaults below:
+    // Project Settings' Document tab commits one text field on blur, and
+    // must not clobber the other eight.
+    //
+    // Deliberately no validation beyond "it is a string" -- a revision
+    // is 'A' or '2.1' or 'Issue 3 Rev 2' depending on the organisation,
+    // and a parser would be wrong for someone on their first day.
+    setDocumentMetadata(patch = {}) {
+      Object.keys(Bowtie.BowtieModel.emptyDocumentMetadata()).forEach((key) => {
+        if (patch[key] === undefined) return;
+        if (key === 'history') this.document.history = patch.history.map((e) => ({ ...e }));
+        else this.document[key] = String(patch[key]);
+      });
+      this._emitChange();
+    }
+
+    // Keeps the previous state rather than overwriting it: bumping a
+    // revision should leave a trail, which is most of the point of
+    // recording one.
+    addDocumentRevision({ revision, date, author, summary } = {}) {
+      this.document.history.push({
+        revision: String(revision || ''),
+        date: String(date || ''),
+        author: String(author || ''),
+        summary: String(summary || ''),
+      });
+      this._emitChange();
+    }
+
+    removeDocumentRevision(index) {
+      if (index < 0 || index >= this.document.history.length) return;
+      this.document.history.splice(index, 1);
+      this._emitChange();
+    }
+
     // barrier_measures_proposal.md's ProjectDefaults -- see the
     // constructor's `dangerousFraction`/`proofTestIntervalH` comment.
     // Document-wide, like setTleAggregation above; both are optional
@@ -984,6 +1041,25 @@
 
   BowtieModel.CANVAS_W = CANVAS_W;
   BowtieModel.CANVAS_H = CANVAS_H;
+  // The shape of `model.document` in one place (proposals/20), so the
+  // constructor, the serializer's defaults, the v12->v13 migration and
+  // setDocumentMetadata's key filter cannot drift apart. A field added
+  // here reaches all four.
+  BowtieModel.emptyDocumentMetadata = function emptyDocumentMetadata() {
+    return {
+      reference: '',      // the organisation's own document number
+      revision: '',       // 'A', '2.1', 'Issue 3' -- free text, never parsed
+      status: '',         // 'Draft' | 'For review' | 'Issued' | anything
+      date: '',           // ISO yyyy-mm-dd, this revision's date
+      author: '',
+      checkedBy: '',
+      approvedBy: '',
+      organisation: '',
+      notes: '',          // scope, limitations, assumptions
+      history: [],        // [{ revision, date, author, summary }], newest last
+    };
+  };
+
   BowtieModel.SCHEMA_VERSION = SCHEMA_VERSION;
 
   Bowtie.BowtieModel = BowtieModel;

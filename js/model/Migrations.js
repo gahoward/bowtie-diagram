@@ -133,6 +133,21 @@
     };
   }
 
+  // v12 -> v13 (proposals/20): the document gained an identity block --
+  // reference, revision, status, date, author, checkedBy, approvedBy,
+  // organisation, notes and a revision history.
+  //
+  // Nothing existing changes, and every field defaults to empty, so this
+  // is the gentlest migration in the chain. It bumps the version anyway
+  // because the policy is about the OTHER direction: without a bump, a
+  // v12 editor would open a v13 file, silently drop the whole block, and
+  // hand back an export that has quietly lost who approved the analysis.
+  // Of everything in this document, that is the worst thing to lose
+  // without saying so.
+  function migrateV12ToV13(doc) {
+    return { ...doc, document: Bowtie.BowtieModel.emptyDocumentMetadata() };
+  }
+
   const MIGRATIONS = [
     {
       from: 10,
@@ -145,6 +160,12 @@
       to: 12,
       describe: 'Added escalation factors and escalation barriers (nothing existing changed)',
       migrate: migrateV11ToV12,
+    },
+    {
+      from: 12,
+      to: 13,
+      describe: 'Added the document identity block — reference, revision, date, author, approvals (nothing existing changed)',
+      migrate: migrateV12ToV13,
     },
   ];
 

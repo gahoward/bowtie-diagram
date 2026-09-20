@@ -63,6 +63,9 @@
     'reEnableId', 'disableRetiredId', 'reassignId', 'setName',
     'addNode', 'renameNode', 'deleteNode', 'setMode', 'setRiskMatrix', 'setIdentifierDisplayMode',
     'setTleAggregation', 'setQuantitativeDefaults',
+    // proposals/20. Document identity is document-wide by definition --
+    // an approval is of the analysis, not of one page of it.
+    'setDocumentMetadata', 'addDocumentRevision', 'removeDocumentRevision',
   ];
 
   // addThreat/addConsequence/addPreventativeControl/addMitigativeControl/

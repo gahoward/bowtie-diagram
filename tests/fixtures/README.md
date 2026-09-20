@@ -3,7 +3,8 @@
 Checked-in documents as they were actually exported at a given schema
 version, for `test_migrations.py` (proposals/12).
 
-`schema-v10.json` is the quantitative demo as v10 exported it. These
+`schema-v10.json`, `schema-v11.json` and `schema-v12.json` are each the
+quantitative demo as that version exported it. These
 files are **frozen**: never regenerate one from a later build. The whole
 point is to test each migration against what an old export really looked
 like, rather than against what today's code assumes it looked like. A
