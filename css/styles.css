@@ -2217,3 +2217,126 @@ html, body {
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* Project Settings › Document (proposals/20). */
+.settings-note {
+  margin: 0 0 12px;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+/* The date input and its "Today" button on one line. */
+.settings-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.document-history {
+  display: block;
+}
+
+.document-history-table {
+  width: 100%;
+  margin: 6px 0 8px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.document-history-table th,
+.document-history-table td {
+  padding: 4px 8px 4px 0;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.document-history-table th {
+  color: #6b7280;
+  font-weight: 600;
+}
+
+.document-history-summary {
+  width: 50%;
+}
+
+.document-history-add {
+  display: flex;
+  gap: 8px;
+}
+
+.document-history-add input {
+  flex: 1;
+}
+
+/* The printed cover sheet and per-sheet footer (proposals/20). Both live
+   under the same `#print-root` that is display:none except @media print,
+   so no screen rule is needed. */
+.print-cover-title {
+  margin: 0 0 24px;
+  font-size: 26px;
+}
+
+.print-cover-fields {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 20px;
+  margin: 0 0 24px;
+}
+
+.print-cover-fields dt {
+  color: #4b5563;
+  font-weight: 600;
+}
+
+.print-cover-fields dd {
+  margin: 0;
+}
+
+.print-cover-heading {
+  margin: 20px 0 8px;
+  font-size: 15px;
+}
+
+.print-cover-notes {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.print-cover-history {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.print-cover-history th,
+.print-cover-history td {
+  padding: 4px 10px 4px 0;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid #d1d5db;
+}
+
+/* A loose sheet on a desk should say what it came from. */
+.print-page-footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 6px;
+  border-top: 1px solid #d1d5db;
+  color: #4b5563;
+  font-size: 11px;
+}
+
+/* "Include document header in CSV" (proposals/20). Sits at the left of
+   the summary modal's action row, so it reads as a modifier of the
+   export rather than a fifth action. */
+.summary-csv-header-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: auto;
+  color: #4b5563;
+  font-size: 13px;
+  cursor: pointer;
+}

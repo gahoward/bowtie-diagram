@@ -1,7 +1,7 @@
 (function (Bowtie) {
   const el = Bowtie.Dom.el;
 
-  // Project Settings' three tab panels (proposals/15 part 2). Pure
+  // Project Settings' four tab panels (proposals/15 part 2). Pure
   // markup: every value arrives in `state`, every intent leaves through
   // `handlers`, and nothing here holds or reads the model.
   //
@@ -18,6 +18,10 @@
     { id: 'general', label: 'General' },
     { id: 'risk', label: 'Risk analysis' },
     { id: 'quantitative', label: 'Quantitative' }, // only while mode === 'quantitative'
+    // proposals/20. Last, because it is about the document rather than
+    // about the analysis in it -- and because a working sketch never
+    // needs to come here at all.
+    { id: 'document', label: 'Document' },
   ];
 
   let nextRowId = 0;
@@ -274,6 +278,142 @@
     ));
   }
 
+  // --- Document ---------------------------------------------------------
+  //
+  // Who produced this analysis, when, at what revision, and who accepted
+  // it (proposals/20). Every field is free text and every field may stay
+  // blank: this tab RECORDS WHAT THE USER STATES, it does not enforce a
+  // process. Nothing here is marked required, nothing is validated
+  // beyond being a string, and nothing blocks an export.
+
+  const DOCUMENT_FIELDS = [
+    ['reference', 'Reference', "Your organisation's own document number."],
+    ['revision', 'Revision', "Free text — 'A', '2.1', 'Issue 3'. Never parsed, so use whatever your scheme is."],
+    ['status', 'Status', 'Draft, For review, Issued — or whatever your process calls it.'],
+    ['author', 'Prepared by', 'Name and/or role.'],
+    ['checkedBy', 'Checked by', null],
+    ['approvedBy', 'Approved by', 'Recorded, not verified — this tool cannot check an approval.'],
+    ['organisation', 'Organisation', null],
+  ];
+
+  function documentPanel(panel, state, handlers) {
+    panel.appendChild(el('p', 'settings-note',
+      'Recorded as stated. The editor does not verify any of it, and none of it is required.'));
+
+    const doc = state.document;
+    DOCUMENT_FIELDS.forEach(([key, label, help]) => {
+      panel.appendChild(row(
+        label,
+        textInput({
+          name: `document-${key}`,
+          value: doc[key],
+          validate: () => true,
+          commit: (v) => handlers.onCommitDocumentField(key, v),
+        }),
+        help,
+      ));
+    });
+
+    panel.appendChild(row('Date', dateControl(doc.date, handlers), "This revision's date."));
+
+    // A textarea rather than a text input: scope, limitations and
+    // assumptions are the fields most likely to run to a paragraph, and
+    // they are the ones a reader most needs in full.
+    const notes = document.createElement('textarea');
+    notes.name = 'document-notes';
+    notes.rows = 3;
+    notes.value = doc.notes;
+    notes.addEventListener('change', () => handlers.onCommitDocumentField('notes', notes.value.trim()));
+    panel.appendChild(row('Notes', notes, 'Scope, limitations, assumptions.'));
+
+    panel.appendChild(historySection(doc, handlers));
+  }
+
+  // The date field, plus a "Today" button (proposals/20, open question
+  // 3). Deliberately NOT auto-filled: a date the tool invented is a
+  // statement the user did not make, and this whole block is about
+  // statements the user makes. One click is a small price for that.
+  function dateControl(value, handlers) {
+    const stack = el('div', 'settings-inline');
+    const input = document.createElement('input');
+    input.type = 'date';
+    input.name = 'document-date';
+    input.value = value;
+    input.addEventListener('change', () => handlers.onCommitDocumentField('date', input.value));
+    const today = Bowtie.Dom.button('Today', 'modal-btn modal-btn-small');
+    today.addEventListener('click', () => handlers.onCommitDocumentField('date', isoToday()));
+    stack.append(input, today);
+    return stack;
+  }
+
+  // Local date, not UTC: `toISOString()` would hand someone in UTC+13 a
+  // "today" that is yesterday for most of their working day.
+  function isoToday() {
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  }
+
+  // Bumping a revision should leave a trail rather than overwrite the
+  // last one, so "Add revision" pre-populates from what is currently in
+  // the fields above -- one action, previous state kept.
+  function historySection(doc, handlers) {
+    const wrap = el('div', 'modal-field settings-row document-history');
+    wrap.appendChild(el('span', 'settings-row-label', 'Revision history'));
+
+    if (doc.history.length === 0) {
+      wrap.appendChild(el('p', 'id-manager-empty', 'No revisions recorded yet.'));
+    } else {
+      const table = el('table', 'document-history-table');
+      const thead = document.createElement('thead');
+      const head = document.createElement('tr');
+      ['Revision', 'Date', 'Author', 'Summary', ''].forEach((t) => head.appendChild(el('th', null, t)));
+      thead.appendChild(head);
+      table.appendChild(thead);
+      const tbody = document.createElement('tbody');
+      doc.history.forEach((entry, index) => {
+        const tr = el('tr', 'document-history-row');
+        tr.appendChild(el('td', null, entry.revision));
+        tr.appendChild(el('td', null, entry.date));
+        tr.appendChild(el('td', null, entry.author));
+        tr.appendChild(el('td', 'document-history-summary', entry.summary));
+        const actions = el('td', null);
+        const remove = Bowtie.Dom.button('Remove', 'modal-btn modal-btn-small');
+        remove.setAttribute('aria-label', `Remove revision ${entry.revision || index + 1}`);
+        remove.addEventListener('click', () => handlers.onRemoveRevision(index));
+        actions.appendChild(remove);
+        tr.appendChild(actions);
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      wrap.appendChild(table);
+    }
+
+    const addRow = el('div', 'document-history-add');
+    const summary = document.createElement('input');
+    summary.type = 'text';
+    summary.name = 'document-revision-summary';
+    summary.placeholder = 'What changed in this revision…';
+    summary.setAttribute('aria-label', 'Summary of this revision');
+    const addBtn = Bowtie.Dom.button('Add revision', 'modal-btn');
+    const add = () => {
+      handlers.onAddRevision(summary.value.trim());
+      summary.value = '';
+    };
+    addBtn.addEventListener('click', add);
+    summary.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        add();
+      }
+    });
+    addRow.append(summary, addBtn);
+    wrap.appendChild(addRow);
+    wrap.appendChild(el('p', 'settings-row-help',
+      'Records the Revision, Date and Prepared by above as they stand now, so the next revision can change them.'));
+    return wrap;
+  }
+
   // `state` carries every displayed value; `handlers` every intent. The
   // active tab is the controller's state, so it arrives and leaves the
   // same way everything else does.
@@ -295,6 +435,7 @@
     panel.dataset.tab = state.activeTab;
     if (state.activeTab === 'general') generalPanel(panel, state, handlers);
     else if (state.activeTab === 'risk') riskPanel(panel, state, handlers);
+    else if (state.activeTab === 'document') documentPanel(panel, state, handlers);
     else quantitativePanel(panel, state, handlers);
     wrap.appendChild(panel);
     return wrap;

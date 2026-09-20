@@ -131,6 +131,7 @@
         tleAggregation: this.model.tleAggregation,
         dangerousFraction: this.model.dangerousFraction,
         proofTestIntervalH: this.model.proofTestIntervalH,
+        document: this.model.document,
       };
     }
 
@@ -180,10 +181,35 @@
           Bowtie.ExportUtil.exportJsonObject(denormalized, `${denormalized.id || 'risk-matrix'}.json`);
         },
         onPickAggregation: (v) => this.model.setTleAggregation(v),
+        // proposals/20. Text fields commit on blur, so they take the
+        // same suppression as every other text field here -- a rebuild
+        // would replace the element the user just tabbed out of. The
+        // date picker and the Today button are not text fields and do
+        // want the rebuild, so they go through the plain setter.
+        onCommitDocumentField: (key, value) => {
+          if (key === 'date') this.model.setDocumentMetadata({ date: value });
+          else this._commit((v) => this.model.setDocumentMetadata({ [key]: v }))(value);
+        },
+        onAddRevision: (summary) => this._addRevision(summary),
+        onRemoveRevision: (index) => this.model.removeDocumentRevision(index),
         validateDangerousFraction: validate.dangerousFraction,
         onCommitDangerousFraction: this._commit((v) => this.model.setQuantitativeDefaults({ dangerousFraction: v })),
         validateProofTestInterval: validate.proofTestInterval,
         onCommitProofTestInterval: this._commit((v) => this.model.setQuantitativeDefaults({ proofTestIntervalH: v })),
+      });
+    }
+
+    // "Add revision" snapshots the Revision/Date/Prepared-by fields as
+    // they currently stand (proposals/20), so bumping a revision is one
+    // action and the previous state is kept rather than overwritten.
+    // The summary is the only thing typed in the history row itself.
+    _addRevision(summary) {
+      const doc = this.model.document;
+      this.model.addDocumentRevision({
+        revision: doc.revision,
+        date: doc.date,
+        author: doc.author,
+        summary,
       });
     }
 

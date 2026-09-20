@@ -13,7 +13,6 @@ what the user states, it does not enforce a process.** Nothing here
 should ever grow a required field, a sign-off order, or an
 export-blocking rule -- see test_nothing_is_required_of_the_user below.
 """
-import json
 
 from playwright.sync_api import expect
 
@@ -172,3 +171,254 @@ def test_nothing_is_required_of_the_user(page):
     warnings = page.evaluate("() => window.__lastModel.getWarnings().map((w) => w.message)")
     assert not any("revision" in w.lower() or "author" in w.lower() for w in warnings)
     expect(page.locator("#btn-export-json")).to_be_enabled()
+
+
+# --- The Document tab -----------------------------------------------------
+
+def _open_document_tab(page):
+    page.click("#menu-trigger-settings")
+    page.click("#btn-project-settings")
+    page.click(".settings-tab[data-tab='document']")
+    page.wait_for_selector(".settings-panel[data-tab='document']")
+
+
+def test_the_tab_shows_every_field_and_none_is_required(page):
+    _open_document_tab(page)
+    for name in ["reference", "revision", "status", "author",
+                 "checkedBy", "approvedBy", "organisation", "date", "notes"]:
+        expect(page.locator(f"[name='document-{name}']")).to_have_count(1)
+    # "Records, does not enforce" has to be visible, not just true.
+    assert "does not verify" in page.locator(".settings-note").text_content()
+    assert page.locator("[required]").count() == 0
+
+
+def test_typing_a_field_reaches_the_model(page):
+    _open_document_tab(page)
+    field = page.locator("[name='document-approvedBy']")
+    field.fill("M. Halvorsen (Technical Authority)")
+    field.blur()
+    eventually_equals(lambda: _doc(page)["approvedBy"], "M. Halvorsen (Technical Authority)")
+
+
+def test_committing_a_field_does_not_steal_focus(page):
+    """Structural review finding 09: a same-tick body rebuild replaces
+    the element focus has just moved to, dropping it to <body>."""
+    _open_document_tab(page)
+    page.locator("[name='document-reference']").fill("HAZOP-2026-014")
+    page.locator("[name='document-revision']").focus()
+    eventually_equals(lambda: _doc(page)["reference"], "HAZOP-2026-014")
+    assert page.evaluate("() => document.activeElement.name") == "document-revision"
+
+
+def test_today_fills_the_date_but_only_when_asked(page):
+    """A date the tool invented is a statement the user did not make
+    (proposals/20, open question 3)."""
+    _open_document_tab(page)
+    assert _doc(page)["date"] == "", "nothing is filled in for you"
+    page.get_by_role("button", name="Today", exact=True).click()
+    today = page.evaluate("""() => {
+      const d = new Date();
+      const p = (n) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    }""")
+    eventually_equals(lambda: _doc(page)["date"], today)
+
+
+def test_add_revision_snapshots_the_current_fields(page):
+    _open_document_tab(page)
+    page.locator("[name='document-revision']").fill("B")
+    page.locator("[name='document-author']").fill("A. Fenwick")
+    page.locator("[name='document-author']").blur()
+    eventually_equals(lambda: _doc(page)["author"], "A. Fenwick")
+
+    page.locator("[name='document-revision-summary']").fill("Sent for operations review")
+    page.get_by_role("button", name="Add revision", exact=True).click()
+
+    eventually_equals(lambda: len(_doc(page)["history"]), 1)
+    entry = _doc(page)["history"][0]
+    assert entry["revision"] == "B"
+    assert entry["author"] == "A. Fenwick"
+    assert entry["summary"] == "Sent for operations review"
+
+
+def test_the_history_is_listed_and_a_row_can_be_removed(page):
+    page.evaluate("""() => {
+      const m = window.__lastUndo.model;
+      m.addDocumentRevision({revision: 'A', date: '2026-03-12', author: 'AF', summary: 'First draft'});
+      m.addDocumentRevision({revision: 'B', date: '2026-04-02', author: 'AF', summary: 'For review'});
+    }""")
+    _open_document_tab(page)
+    expect(page.locator(".document-history-row")).to_have_count(2)
+    assert "First draft" in page.locator(".document-history-row").first.text_content()
+
+    page.get_by_role("button", name="Remove revision A").click()
+    expect(page.locator(".document-history-row")).to_have_count(1)
+    assert [e["revision"] for e in _doc(page)["history"]] == ["B"]
+
+
+def test_an_empty_history_says_so_rather_than_showing_a_bare_table(page):
+    _open_document_tab(page)
+    assert "No revisions recorded yet" in page.locator(".document-history").text_content()
+    expect(page.locator(".document-history-table")).to_have_count(0)
+
+
+# --- The printed cover sheet ----------------------------------------------
+#
+# The highest-value consumer of the whole block (proposals/20), and most
+# of the reason to have built it: a printed analysis that cannot say who
+# produced it, when, at what revision and who accepted it is not an audit
+# artifact.
+
+def _print(page):
+    page.evaluate("() => { window.__printed = 0; window.print = () => { window.__printed += 1; }; }")
+    page.click("#menu-trigger-file")
+    page.click("#btn-print")
+    # `state="attached"`: #print-root is display:none except @media
+    # print, so waiting for it to be VISIBLE never resolves.
+    page.wait_for_selector("#print-root", state="attached")
+    eventually_equals(lambda: page.evaluate("() => window.__printed"), 1)
+
+
+def _fill_document(page):
+    page.evaluate("""() => {
+      const m = window.__lastUndo.model;
+      m.setDocumentMetadata({
+        reference: 'HAZOP-2026-014', revision: 'C', status: 'Issued',
+        date: '2026-05-20', author: 'A. Fenwick', checkedBy: 'R. Oduya',
+        approvedBy: 'M. Halvorsen', organisation: 'Northfield Terminal',
+        notes: 'Scope: the export line only.',
+      });
+      m.addDocumentRevision({revision: 'B', date: '2026-04-02', author: 'AF', summary: 'For review'});
+      m.addDocumentRevision({revision: 'C', date: '2026-05-20', author: 'AF', summary: 'Issued'});
+    }""")
+
+
+def test_a_filled_document_gets_a_cover_sheet(page):
+    _fill_document(page)
+    _print(page)
+    cover = page.locator("#print-root .print-cover")
+    expect(cover).to_have_count(1)
+    assert cover.locator(".print-cover-title").text_content() == "Untitled Bowtie"
+
+    text = cover.text_content()
+    for value in ["HAZOP-2026-014", "Issued", "2026-05-20", "A. Fenwick",
+                  "R. Oduya", "M. Halvorsen", "Northfield Terminal",
+                  "Scope: the export line only."]:
+        assert value in text, f"{value!r} missing from the cover sheet"
+    # Newest last, as the model stores it.
+    rows = cover.locator(".print-cover-history tbody tr").all_text_contents()
+    assert len(rows) == 2 and "For review" in rows[0] and "Issued" in rows[1]
+
+
+def test_a_blank_document_gets_no_cover_sheet_at_all(page):
+    """A page of empty labels would suggest the analysis is incomplete.
+    A working sketch is a legitimate use of this tool."""
+    _print(page)
+    expect(page.locator("#print-root .print-cover")).to_have_count(0)
+    # Just the one diagram sheet -- no cover, and no summary in simple mode.
+    expect(page.locator("#print-root .print-page")).to_have_count(1)
+
+
+def test_only_stated_fields_appear(page):
+    """Recorded as stated -- a blank field is omitted, not printed as an
+    empty row."""
+    page.evaluate("""() => window.__lastUndo.model.setDocumentMetadata({
+      reference: 'HAZOP-2026-014', author: 'A. Fenwick',
+    })""")
+    _print(page)
+    cover = page.locator("#print-root .print-cover")
+    labels = cover.locator(".print-cover-fields dt").all_text_contents()
+    assert labels == ["Reference", "Prepared by"]
+    assert cover.locator(".print-cover-notes").count() == 0
+    assert cover.locator(".print-cover-history").count() == 0
+
+
+def test_every_diagram_sheet_carries_its_provenance(page):
+    """A loose sheet on a desk should say what it came from -- without
+    this, page 3 is anonymous the moment it leaves the stapler."""
+    _fill_document(page)
+    page.evaluate("() => window.__lastUndo.model.addPage({name: 'Subsea'})")
+    _print(page)
+
+    footers = page.locator("#print-root .print-page-footer").all_text_contents()
+    assert len(footers) == 2, "one per diagram sheet, not on the cover"
+    assert all("HAZOP-2026-014 · C · 2026-05-20" in f for f in footers)
+    assert any("Subsea" in f for f in footers)
+
+
+def test_a_blank_document_prints_no_footer(page):
+    _print(page)
+    expect(page.locator("#print-root .print-page-footer")).to_have_count(0)
+
+
+# --- The optional CSV header ----------------------------------------------
+
+def _open_risk_summary_with_rows(page):
+    page.evaluate("""() => {
+      const m = window.__lastUndo.model;
+      m.setMode('qualitative');
+      m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
+      const c = m.addConsequence({x: 1200, y: 200, name: 'Fire'});
+      m.renameNode(c.nodeId, {severityClassId: 'major'});
+      window.__csv = null;
+      Bowtie.ExportUtil.exportCsv = (text) => { window.__csv = text; };
+    }""")
+    page.click("#menu-trigger-view")
+    page.click("#btn-risk-summary")
+    page.wait_for_selector(".modal-dialog-xwide")
+
+
+def test_the_csv_header_is_off_by_default(page):
+    """A spreadsheet import wants a clean header row; eight label/value
+    rows above it break the naive read_csv most people reach for."""
+    _fill_document(page)
+    _open_risk_summary_with_rows(page)
+    expect(page.locator("[name='include-document-header']")).not_to_be_checked()
+
+    page.get_by_role("button", name="Export CSV…", exact=True).click()
+    csv = page.evaluate("() => window.__csv")
+    assert csv.split("\r\n")[0].startswith("page,"), "the first line is the column header"
+    assert "HAZOP-2026-014" not in csv
+
+
+def test_ticking_it_puts_the_document_above_the_table(page):
+    _fill_document(page)
+    _open_risk_summary_with_rows(page)
+    page.locator("[name='include-document-header']").check()
+    page.get_by_role("button", name="Export CSV…", exact=True).click()
+
+    lines = page.evaluate("() => window.__csv").split("\r\n")
+    assert lines[0] == "Reference,HAZOP-2026-014"
+    assert "Approved by,M. Halvorsen" in lines
+    blank = lines.index("")
+    assert lines[blank + 1].startswith("page,"), "a blank row separates preamble from data"
+
+
+def test_an_empty_document_adds_no_header_even_when_ticked(page):
+    """Only what is stated -- a tick with nothing to say adds nothing,
+    rather than eight empty rows."""
+    _open_risk_summary_with_rows(page)
+    page.locator("[name='include-document-header']").check()
+    page.get_by_role("button", name="Export CSV…", exact=True).click()
+    assert page.evaluate("() => window.__csv").split("\r\n")[0].startswith("page,")
+
+
+def test_the_barrier_register_offers_the_same_option(page):
+    """One modal shell, so the two tables cannot drift (proposals/15)."""
+    _fill_document(page)
+    page.evaluate("""() => {
+      const m = window.__lastUndo.model;
+      m.setMode('qualitative');
+      m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
+      const t = m.addThreat({x: 150, y: 200, name: 'Overpressure'});
+      m.addPreventativeControl(t.id, {name: 'Relief valve'});
+      window.__csv = null;
+      Bowtie.ExportUtil.exportCsv = (text) => { window.__csv = text; };
+    }""")
+    page.click("#menu-trigger-view")
+    page.click("#btn-barrier-register")
+    page.wait_for_selector(".modal-dialog-xwide")
+
+    page.locator("[name='include-document-header']").check()
+    page.get_by_role("button", name="Export CSV…", exact=True).click()
+    assert page.evaluate("() => window.__csv").startswith("Reference,HAZOP-2026-014")

@@ -15,9 +15,13 @@
     return needsQuotes ? `"${text.replace(/"/g, '""')}"` : text;
   }
 
-  function toDelimited({ columns, rows }, delimiter) {
+  // `before` is an optional block of rows emitted ABOVE the header row
+  // -- the document identity block (proposals/20). Ragged by design: a
+  // label/value pair is two cells, and an empty row separates the
+  // preamble from the data.
+  function toDelimited({ columns, rows, before = [] }, delimiter) {
     const line = (cells) => cells.map((c) => escapeField(c, delimiter)).join(delimiter);
-    return [line(columns), ...rows.map(line)].join('\r\n');
+    return [...before.map(line), line(columns), ...rows.map(line)].join('\r\n');
   }
 
   function toCsv(table) {

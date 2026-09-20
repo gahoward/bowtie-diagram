@@ -50,17 +50,20 @@ def test_settings_menu_holds_only_project_settings_and_preferences(page):
 def test_project_settings_has_general_and_risk_tabs_and_a_conditional_quantitative_tab(page):
     _open_project_settings(page)
     assert page.locator(".modal-subtitle").text_content() == "Saved with the document. Changes apply immediately."
-    assert _tabs(page) == ["General", "Risk analysis"]
+    # Document is always present (proposals/20); Quantitative is the only
+    # conditional one, and it sits before Document so the conditional tab
+    # does not appear and disappear in the middle of the strip.
+    assert _tabs(page) == ["General", "Risk analysis", "Document"]
     assert page.locator(".settings-tab[aria-selected=true]").text_content() == "General"
 
     _set_mode(page, "quantitative")
-    assert _tabs(page) == ["General", "Risk analysis", "Quantitative"]
+    assert _tabs(page) == ["General", "Risk analysis", "Quantitative", "Document"]
     assert page.locator(".settings-tab[aria-selected=true]").text_content() == "Risk analysis", "the active tab survives the rebuild"
 
     _go_to_tab(page, "quantitative")
     page.locator("input[name=analysis-mode]").count() == 0
     _set_mode(page, "qualitative")
-    assert _tabs(page) == ["General", "Risk analysis"]
+    assert _tabs(page) == ["General", "Risk analysis", "Document"]
     _done(page)
 
 

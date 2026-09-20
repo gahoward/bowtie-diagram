@@ -59,8 +59,9 @@
         bodyEl: this._buildBody(),
         exportable: this._hasRows(),
         onCopy: () => Bowtie.SummaryModalView.copyTable(this.modal, this._exportTable()),
-        onExportCsv: () => Bowtie.SummaryModalView.exportCsv(
+        onExportCsv: (includeHeader) => Bowtie.SummaryModalView.exportCsv(
           this._exportTable(), this.model.name, 'risk summary',
+          includeHeader ? this.model.document : null,
         ),
       });
     }

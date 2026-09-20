@@ -54,9 +54,30 @@
     flashAction(modal, 'Copy as table', ok ? 'Copied' : "Couldn't copy");
   }
 
-  function exportCsv(table, documentName, suffix) {
+  // The document identity block, as rows above the table (proposals/20),
+  // when the user has asked for it -- see `includeHeader` below.
+  //
+  // Only what is stated, then a blank row, then the table. The blank row
+  // is what lets a reader (and most spreadsheet imports) see where the
+  // preamble ends and the data begins.
+  function documentHeaderRows(doc) {
+    if (!doc) return [];
+    const stated = [
+      ['Reference', doc.reference], ['Revision', doc.revision],
+      ['Status', doc.status], ['Date', doc.date],
+      ['Organisation', doc.organisation], ['Prepared by', doc.author],
+      ['Checked by', doc.checkedBy], ['Approved by', doc.approvedBy],
+    ].filter(([, value]) => value);
+    return stated.length > 0 ? [...stated, []] : [];
+  }
+
+  function exportCsv(table, documentName, suffix, doc) {
     const name = Bowtie.ExportUtil.safeFileName(documentName, 'bowtie-diagram');
-    Bowtie.ExportUtil.exportCsv(Bowtie.TableExport.toCsv(table), `${name} - ${suffix}.csv`);
+    const header = documentHeaderRows(doc);
+    const csv = Bowtie.TableExport.toCsv(
+      header.length > 0 ? { columns: table.columns, rows: table.rows, before: header } : table,
+    );
+    Bowtie.ExportUtil.exportCsv(csv, `${name} - ${suffix}.csv`);
   }
 
   // Re-render an open modal's body in place. A no-op when the modal was
@@ -70,20 +91,46 @@
   // nothing to copy, and offering the buttons anyway would be a promise
   // the modal can't keep. Each returns false so the modal stays open --
   // someone exporting a CSV usually wants to keep reading the table.
+  // `onExportCsv(includeHeader)` is handed the checkbox's state
+  // (proposals/20). Default OFF, deliberately: a spreadsheet import
+  // wants a clean header row, and prepending eight label/value rows
+  // breaks the naive `read_csv` that most people reach for first.
+  //
+  // It exists at all because someone filing a CSV next to the PDF wants
+  // the two to say the same revision. Print does not need the option --
+  // it gets the full cover sheet.
   function open({ title, bodyEl, exportable, onCopy, onExportCsv }) {
-    return Bowtie.ModalView.openModal({
+    let headerToggle = null;
+    const modal = Bowtie.ModalView.openModal({
       title,
       bodyEl,
       size: 'xwide',
       actions: [
         ...(exportable ? [
           { label: 'Copy as table', onClick: () => { onCopy(); return false; } },
-          { label: 'Export CSV…', onClick: () => { onExportCsv(); return false; } },
+          {
+            label: 'Export CSV…',
+            onClick: () => { onExportCsv(Boolean(headerToggle && headerToggle.checked)); return false; },
+          },
           { label: 'Print…', onClick: () => { print(); return false; } },
         ] : []),
         { label: 'Close', primary: true },
       ],
     });
+
+    if (exportable) {
+      const row = Bowtie.Dom.el('label', 'summary-csv-header-toggle');
+      headerToggle = document.createElement('input');
+      headerToggle.type = 'checkbox';
+      headerToggle.name = 'include-document-header';
+      row.append(headerToggle, Bowtie.Dom.el('span', null, 'Include document header in CSV'));
+      // Into the actions row, before the buttons, so it reads as a
+      // modifier of the export rather than a fifth action.
+      const actions = modal.dialog.querySelector('.modal-actions');
+      actions.insertBefore(row, actions.firstChild);
+    }
+
+    return modal;
   }
 
   Bowtie.SummaryModalView = {
