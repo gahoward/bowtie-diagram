@@ -54,11 +54,15 @@ def _control(page, factor_id):
 
 
 def _open_properties(page, selector):
-    box = page.locator(f"#bowtie-canvas {selector}").first.bounding_box()
-    page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2, button="right")
-    page.wait_for_timeout(80)
+    # Through the locator's own click rather than a measured
+    # `page.mouse.click`: CanvasView replaces the entire node layer on
+    # every render, so a bounding box measured just after a save can
+    # belong to an element that no longer exists -- `bounding_box()`
+    # then returns None and the test dies on the arithmetic. A locator
+    # re-resolves at click time and waits for the node to be stable.
+    page.locator(f"#bowtie-canvas {selector}").first.click(button="right")
     page.locator(".context-menu-item", has_text="Properties").click()
-    page.wait_for_timeout(80)
+    expect(page.locator(".modal-dialog")).to_be_visible()
 
 
 # --- The Degradation control ---------------------------------------------
