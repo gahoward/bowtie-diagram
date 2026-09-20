@@ -334,6 +334,14 @@
       model, document.getElementById('btn-barrier-register'), () => preferences.getDisplayUnit(),
     );
 
+    // And the question the register does not answer (proposals/23):
+    // which barriers the whole analysis is leaning on. Document-wide by
+    // necessity -- "how many pages is this barrier on" has no answer
+    // inside one page.
+    new Bowtie.BarrierCriticalityController(
+      model, document.getElementById('btn-barrier-criticality'), () => preferences.getDisplayUnit(),
+    );
+
     // The document's own context (mode, matrix, unit, aggregation) at the
     // end of the bottom bar. Constructed with `model` -- all of it is
     // document-wide -- and re-rendered from renderAll too, since the
@@ -445,7 +453,7 @@
 
     const TOOLBAR_BUTTON_IDS = [
       'btn-add-threat', 'btn-add-consequence', 'btn-auto-arrange', 'btn-reset-view', 'btn-risk-summary',
-      'btn-barrier-register', 'btn-shortcuts',
+      'btn-barrier-register', 'btn-barrier-criticality', 'btn-shortcuts',
       'btn-manage-ids', 'btn-preferences', 'btn-export-all-svg', 'btn-export-all-png', 'btn-print',
       'btn-project-settings', 'btn-export-png', 'btn-export-svg', 'btn-export-json', 'btn-import-json',
       'menu-trigger-file', 'menu-trigger-add', 'menu-trigger-view', 'menu-trigger-settings',

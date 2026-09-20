@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- **A new table: which barriers is the analysis leaning on?**
+  (`proposals/23`). The Barrier Register says what state each barrier is
+  in. View › **Barrier Criticality** answers the other question a safety
+  engineer asks — which barriers carry the most paths, which appear on
+  the most pages, and, the one that earns the table, **which are the
+  sole protection on some path**. A line whose only stop is one barrier
+  has nothing behind it, and until now that was visible only by looking
+  at the picture and counting.
+  - One row per barrier, not per placement: a barrier standing on four
+    pages is one barrier four analyses depend on.
+  - A sole-protection path is stated under the table, not raised as a
+    warning. It is a finding, not a defect — plenty of legitimate
+    analyses have one — and an advisory that fires on most documents
+    would only teach people to ignore the badge.
+  - No "criticality score". One blended number would read as an
+    assessment this tool is not entitled to make; the columns are there
+    to be weighed by the person reading them.
+
 - **Escalation factors now change the numbers** (`proposals/21`, **schema
   v14**). `proposals/08` drew them and warned about them, and stopped
   there: a barrier with three uncontrolled escalation factors and a

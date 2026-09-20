@@ -631,6 +631,22 @@ html, body {
   text-align: center;
 }
 
+/* Barrier Criticality (proposals/23). The counts are numbers a reader
+   compares down the column, so they get tabular figures; the sole-
+   protection cell is the finding the table exists for, so it gets the
+   same amber the register uses for "look at this" -- not red, because a
+   sole-protection path is a finding, not a defect. */
+.barrier-criticality-count {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.barrier-criticality-sole {
+  color: #b45309;
+  font-weight: 600;
+  cursor: help;
+}
+
 .barrier-register-blocking {
   color: #b91c1c;
   cursor: help;

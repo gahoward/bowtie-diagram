@@ -1024,6 +1024,14 @@
       return this._quantitative.degradationSummaryFor(barrierId);
     }
 
+    // Which barriers the analysis is leaning on (proposals/23) -- see
+    // Quantitative.computeBarrierCriticality. Same delegation reasoning
+    // as the methods above: the public surface is the undo surface, and
+    // a read-only method is no exception to where callers may reach.
+    computeBarrierCriticality(pageId = null) {
+      return this._quantitative.computeBarrierCriticality(pageId);
+    }
+
     // barrier_measures_proposal.md's demand-rate readout -- see
     // Quantitative.computeDemandRateAt. Same delegation reasoning as the
     // three methods above.

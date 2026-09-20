@@ -149,6 +149,7 @@ def test_properties_modal_is_accessible(page, selector, state):
         ("#btn-manage-ids", ".node-library", "the Node Library"),
         ("#btn-risk-summary", ".modal-dialog-xwide", "the Risk Summary"),
         ("#btn-barrier-register", ".modal-dialog-xwide", "the Barrier Register"),
+        ("#btn-barrier-criticality", ".modal-dialog-xwide", "Barrier Criticality"),
         ("#btn-shortcuts", ".modal-dialog", "the shortcuts sheet"),
         ("#btn-preferences", ".modal-dialog", "Preferences"),
     ],

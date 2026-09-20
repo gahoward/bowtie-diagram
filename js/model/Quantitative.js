@@ -462,6 +462,124 @@
       return rows;
     }
 
+    // One row per library NODE, ranked by what the analysis is leaning
+    // on (proposals/23). The Barrier Register answers "what is the state
+    // of this barrier?"; this answers the other question a safety
+    // engineer asks, which is about the analysis rather than any one
+    // barrier: "which barriers is the whole thing resting on?"
+    //
+    // Per node, not per placement, and that is the entire difference: a
+    // barrier placed on four pages is ONE barrier that four analyses
+    // depend on, not four rows. Aggregating anywhere else -- in the view,
+    // say -- would make the ranking a property of the table rather than
+    // of the document.
+    //
+    // Like the register, this works in every mode. Path counts, page
+    // counts and sole protection are structural facts about the diagram;
+    // only the demand rate needs arithmetic, and it simply comes back
+    // null when there is none.
+    computeBarrierCriticality(pageId = null) {
+      const model = this.model;
+      const quantitative = model.mode === 'quantitative';
+      const inScope = (placement) => pageId === null || placement.pageId === pageId;
+
+      // Once per call, for the same reason computeBarrierRegister does
+      // it: getWarnings() walks the whole document.
+      const warningsById = new Map();
+      model.getWarnings().forEach((warning) => {
+        if (!warningsById.has(warning.id)) warningsById.set(warning.id, []);
+        warningsById.get(warning.id).push(warning);
+      });
+
+      const originIdOf = (line) => {
+        const origin = model.findById(line.originId);
+        return origin ? model.displayIdentifierFor(model.getNode(origin.nodeId)) : null;
+      };
+
+      const groups = new Map();
+      const collect = (placements, side) => {
+        placements.filter(inScope).forEach((placement) => {
+          if (!groups.has(placement.nodeId)) groups.set(placement.nodeId, { side, placements: [] });
+          groups.get(placement.nodeId).placements.push(placement);
+        });
+      };
+      collect(model.preventativeBarriers, 'preventative');
+      collect(model.mitigativeBarriers, 'mitigative');
+
+      const rows = [];
+      groups.forEach(({ side, placements }, nodeId) => {
+        const node = model.getNode(nodeId);
+        const pages = new Set();
+        const soleOnPaths = new Set();
+        const warnings = [];
+        const rates = [];
+        let pathCount = 0;
+
+        placements.forEach((placement) => {
+          pages.add(placement.pageId);
+          warnings.push(...(warningsById.get(placement.id) || []));
+          model.linesThrough(placement.id).forEach((line) => {
+            pathCount += 1;
+            // The finding this table exists for: a line whose only stop
+            // is this barrier has no second layer behind it. Visible
+            // today only by looking at the picture and counting.
+            if (line.stops.length === 1) {
+              const originId = originIdOf(line);
+              if (originId) soleOnPaths.add(originId);
+            }
+          });
+          if (quantitative) {
+            const rate = this.computeDemandRateAt(placement.id);
+            if (rate) rates.push(rate);
+          }
+        });
+
+        rows.push({
+          nodeId,
+          displayId: model.displayIdentifierFor(node),
+          name: node.name,
+          side,
+          pathCount,
+          pageCount: pages.size,
+          soleOnPaths: [...soleOnPaths].sort((a, b) => a.localeCompare(b)),
+          // Summed across placements, the same aggregate
+          // computeDemandRateAt already forms across the Lines reaching
+          // one placement -- a barrier standing in two places takes the
+          // demand arriving at both.
+          demandRate: rates.length > 0 ? Bowtie.Rational.sum(rates) : null,
+          barrierType: node.barrierType,
+          owner: node.owner,
+          effectiveness: node.effectiveness,
+          protection: quantitative ? (node.protection || null) : null,
+          warnings,
+        });
+      });
+
+      // Sole protection first, and within that whichever carries the
+      // most paths; then simply the most paths, the widest page reach,
+      // and the busiest. Deliberately NOT a single blended "criticality
+      // score": one invented number would read as an assessment this
+      // tool is not entitled to make, and the columns let the reader
+      // weigh them (proposals/23, open question 4).
+      rows.sort((a, b) => {
+        const bySole = (b.soleOnPaths.length > 0) - (a.soleOnPaths.length > 0);
+        if (bySole) return bySole;
+        const byPaths = b.pathCount - a.pathCount;
+        if (byPaths) return byPaths;
+        const byPages = b.pageCount - a.pageCount;
+        if (byPages) return byPages;
+        if (a.demandRate && b.demandRate) {
+          const byDemand = b.demandRate.compare(a.demandRate);
+          if (byDemand) return byDemand;
+        } else if (a.demandRate !== b.demandRate) {
+          return a.demandRate ? -1 : 1;
+        }
+        return a.displayId.localeCompare(b.displayId);
+      });
+      rows.forEach((row, i) => { row.rank = i + 1; });
+      return rows;
+    }
+
     // The running frequency at the point a demand reaches `barrierId` on
     // one specific Line -- barrier_measures_proposal.md's UI ask ("the
     // demand rate at this barrier... the single number that decides low-
