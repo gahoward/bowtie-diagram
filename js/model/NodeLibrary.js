@@ -167,6 +167,7 @@
       if (opts.severityClassId !== undefined) node.severityClassId = opts.severityClassId;
       if (opts.frequency !== undefined) node.frequency = opts.frequency;
       if (opts.protection !== undefined) node.protection = opts.protection;
+      if (opts.degradation !== undefined) node.degradation = opts.degradation;
       if (opts.barrierType !== undefined) node.barrierType = opts.barrierType;
       if (opts.owner !== undefined) node.owner = opts.owner;
       if (opts.effectiveness !== undefined) node.effectiveness = opts.effectiveness;

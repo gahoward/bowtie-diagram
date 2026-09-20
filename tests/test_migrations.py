@@ -24,6 +24,17 @@ FIXTURES = Path(__file__).parent / "fixtures"
 V10 = json.loads((FIXTURES / "schema-v10.json").read_text())
 V11 = json.loads((FIXTURES / "schema-v11.json").read_text())
 V12 = json.loads((FIXTURES / "schema-v12.json").read_text())
+V13 = json.loads((FIXTURES / "schema-v13.json").read_text())
+
+
+def _steps_from(page, version):
+    """The chain a fixture of `version` must walk to reach current.
+
+    Derived rather than spelled out: every schema bump used to require
+    editing four literal lists here, which is churn that teaches nothing
+    and is easy to get subtly wrong."""
+    current = page.evaluate("() => Bowtie.BowtieModel.SCHEMA_VERSION")
+    return [f"v{v} → v{v + 1}" for v in range(version, current)]
 
 
 def _load(page, doc):
@@ -51,7 +62,7 @@ def test_the_chain_reaches_the_current_version_from_v10(page):
     that forgets its migration entry fails HERE -- which is the point of
     the test -- instead of only failing this assertion's own arithmetic."""
     current = page.evaluate("() => Bowtie.BowtieModel.SCHEMA_VERSION")
-    assert current == 13
+    assert current == 14
     for version in range(10, current):
         assert page.evaluate("(v) => Bowtie.Migrations.canMigrate(v)", version) is True, \
             f"v{version} must have a path to v{current}"
@@ -66,9 +77,7 @@ def test_a_v10_file_walks_every_step_of_the_chain(page):
     current = page.evaluate("() => Bowtie.BowtieModel.SCHEMA_VERSION")
     result = page.evaluate("(doc) => Bowtie.Migrations.migrateDocument(doc)", V10)
     assert result["ok"] is True
-    assert [line.split(":")[0] for line in result["applied"]] == [
-        f"v{v} → v{v + 1}" for v in range(10, current)
-    ]
+    assert [line.split(":")[0] for line in result["applied"]] == _steps_from(page, 10)
     assert result["doc"]["version"] == current
     assert result["doc"]["library"]["threat"][0]["id"] == "T_1", "the rename still happened"
     assert result["doc"]["escalationFactors"] == [], "and the additive step filled in the rest"
@@ -80,7 +89,7 @@ def test_the_v11_to_v12_step_adds_escalation_shape_and_changes_nothing_else(page
     step must leave every existing key exactly as it found it."""
     result = page.evaluate("(doc) => Bowtie.Migrations.migrateDocument(doc)", V11)
     assert result["ok"] is True
-    assert [line.split(":")[0] for line in result["applied"]] == ["v11 → v12", "v12 → v13"]
+    assert [line.split(":")[0] for line in result["applied"]] == _steps_from(page, 11)
     doc = result["doc"]
     assert doc["escalationFactors"] == [] and doc["escalationBarriers"] == []
     assert doc["library"]["escalationFactor"] == [] and doc["library"]["escalationBarrier"] == []
@@ -160,7 +169,7 @@ def test_the_upgraded_document_exports_at_the_current_version(page):
     page.wait_for_timeout(150)
     page.get_by_role("button", name="OK", exact=True).click()
     exported = page.evaluate("() => window.__lastModel.toJSON()")
-    assert exported["version"] == 13
+    assert exported["version"] == 14
     assert "threats" in exported and "causes" not in exported
     assert [n["id"] for n in exported["library"]["threat"]] == ["T_1", "T_2", "T_3", "T_4", "T_5"]
 
@@ -211,7 +220,7 @@ def test_the_v12_to_v13_step_adds_the_document_block_and_changes_nothing_else(pa
     this step must leave every existing key exactly as it found it."""
     result = page.evaluate("(doc) => Bowtie.Migrations.migrateDocument(doc)", V12)
     assert result["ok"] is True
-    assert [line.split(":")[0] for line in result["applied"]] == ["v12 → v13"]
+    assert [line.split(":")[0] for line in result["applied"]] == _steps_from(page, 12)
     doc = result["doc"]
 
     assert doc["document"] == {
@@ -234,6 +243,35 @@ def test_a_v12_file_carries_its_content_through_the_upgrade(page):
     assert page.evaluate("() => window.__lastModel.threats.length") == len(V12["threats"])
     assert page.evaluate("() => window.__lastModel.escalationFactors.length") == len(V12["escalationFactors"])
     assert page.evaluate("() => window.__lastModel.document.revision") == ""
+
+
+def test_the_v13_to_v14_step_changes_no_existing_figure(page):
+    """proposals/21 changes what escalation factors MEAN, but not what an
+    existing document reports: `degradation` defaults to null, so an
+    analysis says exactly what it said before until an analyst states
+    one. That is the whole reason the field has no default value."""
+    before = page.evaluate("""(doc) => {
+      window.__lastImportExport.loadDocument(JSON.parse(JSON.stringify(doc)));
+      return {
+        tle: window.__lastModel.computeTleLikelihood(window.__lastModel.pages[0].id).likelihood,
+        factors: window.__lastModel.escalationFactors.length,
+      };
+    }""", V13)
+
+    result = page.evaluate("(doc) => Bowtie.Migrations.migrateDocument(doc)", V13)
+    assert result["ok"] is True
+    assert [line.split(":")[0] for line in result["applied"]] == _steps_from(page, 13)
+
+    after = page.evaluate("""(doc) => {
+      window.__lastImportExport.loadDocument(doc);
+      return {
+        tle: window.__lastModel.computeTleLikelihood(window.__lastModel.pages[0].id).likelihood,
+        factors: window.__lastModel.escalationFactors.length,
+      };
+    }""", result["doc"])
+
+    assert after["factors"] == before["factors"] > 0, "the fixture has escalation factors to be wrong about"
+    assert after["tle"] == before["tle"], "upgrading must not move a single figure"
 
 
 # --- chain integrity (cases the shipped chain cannot produce) -------------

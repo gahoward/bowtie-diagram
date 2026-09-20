@@ -268,20 +268,143 @@
   // The one call `Quantitative` makes, replacing the old inline
   // `divideBy`. Returns `rational` unchanged for `{ unknown: true }` or
   // `null` -- the existing conservative skip rule.
-  function apply(rational, protection, defaults) {
+  // --- Degradation (proposals/21) ----------------------------------------
+  //
+  // An uncontrolled escalation factor makes the barrier it is anchored to
+  // perform WORSE. It does not add an event to the fold and it never
+  // appears in `Line.stops` -- what changes is the operand this one
+  // barrier contributes. That matters: barrier ORDER along a line became
+  // load-bearing once `limit` existed, and anything inserting factors
+  // into the fold would disturb it. Degrading the operand in place does
+  // not.
+  //
+  // Two shapes, because analysts use both:
+  //   `factor` -- dimensionless, "k times worse". The conventional
+  //      treatment, and unambiguous whatever the barrier measures.
+  //   `floor`  -- "this barrier can do no better than X", stated in the
+  //      BARRIER'S OWN operand units: a maximum RRF for an RRF barrier, a
+  //      minimum PFD for a PFD one, a minimum rate for a limiting one.
+  //      An escalation factor is anchored to exactly one barrier, so
+  //      there is always precisely one set of units in play -- and the
+  //      Properties form labels the field with them rather than making
+  //      the user infer which.
+  //
+  // Several uncontrolled factors on one barrier compose: their factors
+  // multiply, and the worst of their floors wins. Factors apply first and
+  // the floor is the backstop -- "I will not claim better than X" is a
+  // statement about the end result, not an intermediate.
+
+  // `[{mode, value} | {unknown} | null]` -> `{ factor, floor }` of
+  // Decimals, either of which may be null. Unknown and null entries
+  // contribute nothing, matching the conservative skip rule every other
+  // quantity in this app already uses.
+  function composeDegradations(list) {
+    let factor = null;
+    let floor = null;
+    (list || []).forEach((d) => {
+      if (!d || d.unknown || !d.value) return;
+      let value;
+      try {
+        value = Bowtie.Decimal.parse(d.value);
+      } catch {
+        return;
+      }
+      if (d.mode === 'factor') factor = factor ? factor.multiply(value) : value;
+      else if (d.mode === 'floor') floor = floor ? worseFloor(floor, value) : value;
+    });
+    return { factor, floor };
+  }
+
+  // Which of two floors is the worse claim depends on the op, and the op
+  // is not known here -- so keep both and let `apply` decide. Storing the
+  // pair is simpler than threading the op through composition, and a
+  // document with two floors on one barrier is already unusual.
+  function worseFloor(a, b) {
+    return { a, b };
+  }
+
+  // Resolve the {a, b} pair above once the op is known: for `divide` the
+  // operand is an RRF, where the worse claim is the SMALLER cap; for the
+  // others it is a PFD or a rate, where worse is LARGER.
+  function resolveFloor(floor, op) {
+    if (!floor) return null;
+    if (!floor.a) return floor;
+    const a = resolveFloor(floor.a, op);
+    const b = resolveFloor(floor.b, op);
+    if (op === 'divide') return a.compare(b) <= 0 ? a : b;
+    return a.compare(b) >= 0 ? a : b;
+  }
+
+  function scaleOperand(operand, decimal) {
+    return operand instanceof Bowtie.Rational
+      ? operand.multiplyNumerator(decimal)
+      : operand.multiply(decimal);
+  }
+
+  function attenuateBy(rational, operand) {
+    return operand instanceof Bowtie.Rational
+      ? rational.multiplyNumerator(operand.numerator).divideBy(operand.denominator)
+      : rational.multiplyNumerator(operand);
+  }
+
+  // `degradation` is an ARRAY of the uncontrolled escalation factors'
+  // degradations on this barrier (proposals/21), or omitted.
+  function apply(rational, protection, defaults, degradation) {
     if (!protection || protection.unknown) return rational;
     const row = MEASURES[protection.measure];
     if (!row) return rational;
     const operand = row.toOperand(protection, defaults);
+    const { factor, floor: rawFloor } = composeDegradations(degradation);
+    const floor = resolveFloor(rawFloor, row.op);
+
     switch (row.op) {
-      case 'divide': return rational.divideBy(operand);
-      case 'limit': return rational.clampTo(operand);
+      case 'divide': {
+        // The operand is an RRF, so `k times worse` means RRF/k -- and
+        // Decimal deliberately never divides. Dividing the running value
+        // by a k-times-smaller RRF is the same as dividing by the RRF and
+        // then multiplying by k, which is exact and needs no division.
+        //
+        // The floor caps the RRF, and applies to the DEGRADED figure: the
+        // comparison `RRF/k <= cap` is rearranged to `RRF <= cap*k` for
+        // the same reason.
+        if (!factor) {
+          const capped = floor && operand.compare(floor) > 0 ? floor : operand;
+          return rational.divideBy(capped);
+        }
+        if (floor && operand.compare(floor.multiply(factor)) > 0) {
+          return rational.divideBy(floor);
+        }
+        return rational.divideBy(operand).multiplyNumerator(factor);
+      }
+      case 'limit': {
+        let effective = factor ? scaleOperand(operand, factor) : operand;
+        if (floor) effective = raiseToFloor(effective, floor);
+        return rational.clampTo(effective);
+      }
       case 'attenuate':
-      default:
-        return operand instanceof Bowtie.Rational
-          ? rational.multiplyNumerator(operand.numerator).divideBy(operand.denominator)
-          : rational.multiplyNumerator(operand);
+      default: {
+        let effective = factor ? scaleOperand(operand, factor) : operand;
+        if (floor) effective = raiseToFloor(effective, floor);
+        return attenuateBy(rational, effective);
+      }
     }
+  }
+
+  // `max(operand, floor)` for a PFD or a rate, handling the one operand
+  // shape that may be a Rational (an MTBF-derived running rate).
+  function raiseToFloor(operand, floor) {
+    if (operand instanceof Bowtie.Rational) {
+      return operand.compareToDecimal(floor) >= 0 ? operand : Bowtie.Rational.fromDecimal(floor);
+    }
+    return operand.compare(floor) >= 0 ? operand : floor;
+  }
+
+  // Whether this degradation actually changes anything -- what the
+  // Properties form and the Barrier Register use to decide whether to
+  // show a "claimed vs effective" pair at all.
+  function hasEffect(degradation) {
+    const { factor, floor } = composeDegradations(degradation);
+    return Boolean(factor || floor);
   }
 
   // Whether this measure's op is the frequency-limiting `min()` rule
@@ -319,5 +442,6 @@
 
   Bowtie.BarrierMeasures = {
     list, validate, apply, isLimiting, isLowDemand, rateUnitOptions, describe,
+    composeDegradations, hasEffect,
   };
 })(window.Bowtie = window.Bowtie || {});

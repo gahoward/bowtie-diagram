@@ -65,10 +65,35 @@
         if (!barrier) return;
         const node = this.model.getNode(barrier.nodeId);
         const before = value;
-        value = Bowtie.BarrierMeasures.apply(value, node.protection, defaults);
-        if (onBarrier) onBarrier(barrier, node, before, value);
+        const degradation = this._degradationsFor(barrier);
+        value = Bowtie.BarrierMeasures.apply(value, node.protection, defaults, degradation);
+        if (onBarrier) {
+          // `undegraded` lets a caller report claimed vs effective
+          // without re-deriving the degradation (proposals/21). Computed
+          // only when there IS one, so the ordinary path pays nothing.
+          const undegraded = degradation && degradation.length > 0
+            ? Bowtie.BarrierMeasures.apply(before, node.protection, defaults)
+            : value;
+          onBarrier(barrier, node, before, value, { degradation, undegraded });
+        }
       });
       return value;
+    }
+
+    // The degradations of every UNCONTROLLED escalation factor anchored
+    // to this barrier placement (proposals/21), or null when there are
+    // none -- which is the overwhelmingly common case, so it short-
+    // circuits before touching the escalation arrays at all.
+    _degradationsFor(barrier) {
+      const { model } = this;
+      if (model.escalationFactors.length === 0) return null;
+      const factors = model.escalationFactorsFor(barrier.id);
+      if (factors.length === 0) return null;
+      const degradations = factors
+        .filter((f) => model.isEscalationFactorUncontrolled(f))
+        .map((f) => model.getNode(f.nodeId).degradation)
+        .filter(Boolean);
+      return degradations.length > 0 ? degradations : null;
     }
 
     // Max, over every Threat on `pageId` with a KNOWN frequency, of

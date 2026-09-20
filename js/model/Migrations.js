@@ -148,6 +148,25 @@
     return { ...doc, document: Bowtie.BowtieModel.emptyDocumentMetadata() };
   }
 
+  // v13 -> v14 (proposals/21): escalation factors can now carry a
+  // `degradation` that changes the barrier they are anchored to.
+  //
+  // Structurally this is the emptiest migration in the chain -- the
+  // field lives on a Node and defaults to null, so a v13 document needs
+  // no rewriting at all. It bumps because the MEANING of an existing
+  // document is now different in one direction: a v13 editor opening a
+  // v14 file would drop every stated degradation and silently report
+  // figures that are too optimistic, which is the wrong way for a safety
+  // tool to be wrong.
+  //
+  // Existing documents' numbers do NOT change on upgrade. `degradation`
+  // defaults to null, so an analysis reports exactly what it reported
+  // before until an analyst states a degradation -- a decision they
+  // make, rather than one the tool makes for them.
+  function migrateV13ToV14(doc) {
+    return { ...doc };
+  }
+
   const MIGRATIONS = [
     {
       from: 10,
@@ -166,6 +185,12 @@
       to: 13,
       describe: 'Added the document identity block — reference, revision, date, author, approvals (nothing existing changed)',
       migrate: migrateV12ToV13,
+    },
+    {
+      from: 13,
+      to: 14,
+      describe: 'Escalation factors can now degrade the barrier they are anchored to (existing figures unchanged until a degradation is stated)',
+      migrate: migrateV13ToV14,
     },
   ];
 

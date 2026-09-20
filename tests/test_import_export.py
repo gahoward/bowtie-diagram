@@ -140,4 +140,4 @@ def test_a_version_older_than_the_upgrade_path_is_rejected_with_a_message(page):
     assert loaded is False
     assert page.locator(".modal-title").last.text_content() == "Unsupported File Version"
     assert "version 5" in page.locator(".modal-body").text_content()
-    assert page.evaluate("() => Bowtie.BowtieModel.SCHEMA_VERSION") == 13
+    assert page.evaluate("() => Bowtie.BowtieModel.SCHEMA_VERSION") == 14

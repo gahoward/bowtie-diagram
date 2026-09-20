@@ -79,8 +79,9 @@
         }
       });
       model.escalationFactors.forEach((ef) => {
-        const line = model.lines.find((l) => l.originId === ef.id);
-        if (line && line.stops.length > 0) return;
+        // One definition, shared with the arithmetic -- see
+        // BowtieModel.isEscalationFactorUncontrolled.
+        if (!model.isEscalationFactorUncontrolled(ef)) return;
         const page = model.getPage(ef.pageId);
         const node = model.getNode(ef.nodeId);
         const barrier = model.findById(ef.barrierId);

@@ -44,7 +44,7 @@
   // always did and its migration only fills in the empty collections.
   // The bump still happens, because a v11 editor handed a v12 file would
   // silently drop every escalation factor in it.
-  const SCHEMA_VERSION = 13;
+  const SCHEMA_VERSION = 14;
 
   class BowtieModel {
     constructor() {
@@ -588,6 +588,23 @@
     // Every escalation factor hanging off one barrier placement, in
     // creation order -- what the renderer stacks and what auto-arrange
     // reserves room for.
+    // An escalation factor is UNCONTROLLED when nothing on its own line
+    // is controlling it (proposals/08's advisory warning, proposals/21's
+    // arithmetic). Deliberately one definition, called by both: a
+    // warning that says a barrier is degraded while the numbers say it
+    // is not would be two opinions about the same diagram.
+    //
+    // proposals/21 also wondered about factors "whose controls are
+    // themselves Unknown". There is no such case: proposals/08 settled
+    // that an escalation barrier carries no `protection` (it is a
+    // control over a problem, not a measured barrier in the fold), so
+    // there is nothing about it that can be Unknown. The condition is
+    // exactly "has no escalation barrier".
+    isEscalationFactorUncontrolled(escalationFactor) {
+      const line = this.lines.find((l) => l.originId === escalationFactor.id);
+      return !line || line.stops.length === 0;
+    }
+
     escalationFactorsFor(barrierId) {
       const resolved = this._resolvePlacementId(barrierId);
       return this.escalationFactors.filter((f) => f.barrierId === resolved);
