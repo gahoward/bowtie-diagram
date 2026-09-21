@@ -10,6 +10,10 @@
   // pointer interaction in one step, no per-control bookkeeping needed.
   const openOverlays = [];
 
+  // Every modal needs an id to point `aria-labelledby` at, and ids must
+  // be unique across a document that can have several modals stacked.
+  let nextDialogId = 0;
+
   function updateInertness() {
     const appEl = document.getElementById('app');
     if (appEl) appEl.inert = openOverlays.length > 0;
@@ -20,7 +24,13 @@
   // rename-bowtie dialog, and the attach-existing-node pickers.
   // `size: 'wide'` widens the dialog for content-heavy modals (the
   // Properties/Project Settings modals) that don't fit the default
-  // 420px-ish width meant for a single name field or a short list.
+  // 420px-ish width meant for a single name field or a short list;
+  // `'xwide'` is for the one genuinely tabular modal (Risk Summary).
+  const DIALOG_CLASSES = {
+    wide: 'modal-dialog modal-dialog-wide',
+    xwide: 'modal-dialog modal-dialog-xwide',
+  };
+
   function openModal({
     title, bodyEl, actions, dismissible = true, size = 'normal',
   }) {
@@ -28,10 +38,21 @@
     overlay.className = 'modal-overlay';
 
     const dialog = document.createElement('div');
-    dialog.className = size === 'wide' ? 'modal-dialog modal-dialog-wide' : 'modal-dialog';
+    dialog.className = DIALOG_CLASSES[size] || 'modal-dialog';
+    // The file already did the hard part -- `inert` on everything below,
+    // focus captured and restored, a shared Escape teardown. These three
+    // attributes are what tell a screen reader that any of it happened
+    // (proposals/18): without them each modal is an anonymous <div>,
+    // including the non-dismissible welcome gate that blocks all use of
+    // the app until it is answered.
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-modal', 'true');
 
     const titleEl = document.createElement('h2');
     titleEl.className = 'modal-title';
+    nextDialogId += 1;
+    const titleId = `modal-title-${nextDialogId}`;
+    titleEl.id = titleId;
 
     const bodyContainer = document.createElement('div');
     bodyContainer.className = 'modal-body';
@@ -82,8 +103,20 @@
       overlay,
       dialog,
       close,
+      // Labelling is re-decided here rather than once at construction,
+      // because the welcome flow sets a title per step and opens with ''
+      // before its first step runs. An empty title names nothing, so
+      // pointing aria-labelledby at the empty <h2> would be worse than
+      // leaving the dialog unnamed for that one tick.
+      //
+      // proposals/18 expected an `aria-label` fallback for untitled
+      // modals, naming the import spinner. That modal is titled
+      // ('Importing'), and so is every other one in the app -- so the
+      // fallback would have been a parameter nothing passed.
       setTitle(text) {
         titleEl.textContent = text;
+        if (text) dialog.setAttribute('aria-labelledby', titleId);
+        else dialog.removeAttribute('aria-labelledby');
       },
       setBody(el) {
         bodyContainer.replaceChildren(el);

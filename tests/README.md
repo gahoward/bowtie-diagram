@@ -4,7 +4,7 @@ A checked-in Playwright/pytest suite covering the model's splice/attach/
 truncate primitives and the UI flows that drive them. This replaces the
 project's previous practice of writing a throwaway script per change and
 discarding it — several real bugs (barrier placement direction, the
-outcome-side truncate direction, line-scoped attach) were only caught
+consequence-side truncate direction, line-scoped attach) were only caught
 because a test happened to cover that exact case; this is what makes that
 coverage survive between sessions instead of needing to be re-derived and
 re-tested from memory every time.
@@ -28,6 +28,112 @@ No dev server needs to be started by hand — `conftest.py` spins up a
 `ThreadingHTTPServer` on an ephemeral port serving the project root for the
 duration of the session, and tears it down afterwards. There is no build
 step for the app itself, so tests run directly against `index.html` as-is.
+
+## Browsers: `BOWTIE_BROWSER`
+
+Chromium by default. To run the suite under another engine:
+
+```
+playwright install firefox
+BOWTIE_BROWSER=firefox pytest tests/ -n auto
+```
+
+CI runs both. The Firefox job exists because `RecentFilesController` and
+`ExportUtil` each branch on the File System Access API, and until it
+existed **nothing anywhere executed the fallback side of those
+branches** — which is what Firefox, Safari and a page opened over
+`file://` all get. It is `continue-on-error` until it has been green for
+a week.
+
+**When a test fails only on Firefox, it is a bug until proven
+otherwise.** There is exactly one legitimate reason to skip:
+
+```python
+from conftest import requires_file_system_access
+
+@requires_file_system_access
+def test_clicking_an_entry_loads_that_document(browser, base_url):
+    ...
+```
+
+Use it only when the test is *about the supported branch* — the code
+path that cannot exist without the capability. `RecentFilesController`
+reads `window.showOpenFilePicker` in its constructor, so six tests in
+`test_recent_files.py` qualify; the seventh asserts the fallback and runs
+everywhere, which is what keeps the skip honest.
+
+A test that merely *happens* to fail on another engine is a bug or a
+harness problem, and gets fixed. `test_copy_as_table_puts_tsv_on_the_clipboard`
+was the second kind: it used `grant_permissions(["clipboard-read", ...])`,
+which is Chromium-only, to test something that was never about the
+browser's clipboard. It stubs `navigator.clipboard` now.
+
+Marking the first kind keeps a gap visible. Marking the second kind is
+how a suite goes green by deleting its own coverage.
+
+## Accessibility
+
+`test_accessibility.py` runs **axe-core** over ten app states — the
+start screen, the new-bowtie wizard, the editor with the demo loaded, an
+open toolbar menu, and each major modal.
+
+**`critical` and `serious` fail the build; `moderate` and `minor`
+print.** A contrast-ratio quibble should not block a release; a missing
+dialog role should.
+
+axe ships inside the pinned `axe-core-python` wheel, so the suite stays
+**offline and Node-free** — both properties `test.yml` is deliberate
+about.
+
+`test_chrome_keyboard.py` is the other half, and the more important one.
+axe checks that attributes are present and consistent; it cannot check
+that pressing Down actually moves focus. A widget that sets `role="tab"`
+and implements no arrow keys passes every linter and is *worse* than one
+with no roles at all, because the roles promise assistive-technology
+users navigation that silently does nothing. That was the real state of
+both settings tablists before `proposals/18`. So: if you add a role, add
+a test that presses the key.
+
+Two exclusions are deliberate and documented in the file rather than
+silent — `color-contrast` (the palette is its own proposal) and the
+minimap's duplicate ids (it clones the canvas layer wholesale, by
+design).
+
+## Waiting: `expect()` and the `eventually_*` helpers
+
+**Do not put a `wait_for_timeout` before an assertion.** A fixed sleep is
+a bet that the machine is fast enough: it wastes time when it wins, and
+when it loses it produces a failure indistinguishable from a real
+regression. On a loaded CI runner it starts losing.
+
+Two replacements, both auto-retrying:
+
+- **A locator assertion** → Playwright's `expect()`, which retries with
+  proper actionability semantics:
+
+  ```python
+  expect(page.locator(".page-tab")).to_have_count(2)
+  ```
+
+- **Anything computed in the page** (`page.evaluate`, a helper that wraps
+  one) → `eventually_equals` / `eventually_contains` /
+  `eventually_excludes` from `helpers.py`. Python's `expect()` covers
+  locators only, and this suite asserts a lot of model state:
+
+  ```python
+  eventually_equals(lambda: page.evaluate("() => window.__lastModel.name"), "Renamed")
+  ```
+
+**The one sleep worth keeping** is waiting for a specific *debounce* to
+elapse — the minimap's 120 ms reclone, the recovery snapshot's 2 s — and
+it should name which one in a comment. There is nothing to retry there:
+the assertion is that something has *not* happened yet.
+
+`proposals/17` converted the assertion-backed sleeps in the six worst
+files (76 of them). The ~460 that remain are mostly sitting between two
+*actions* rather than before an assertion, where Playwright's built-in
+actionability waiting already covers most cases — that is the next pass,
+and it is a deletion rather than a rewrite.
 
 ## How it's structured
 
@@ -71,29 +177,29 @@ step for the app itself, so tests run directly against `index.html` as-is.
   **`test_autoarrange.py`**, **`test_focus_hover.py`**,
   **`test_attach_and_truncate_ui.py`** — UI-driven coverage of the same
   behaviors reached through real right-clicks, hovers, and context menus.
-  `test_autoarrange.py` also covers a long, realistically-wrapping Cause
+  `test_autoarrange.py` also covers a long, realistically-wrapping Threat
   name not overlapping its sibling row (an architecture review finding —
   see `DESIGN_NOTES.md`'s `LEAF_ROW_MARGIN` entry), a barrier shared by
   two chains with different remaining lengths to the TLE landing in its
   own column instead of colliding with the barrier that makes it longer
   (shared_barrier_column_collision_fix.md §1-2), and two mutually bare
-  Causes/Outcomes (no barrier on either side) sitting ROW_SPACING apart
+  Threats/Consequences (no barrier on either side) sitting ROW_SPACING apart
   instead of paying the full barrier-collision GROUP_GAP that has nothing
   to protect between them — including a stress check (both spacing modes)
   that a mix of bare and barrier-bearing rows still produces zero box
   overlaps and zero bare-line/barrier-box crossings once those gaps
-  shrink, and two Causes that merge into one shared barrier and then
+  shrink, and two Threats that merge into one shared barrier and then
   DIVERGE AGAIN into their own separate further barriers still get full
   GROUP_GAP clearance from each other, not the cheaper ROW_SPACING sharing
   a first stop alone used to grant (real reported bug: one barrier's label
   overlapped the very next barrier's box after Auto-arrange — see
   `stopsFullyMatch` in `AutoArrangeController.js`). Also covers a real
-  reported bug reproduced via the demo itself (attach C_4 to PB_2): two
-  Causes privately sharing a barrier with few participants must end up
-  strictly adjacent even when they — along with other, unrelated Causes —
+  reported bug reproduced via the demo itself (attach T_4 to PB_2): two
+  Threats privately sharing a barrier with few participants must end up
+  strictly adjacent even when they — along with other, unrelated Threats —
   also all separately share a later barrier with many participants;
   `orderByAdjacency` used to sort by original array index alone, letting
-  an unrelated Cause land between them and making the tightly-shared
+  an unrelated Threat land between them and making the tightly-shared
   barrier's box balloon to cover that unrelated row too (see `tightness`
   in `_directAdjacency`/`orderByAdjacency`, `AutoArrangeController.js`).
   `test_barrier_placement.py`
@@ -103,7 +209,7 @@ step for the app itself, so tests run directly against `index.html` as-is.
   Line when clicked, and prompts with a line picker (only reordering the
   path(s) actually checked) when the barrier is shared and its lines
   disagree on the neighbour — including the exact reported repro (load the
-  demo, shift PB_3 away from the TLE on both C_1 and C_2 at once): no
+  demo, shift PB_3 away from the TLE on both T_1 and T_2 at once): no
   position corruption beforehand, and no label/box overlap after
   Auto-arrange. `test_attach_and_truncate_ui.py` covers the "inherit
   downstream barriers?" prompt end-to-end: appears (with Cancel/Stop
@@ -149,24 +255,28 @@ step for the app itself, so tests run directly against `index.html` as-is.
 - **`test_node_library_controller.py`** — design review finding 05:
   `NodeLibraryController` had no controller-level coverage before this file
   (an entire control was once removed from the modal in a session and the
-  model-level-only suite stayed green) — edit-in-place saving through
-  `renameNode`, delete cascading across pages and retiring the node's id,
-  adding straight to the library creating a node with zero placements, and
-  the "placed on which page(s)" text reflecting placements as they're added.
-  Also covers UI-review findings 01 (every edit form starts collapsed, not
-  just the one under test that already clicked Edit) and 04 (a node's
-  right-click menu's "Delete from Library…" item opens this modal
-  pre-expanded to that exact node, and the focus doesn't leak into a later,
-  unrelated open).
+  model-level-only suite stayed green). Now Add › Node Library…
+  (ui_fitness_proposal.md S4): one tab per type with a count, Edit
+  opening the shared Properties modal (for a placed node and for a
+  library-only node with no placement) and saving through `renameNode`,
+  delete cascading across pages and retiring the node's id under the
+  collapsed Retired disclosure, adding straight to the library creating a
+  node with zero placements, the "placed on" cell reflecting placements as
+  they're added, and UI-review finding 04 (a node's right-click "Delete
+  from Library…" opens this modal on that node's tab with its row
+  highlighted, and the highlight doesn't leak into a later, unrelated
+  open).
 - **`test_warnings_controller.py`** — design review finding 05:
   `WarningsController` had no controller-level coverage before this file,
   including the rule `getWarnings().length` enforces — export disabled
   entirely while any warning is active. Orphans a barrier (`Connect
   Directly to TLE` truncating a Line past it, per `DESIGN_NOTES.md`),
-  confirms the badge/count/export-disable and the warning text itself, then
-  resolves it and confirms all three re-enable. Also covers UI-review
-  finding 06: the badge's `title` attribute names every page a warning is
-  on, not just a bare count.
+  confirms the badge/count/export-disable and the warning row itself (id,
+  Blocking group, the short `detail`), then resolves it and confirms all
+  three re-enable. Also covers UI-review finding 06 (the badge's `title`
+  attribute names every page a warning is on, not just a bare count) and
+  the row's **Show** (closes the modal, switches to the warning's page,
+  pulses the node).
 - **`test_import_export.py`** — schema round-trip and the version-mismatch
   guard (there is no migration path for older schema versions; an
   incompatible file is rejected outright). The round-trip test (design
@@ -196,14 +306,158 @@ step for the app itself, so tests run directly against `index.html` as-is.
   before the field existed (purely additive, no schema-version bump).
 - **`test_canvas_risk_summary.py`** — the canvas "at a glance" risk
   summaries (quantitative_mode_proposal.md "Canvas badges"): the read-only
-  text block under each Outcome (severity/likelihood) and under the TLE
-  (computed likelihood), and Cause frequency / barrier RRF text — distinct
+  text block under each Consequence (severity/likelihood) and under the TLE
+  (computed likelihood), and Threat frequency / barrier RRF text — distinct
   from the small colour-coded risk-class badge. Also covers UI-review
   finding 03 (Quantitative mode's figures render via the `.node-info-text-
   emphasized` style — larger and darker than a Qualitative-mode class
   label's quieter default) and finding 02 (the risk-class badge's own SVG
   `<title>` names the full label and review period, not just the bare
-  letter on the circle).
+  letter on the circle). Also covers the Quantitative-mode "pre → post"
+  badge pair (dashed pre-mitigation ring, inline so exports keep it) and
+  the "Pre-mitigation" likelihood line, and that Qualitative mode keeps a
+  single unphased badge.
+- **`test_risk_summary.py`** — pre- vs post-mitigation risk
+  (quantitative_mode_proposal.md's inherent/residual pair): model-level
+  `assessConsequence` (both sides of the bowtie stripped, no pre half in
+  Qualitative mode, nulls until determinable) and `computeRiskSummary`'s
+  worst-first ranking (document-wide or scoped to one page, ranks
+  restarting per page) and its pre-mitigation tie-break; then the View ›
+  "Risk Summary…" modal — menu placement, the mode/matrix empty states,
+  the ranked table's cells, one section per page in page order (with an
+  empty-page message), Qualitative dashes, the excluded-threat footnote,
+  and in-place refresh while open.
+- **`test_unsaved_changes.py`** — the `beforeunload` guard: a fresh
+  document is clean, any edit (undo included) marks it dirty, a completed
+  JSON export or an import clears it, a cancelled native Save dialog does
+  not, and the synthetic `beforeunload` event is only `preventDefault`ed
+  while dirty. What happens to the work itself when the user leaves
+  anyway is `test_recovery.py` below.
+- **`test_barrier_register.py`** — View › Barrier Register (proposals/09),
+  the barrier owner's counterpart to the Risk Summary. Model-level: every
+  placement is a row with its metadata, "Protects" lists every origin
+  whose line runs through a shared barrier, the worst-first ranking
+  (warned, then unknown, then weakest effectiveness, then busiest), an
+  unrecorded effectiveness sorting after a recorded Low, page scoping,
+  and the demand rate matching `computeDemandRateAt`. UI-level: one table
+  per page with the empty-page message, columns following the mode
+  (Measure/Demand only in Quantitative), a row reading the way the canvas
+  does, Unknown called out rather than left blank, one warning glyph per
+  row with every message in its tooltip, live refresh while open, and the
+  CSV export's figures. Note the ranking tests keep threat frequencies
+  below IEC 61511's ~1/year boundary: above it every low-demand measure
+  picks up an advisory warning, which is the top ranking tier and would
+  mask the tiers under test.
+- **`test_risk_matrix_882e.py`** — golden master for the bundled
+  MIL-STD-882E preset (proposals/10), mirroring `test_risk_matrix.py`'s
+  Leaflet 5 coverage: all 20 Table III cells against a transcription of
+  the standard kept at the top of the file, the per-item-life bands
+  converted through the declared item life, the export round-trip (a
+  matrix converted twice would have every boundary shifted), Eliminated
+  (F) deliberately absent as a band, well-formed axes and ranks, and
+  banding either side of a boundary. Also proves the claim that adding a
+  preset needs no UI change, by driving the wizard through to a document
+  using it and checking the status strip names it.
+- **`test_canvas_keyboard.py`** — canvas keyboard and screen-reader
+  access (proposals/13): exactly one node tabbable and the tabindex
+  surviving a re-render, arrow navigation along a row and between lanes,
+  Home, down-into-an-escalation-stack, Enter/Shift+F10/Ctrl+arrow/Delete/
+  Escape, the accessible names matching the drawn figures, the canvas
+  landmark and the hidden minimap, the live region, and the context menu
+  behaving as a real menu that returns focus to the node it came from
+  (while a right-click menu deliberately does not steal focus). Note
+  every DOM query is scoped to `#bowtie-canvas`: the minimap clones the
+  node layer, ids and all.
+- **`test_model_escalation.py`** / **`test_escalation_rendering.py`** /
+  **`test_escalation_arrange.py`** / **`test_escalation_ui.py`** —
+  escalation factors (proposals/08), one file per layer. The model file
+  covers anchoring, the (node, barrier) uniqueness rule that lets one
+  factor degrade several barriers on a page, the cascades, both warnings
+  and their deliberately different severities, serialisation including
+  the per-page snapshot undo works from, and referential integrity.
+  Rendering covers the vertical dashed line, controls sitting on it, the
+  same factor drawn twice with distinct DOM ids, and the content bounds.
+  Arrange covers the stack landing under its barrier, rows below being
+  pushed down, two factors stacking without overlap, and — the
+  regression that matters — a barrier with no factors changing nothing.
+  The UI file drives the real menus rather than model methods, because
+  the point of that stage is that the existing create-or-choose, attach,
+  library and Properties machinery took the new types without parallel
+  versions of itself.
+- **`test_rename_terms.py`** — the Threats/Consequences rename
+  (proposals/11). Not the mechanics of each layer but that the layers
+  agree: new nodes get the rotated prefixes (`T_n` for a Threat, `C_n`
+  now a Consequence), the canvas renders `.node.threat`/`.node.consequence`
+  with no `cause`/`outcome` left in any `data-role`, the Add menu and
+  Node Library tabs read Threats/Consequences, the exported document uses
+  the new keys, the start screen's illustration says THREATS and
+  CONSEQUENCES, and a sweep of the live DOM finds no user-facing copy
+  still saying Cause or Outcome — which is where a string the codemod
+  missed would show up.
+- **`test_migrations.py`** — forward schema migrations (proposals/12):
+  the shipped chain is empty, so these register a step and raise
+  `SCHEMA_VERSION` in the page to stand in for the next bump — everything
+  under test is the real path. Covers `migrateDocument`'s ordering and
+  purity (the caller's parsed file is left exactly as read), a gap in the
+  chain refusing rather than half-upgrading, a file from the future
+  refused for being newer, a pre-v10 file refused with the reason, the
+  current version loading with no notice, and an older file upgrading
+  end to end — the "Upgraded" dialog, the migrated document, and the
+  dirty flag that follows it, since the file on disk is still the old
+  version. Recovery snapshots go through the same path, so one from an
+  older version upgrades too. `tests/fixtures/schema-v10.json` is the
+  quantitative demo as v10 exported it, and is **frozen** — never
+  regenerate a fixture from a later build, or a migration is only ever
+  tested against what today's code assumes the old shape was. Since the
+  v11 rename, this file is also the only place in the suite that still
+  says `causes`/`outcomes`, on purpose.
+- **`test_recovery.py`** — `RecoveryController` (proposals/04): an edit
+  writes a `localStorage` snapshot only after the debounce (never on the
+  change itself), a clean document is never snapshotted, a completed
+  export clears it; then the start screen's card — its name, page/node
+  counts and "last edited today" — with Recover restoring the threats and
+  leaving the document dirty (and re-snapshotted), Discard removing both
+  the card and the key, a corrupt stored value ignored without a page
+  error, and a snapshot from an older schema failing through the same
+  "Unsupported File Version" dialog a stale export gets. Driven from a
+  fresh page like `test_welcome.py`, since the card lives on the start
+  screen.
+- **`test_recent_files.py`** — `RecentFilesController` (proposals/04):
+  remembering a handle lists it on the next visit, the same file twice
+  is one entry, only the newest five are kept (pruned in IndexedDB, not
+  merely unlisted), an export through a mocked native Save dialog
+  remembers the file, clicking an entry loads that document, an entry
+  that cannot be read drops out of the list, and without
+  `showOpenFilePicker` nothing is rendered at all. The fake handles are
+  classes rather than object literals — structured clone copies own data
+  properties and drops the prototype, so an instance with only `name`
+  stores cleanly where a literal carrying functions would throw
+  `DataCloneError`.
+- **`test_shortcuts.py`** — `ShortcutsController` (proposals/03): Ctrl+S
+  exports and clears the unsaved flag, but not from inside a Properties
+  text field, not while a blocking warning has disabled export, and not
+  while a modal is open; clicking a node selects it and Delete removes it
+  undoably; a barrier click selects without focusing and Escape clears
+  it; the TLE and Hazard are never selectable (neither can be removed
+  from a page); `?` and the View menu item open the same sheet; every
+  `buttonId` in the table resolves to a real menu button, so a renamed or
+  removed menu item can't leave a shortcut pointing at nothing.
+- **`test_status_strip.py`** — the bottom bar's status strip
+  (proposals/07): Simple mode shows only the mode, Quantitative adds the
+  matrix, its class chips, the unit and the aggregation, Qualitative
+  shows neither unit nor aggregation, a missing matrix says so, the strip
+  follows the model and the display-unit preference, each segment opens
+  the setting it names, and it lives beside `#page-tabs` rather than
+  inside it (`PageTabsView` would otherwise wipe it when a page is
+  added).
+- **`test_table_export.py`** / **`test_export_all_pages.py`** — the Risk
+  Summary's Copy as table / Export CSV… (proposals/01: quoting,
+  delimiters, the UTF-8 BOM asserted on the raw bytes, and the clipboard
+  fallback) and File › Export all pages / Print… (proposals/02: one
+  correctly-scoped file per page, named after the analysis, the live
+  canvas and active page untouched, no off-screen surface left behind,
+  and Print building one sheet per page plus the summary before tearing
+  itself down).
 - **`test_properties_modal.py`** — the shared Properties modal
   (double-click or the context menu's "Properties" item on any of the 5
   node types), driven through the real modal rather than by calling model
@@ -212,19 +466,30 @@ step for the app itself, so tests run directly against `index.html` as-is.
   was invisible to every model-level test that called `renameNode`
   directly instead. Also covers barrier metadata (design review
   finding 10, phase 1): type/owner/effectiveness, barriers only, rendered
-  and saved independent of the document's risk mode.
-- **`test_project_settings.py`** — the single "Project Settings" modal:
-  analysis name, identifier display mode, the risk analysis mode/matrix
-  picker, and the events/hour ↔ events/year display-unit preference. Also
-  covers the TLE aggregation toggle (design review finding 11, Quantitative
-  mode only): changing it calls `setTleAggregation` and the canvas TLE
-  badge names whichever policy produced its figure. And UI-review
-  finding 02's risk-class legend: appears once a matrix is selected (not
-  before), lists every class with its full label, and clears again if the
-  matrix is cleared. Structural review finding 09: committing a rename via
-  Tab (not a click, so focus has already moved on to the next field by the
-  time the 'change' event's model update triggers a modal body rebuild)
-  must not drop focus to `<body>`.
+  and saved independent of the document's risk mode. The Consequence's
+  Computed section shows the pre-/post-mitigation risk-class chip and
+  likelihood pair in Quantitative mode, a single chip in Qualitative.
+- **`test_project_settings.py`** — Settings › Project Settings…, the modal
+  for everything saved with the document (ui_fitness_proposal.md S2):
+  the Settings menu holding only Project Settings / Preferences; General
+  and Risk analysis tabs plus a Quantitative tab that appears only in
+  that mode (the active tab surviving the rebuild); name (blank rejected
+  and reverted); identifier display living here and not in the Node
+  Library; the wizard's mode cards with the matrix picker hidden in
+  Simple mode; the matrix summary + legend (UI-review finding 02)
+  appearing once a matrix is selected and clearing with it; the TLE
+  aggregation toggle (design review finding 11) and quantitative defaults
+  on the Quantitative tab; preset selection embedding a full copy; and
+  matrix import/export. Structural review finding 09: committing a rename
+  via Tab (not a click, so focus has already moved on to the next field
+  by the time the 'change' event's model update triggers a modal body
+  rebuild) must not drop focus to `<body>`. The toolbar title opening this
+  modal with Name focused is in `test_multi_page.py`.
+- **`test_preferences.py`** — Settings › Preferences… (S3): the Display /
+  Auto-arrange groups and the "not saved in the file" subtitle, the
+  display unit and line-annotation toggles applying immediately (no Done
+  needed, Escape doesn't lose them), persistence across a reload via
+  localStorage, and a corrupt or out-of-range stored value being ignored.
 - **`test_modal_view.py`** — the shared `ModalView.openModal` component
   every dialog in the app is built on (driven here through the Node Library
   and Warnings modals, any caller would do). Structural review finding 03:
@@ -253,23 +518,30 @@ step for the app itself, so tests run directly against `index.html` as-is.
   `Bowtie.ModalView.openModal` to record what was actually opened rather
   than racing the browser's paint.
 - **`test_toolbar_menus.py`** — the File/Add/View/Settings dropdown menus
-  and the empty-canvas/TLE context menu (Add Cause/Add Outcome reachable
-  from anywhere on the diagram, not just an existing Cause/Outcome node).
+  and the empty-canvas/TLE context menu (Add Threat/Add Consequence reachable
+  from anywhere on the diagram, not just an existing Threat/Consequence node).
   Also covers the bowtie-name button staying centered on the whole toolbar
   regardless of how unequal the left/right side groups' widths are (a real
   bug — `#toolbar`'s grid columns must be `1fr auto 1fr`, not `auto 1fr
   auto`; see `DESIGN_NOTES.md`'s `MenuBarController.js` entry), and the
-  wishlist fix where choosing "Add Cause"/"Add Outcome" from a right-click
+  wishlist fix where choosing "Add Threat"/"Add Consequence" from a right-click
   on the WRONG side of the TLE falls back to the toolbar's own default
   placement instead of landing on the wrong side.
-- **`test_welcome.py`** — the first-load welcome modal's three side-by-side
-  ways to start (New Bowtie Wizard / Upload a .json file / drag-and-drop),
-  driven directly via the `browser`/`base_url` fixtures rather than `page`
-  (which already drives past this modal). Confirms the drop zone reuses the
-  same validated import path as the upload button (via a synthesized
-  `change` event on the shared hidden `<input>`), not a second one. Also
-  covers the "Load Demo" button (stacked in the wizard column, not a fourth
-  column) and its Ctrl+Alt+D shortcut (demo_json_proposal.md) — including
+- **`test_welcome.py`** — the first-load flow (landing_page_proposal.md):
+  the start screen (one primary "Start a new bowtie", the demo's
+  Simple/Qualitative/Quantitative chooser, a single Open zone where Browse
+  and drag-and-drop are the same box and the whole start body accepts a
+  drop, a dot-grid overlay, no developer-shortcut/internal-id leaks in the
+  copy) and the two-step wizard (empty fields with Next disabled until
+  title/TLE/hazard are non-blank, the live preview, Enter to advance, Back
+  keeping everything typed, the mode cards with the matrix picker hidden
+  for Simple, and Create setting mode + an embedded preset copy that isn't
+  undo-able). Driven directly via the `browser`/`base_url` fixtures rather
+  than `page` (which already drives past this flow via
+  `conftest.complete_new_bowtie_wizard`). Confirms the drop zone reuses the
+  same validated import path as Browse (via a synthesized `change` event
+  on the shared hidden `<input>`), not a second one. Also covers "Explore
+  the demo" and its Ctrl+Alt+D shortcut (demo_json_proposal.md) — including
   that the shortcut does nothing once the modal has closed, and that
   loading the demo routes through `ImportExportController.loadDocument`'s
   same shape/version validation a real import gets (a deliberately staled
@@ -279,13 +551,13 @@ step for the app itself, so tests run directly against `index.html` as-is.
   layout, absent from paint — until the welcome flow completes, rather
   than painting a live-looking document behind the modal from first load.
 - **`test_auto_arrange_fix.py`** — auto-arrange-fix.md's two fixes: §4 (a
-  bare, zero-stop Cause/Outcome's line must never cross an unrelated
+  bare, zero-stop Threat/Consequence's line must never cross an unrelated
   barrier's box — geometry-sampled in both Loose and Tight mode, plus a
   dedicated Hazard-clearance check for the bare-line case specifically) and
-  §7 (the opt-in "pull causes/outcomes closer to their first real stop"
+  §7 (the opt-in "pull threats/consequences closer to their first real stop"
   Settings toggle — off-by-default parity with pre-toggle behavior, the
   forced-deep and fully-bare repositioning cases, that no barrier or
-  y-position ever moves, and the Outcome-side mirror). Also covers a line
+  y-position ever moves, and the Consequence-side mirror). Also covers a line
   (bare, or barrier-terminated short of the true TLE-adjacent column via
   "Connect Directly to TLE") extending its flat run to at least the
   diagram's shallowest occupied barrier column before bending, on both
@@ -308,7 +580,7 @@ step for the app itself, so tests run directly against `index.html` as-is.
   TRUE visible area (`PanZoomController.getVisibleRect()`), not the raw
   stored `viewBox`, which can understate it by several times over once SVG
   letterboxing is involved (see `DESIGN_NOTES.md`'s `MinimapView.js` entry).
-  Also covers a second, previously-uncaught cause of the same symptom: the
+  Also covers a second, previously-uncaught threat of the same symptom: the
   rectangle going stale after a plain window resize with no pan/zoom in
   between, since nothing was watching the SVG element's own rendered size —
   fixed via a `ResizeObserver` in `PanZoomController.js`.
@@ -323,20 +595,20 @@ step for the app itself, so tests run directly against `index.html` as-is.
   still renders synchronously with no added delay, and `MinimapView`'s own
   expensive clone step settles a mutation burst into exactly one reclone via
   its trailing debounce.
-- **`test_tight_spacing.py`** — Settings' Loose/Tight auto-arrange spacing:
+- **`test_tight_spacing.py`** — Preferences' Loose/Tight auto-arrange column spacing:
   tight mode measurably closer columns, still no horizontal label overlap,
   still clears the Hazard (a real bug caught live — see `DESIGN_NOTES.md`'s
   Auto-arrange horizontal-spacing section), and the per-side-depth fix
   (a shallower side no longer padded out to match a deeper one).
 - **`test_geometry.py`** — structural review finding 05: a shape constant
-  (TLE radius, Hazard size, Cause/Outcome width, barrier size) now lives
+  (TLE radius, Hazard size, Threat/Consequence width, barrier size) now lives
   exactly once, in `js/model/Geometry.js`, instead of being hand-copied into
   every file that needs it (AutoArrangeController's positioning maths
   chiefly). Verified by mutating `Bowtie.Geometry` at runtime and checking
-  that a newly-created TLE/Hazard/Cause/Outcome/barrier actually picks up
+  that a newly-created TLE/Hazard/Threat/Consequence/barrier actually picks up
   the change — proof the wiring is live, not a coincidentally-matching
   literal left behind by the refactor. Covers both of LineTopology's
-  barrier-creation paths (chained off a bare Cause/Outcome, and inserted
+  barrier-creation paths (chained off a bare Threat/Consequence, and inserted
   into an existing chain), which each carried their own separate copy of
   the same two literals before this.
 
@@ -380,7 +652,7 @@ where a click lands, what gets hovered.
 minimap (`MinimapView.js`) renders by cloning the main canvas's own
 nodes/connections layers wholesale, for visual fidelity — so it carries the
 exact same classes AND `data-id` attributes as the real thing, just scaled
-down. An unscoped `page.locator('.node.cause')`-style selector (or
+down. An unscoped `page.locator('.node.threat')`-style selector (or
 `[data-id="PB_1"]`) now matches both the real node and its minimap clone,
 which Playwright's default strict mode rejects as ambiguous. Always write
 `#bowtie-canvas .node...` (see `_drag_node_to` in `test_drag_ordering.py`

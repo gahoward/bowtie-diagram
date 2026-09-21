@@ -1,5 +1,5 @@
-"""bugs.md: dragging could visually resequence a barrier (or the Cause/
-Outcome feeding it) past a neighbour that Line.stops says comes
+"""bugs.md: dragging could visually resequence a barrier (or the Threat/
+Consequence feeding it) past a neighbour that Line.stops says comes
 immediately before/after it, contradicting the model's own order.
 DragController._sequenceBounds now clamps every drag to the tightest such
 constraint, on top of the pre-existing "stay on your own side of the TLE"
@@ -32,41 +32,41 @@ def _drag_node_to(page, selector, to_x, to_y, nth=None):
     page.wait_for_timeout(80)
 
 
-def test_cause_cannot_be_dragged_past_its_first_barrier(page):
+def test_threat_cannot_be_dragged_past_its_first_barrier(page):
     page.evaluate("""() => {
       const m = window.__lastModel;
-      m.addCause({x: 150, y: 200});
-      m.addPreventativeControl(m.causes[0].id);
+      m.addThreat({x: 150, y: 200});
+      m.addPreventativeControl(m.threats[0].id);
     }""")
     page.wait_for_timeout(100)
     pb1x = page.evaluate("() => window.__lastModel.preventativeBarriers[0].x")
 
-    _drag_node_to(page, ".node.cause", pb1x + 300, 200)
+    _drag_node_to(page, ".node.threat", pb1x + 300, 200)
 
-    causeX = page.evaluate("() => window.__lastModel.causes[0].x")
-    assert causeX <= pb1x
+    threatX = page.evaluate("() => window.__lastModel.threats[0].x")
+    assert threatX <= pb1x
 
 
-def test_outcome_cannot_be_dragged_past_its_first_barrier(page):
+def test_consequence_cannot_be_dragged_past_its_first_barrier(page):
     page.evaluate("""() => {
       const m = window.__lastModel;
-      m.addOutcome({x: 1200, y: 200});
-      m.addMitigativeControl(m.outcomes[0].id);
+      m.addConsequence({x: 1200, y: 200});
+      m.addMitigativeControl(m.consequences[0].id);
     }""")
     page.wait_for_timeout(100)
     mb1x = page.evaluate("() => window.__lastModel.mitigativeBarriers[0].x")
 
-    _drag_node_to(page, ".node.outcome", mb1x - 300, 200)
+    _drag_node_to(page, ".node.consequence", mb1x - 300, 200)
 
-    outcomeX = page.evaluate("() => window.__lastModel.outcomes[0].x")
-    assert outcomeX >= mb1x
+    consequenceX = page.evaluate("() => window.__lastModel.consequences[0].x")
+    assert consequenceX >= mb1x
 
 
 def test_barrier_cannot_be_dragged_past_its_successor_or_predecessor(page):
     page.evaluate("""() => {
       const m = window.__lastModel;
-      m.addCause({x: 150, y: 200});
-      const pb1 = m.addPreventativeControl(m.causes[0].id);
+      m.addThreat({x: 150, y: 200});
+      const pb1 = m.addPreventativeControl(m.threats[0].id);
       m.insertBarrier('preventativeBarrier', 'after', pb1.id); // PB_2
     }""")
     page.wait_for_timeout(100)
@@ -87,8 +87,8 @@ def test_barrier_cannot_be_dragged_past_its_successor_or_predecessor(page):
 def test_mitigative_barrier_ordering_mirrors_preventative_side(page):
     page.evaluate("""() => {
       const m = window.__lastModel;
-      m.addOutcome({x: 1200, y: 200});
-      const mb1 = m.addMitigativeControl(m.outcomes[0].id); // nearest outcome
+      m.addConsequence({x: 1200, y: 200});
+      const mb1 = m.addMitigativeControl(m.consequences[0].id); // nearest consequence
       m.insertBarrier('mitigativeBarrier', 'before', mb1.id); // MB_2, nearest TLE
     }""")
     page.wait_for_timeout(100)
@@ -96,7 +96,7 @@ def test_mitigative_barrier_ordering_mirrors_preventative_side(page):
 
     _drag_node_to(page, '.node.mitigative-barrier[data-id="MB_2"]', mb1x + 300, 200)
     mb2x_after = page.evaluate("() => window.__lastModel.mitigativeBarriers[1].x")
-    assert mb2x_after <= mb1x, "MB_2 (nearest TLE) must not be draggable past MB_1 (nearest Outcome)"
+    assert mb2x_after <= mb1x, "MB_2 (nearest TLE) must not be draggable past MB_1 (nearest Consequence)"
 
 
 def test_barrier_cannot_be_dragged_to_overlap_its_predecessor(page):
@@ -105,8 +105,8 @@ def test_barrier_cannot_be_dragged_to_overlap_its_predecessor(page):
     elements' actual widths, not just their position."""
     page.evaluate("""() => {
       const m = window.__lastModel;
-      m.addCause({x: 150, y: 200});
-      const pb1 = m.addPreventativeControl(m.causes[0].id);
+      m.addThreat({x: 150, y: 200});
+      const pb1 = m.addPreventativeControl(m.threats[0].id);
       m.insertBarrier('preventativeBarrier', 'after', pb1.id); // PB_2
     }""")
     page.wait_for_timeout(100)
@@ -120,37 +120,37 @@ def test_barrier_cannot_be_dragged_to_overlap_its_predecessor(page):
     assert pb2x_after - pb1x_after >= 36, "PB_2 must keep at least its own width clear of PB_1, not just its center"
 
 
-def test_cause_cannot_be_dragged_to_overlap_its_first_barrier(page):
+def test_threat_cannot_be_dragged_to_overlap_its_first_barrier(page):
     page.evaluate("""() => {
       const m = window.__lastModel;
-      m.addCause({x: 150, y: 200});
-      m.addPreventativeControl(m.causes[0].id);
+      m.addThreat({x: 150, y: 200});
+      m.addPreventativeControl(m.threats[0].id);
     }""")
     page.wait_for_timeout(100)
     pb1x = page.evaluate("() => window.__lastModel.preventativeBarriers[0].x")
 
-    _drag_node_to(page, ".node.cause", pb1x, 200)
+    _drag_node_to(page, ".node.threat", pb1x, 200)
 
-    causeX = page.evaluate("() => window.__lastModel.causes[0].x")
-    assert pb1x - causeX >= (140 / 2) + (36 / 2), "Cause's box must not overlap PB_1's box"
+    threatX = page.evaluate("() => window.__lastModel.threats[0].x")
+    assert pb1x - threatX >= (140 / 2) + (36 / 2), "Threat's box must not overlap PB_1's box"
 
 
 def test_shared_barrier_respects_the_tightest_of_its_feeding_lines(page):
-    """PB_1 is fed by two Causes; dragging one Cause closer to PB_1 tightens
-    PB_1's own left bound to whichever Cause is now further right."""
+    """PB_1 is fed by two Threats; dragging one Threat closer to PB_1 tightens
+    PB_1's own left bound to whichever Threat is now further right."""
     page.evaluate("""() => {
       const m = window.__lastModel;
-      m.addCause({x: 150, y: 400});
-      const pb1 = m.addPreventativeControl(m.causes[0].id);
-      m.addCause({x: 150, y: 600});
-      m.attachInputToPreventativeControl(m.causes[1].id, pb1.id);
+      m.addThreat({x: 150, y: 400});
+      const pb1 = m.addPreventativeControl(m.threats[0].id);
+      m.addThreat({x: 150, y: 600});
+      m.attachInputToPreventativeControl(m.threats[1].id, pb1.id);
     }""")
     page.wait_for_timeout(100)
     pb1x = page.evaluate("() => window.__lastModel.preventativeBarriers[0].x")
 
-    _drag_node_to(page, ".node.cause", pb1x - 10, 600, nth=1)
+    _drag_node_to(page, ".node.threat", pb1x - 10, 600, nth=1)
     tightest = page.evaluate(
-        "() => Math.max(window.__lastModel.causes[0].x, window.__lastModel.causes[1].x)"
+        "() => Math.max(window.__lastModel.threats[0].x, window.__lastModel.threats[1].x)"
     )
 
     _drag_node_to(page, '.node.preventative-barrier[data-id="PB_1"]', 0, 500)

@@ -10,22 +10,26 @@
 (function (Bowtie) {
   Bowtie.DEMO_DATA_VARIANTS = {
   "simple": {
-    "version": 10,
+    "version": 15,
     "name": "Demo: Pipeline Overpressure Release",
     "idCounters": {
       "page": 2,
-      "cause": 5,
-      "outcome": 5,
+      "threat": 5,
+      "consequence": 5,
       "preventativeBarrier": 4,
       "mitigativeBarrier": 4,
-      "line": 10,
-      "placement": 18
+      "line": 11,
+      "placement": 20,
+      "escalationFactor": 1,
+      "escalationBarrier": 1
     },
     "retiredIds": {
-      "cause": [],
-      "outcome": [],
+      "threat": [],
+      "consequence": [],
       "preventativeBarrier": [],
-      "mitigativeBarrier": []
+      "mitigativeBarrier": [],
+      "escalationFactor": [],
+      "escalationBarrier": []
     },
     "pages": [
       {
@@ -61,10 +65,10 @@
         }
       }
     ],
-    "causes": [
+    "threats": [
       {
         "id": "PLACEMENT_1",
-        "nodeId": "C_1",
+        "nodeId": "T_1",
         "x": 150,
         "y": 90,
         "w": 140,
@@ -73,7 +77,7 @@
       },
       {
         "id": "PLACEMENT_2",
-        "nodeId": "C_2",
+        "nodeId": "T_2",
         "x": 150,
         "y": 310,
         "w": 140,
@@ -82,7 +86,7 @@
       },
       {
         "id": "PLACEMENT_3",
-        "nodeId": "C_3",
+        "nodeId": "T_3",
         "x": 150,
         "y": 530,
         "w": 140,
@@ -91,7 +95,7 @@
       },
       {
         "id": "PLACEMENT_4",
-        "nodeId": "C_4",
+        "nodeId": "T_4",
         "x": 150,
         "y": 750,
         "w": 140,
@@ -100,7 +104,7 @@
       },
       {
         "id": "PLACEMENT_5",
-        "nodeId": "C_5",
+        "nodeId": "T_5",
         "x": 150,
         "y": 200,
         "w": 140,
@@ -108,10 +112,10 @@
         "pageId": "PAGE_2"
       }
     ],
-    "outcomes": [
+    "consequences": [
       {
         "id": "PLACEMENT_6",
-        "nodeId": "O_1",
+        "nodeId": "C_1",
         "x": 2070,
         "y": 90,
         "w": 140,
@@ -120,7 +124,7 @@
       },
       {
         "id": "PLACEMENT_7",
-        "nodeId": "O_2",
+        "nodeId": "C_2",
         "x": 2070,
         "y": 310,
         "w": 140,
@@ -129,7 +133,7 @@
       },
       {
         "id": "PLACEMENT_8",
-        "nodeId": "O_3",
+        "nodeId": "C_3",
         "x": 2070,
         "y": 530,
         "w": 140,
@@ -138,7 +142,7 @@
       },
       {
         "id": "PLACEMENT_9",
-        "nodeId": "O_4",
+        "nodeId": "C_4",
         "x": 2070,
         "y": 750,
         "w": 140,
@@ -147,7 +151,7 @@
       },
       {
         "id": "PLACEMENT_10",
-        "nodeId": "O_5",
+        "nodeId": "C_5",
         "x": 1550,
         "y": 200,
         "w": 140,
@@ -234,7 +238,7 @@
     "lines": [
       {
         "id": "LINE_1",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_1",
         "stops": [
           "PLACEMENT_11",
@@ -244,7 +248,7 @@
       },
       {
         "id": "LINE_2",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_2",
         "stops": [
           "PLACEMENT_12",
@@ -254,7 +258,7 @@
       },
       {
         "id": "LINE_3",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_3",
         "stops": [
           "PLACEMENT_13"
@@ -263,14 +267,14 @@
       },
       {
         "id": "LINE_4",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_4",
         "stops": [],
         "pageId": "PAGE_1"
       },
       {
         "id": "LINE_5",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_6",
         "stops": [
           "PLACEMENT_15",
@@ -280,7 +284,7 @@
       },
       {
         "id": "LINE_6",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_7",
         "stops": [
           "PLACEMENT_16"
@@ -289,7 +293,7 @@
       },
       {
         "id": "LINE_7",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_8",
         "stops": [
           "PLACEMENT_17"
@@ -298,14 +302,14 @@
       },
       {
         "id": "LINE_8",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_9",
         "stops": [],
         "pageId": "PAGE_1"
       },
       {
         "id": "LINE_9",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_5",
         "stops": [
           "PLACEMENT_14"
@@ -314,19 +318,28 @@
       },
       {
         "id": "LINE_10",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_10",
         "stops": [
           "PLACEMENT_18"
         ],
         "pageId": "PAGE_2"
+      },
+      {
+        "id": "LINE_11",
+        "originType": "escalationFactor",
+        "originId": "PLACEMENT_19",
+        "stops": [
+          "PLACEMENT_20"
+        ],
+        "pageId": "PAGE_1"
       }
     ],
     "library": {
-      "cause": [
+      "threat": [
         {
-          "id": "C_1",
-          "type": "cause",
+          "id": "T_1",
+          "type": "threat",
           "name": "Valve Inadvertently Opened",
           "description": "",
           "identifier": "",
@@ -336,8 +349,8 @@
           "protection": null
         },
         {
-          "id": "C_2",
-          "type": "cause",
+          "id": "T_2",
+          "type": "threat",
           "name": "Flange Leak",
           "description": "",
           "identifier": "",
@@ -347,8 +360,8 @@
           "protection": null
         },
         {
-          "id": "C_3",
-          "type": "cause",
+          "id": "T_3",
+          "type": "threat",
           "name": "Corrosion or Erosion",
           "description": "",
           "identifier": "",
@@ -358,8 +371,8 @@
           "protection": null
         },
         {
-          "id": "C_4",
-          "type": "cause",
+          "id": "T_4",
+          "type": "threat",
           "name": "Dropped Object or Vehicle Collision",
           "description": "",
           "identifier": "",
@@ -369,8 +382,8 @@
           "protection": null
         },
         {
-          "id": "C_5",
-          "type": "cause",
+          "id": "T_5",
+          "type": "threat",
           "name": "Bund Wall Cracking",
           "description": "",
           "identifier": "",
@@ -380,10 +393,10 @@
           "protection": null
         }
       ],
-      "outcome": [
+      "consequence": [
         {
-          "id": "O_1",
-          "type": "outcome",
+          "id": "C_1",
+          "type": "consequence",
           "name": "Pool Fire",
           "description": "",
           "identifier": "",
@@ -393,8 +406,8 @@
           "protection": null
         },
         {
-          "id": "O_2",
-          "type": "outcome",
+          "id": "C_2",
+          "type": "consequence",
           "name": "Flash Fire",
           "description": "",
           "identifier": "",
@@ -404,8 +417,8 @@
           "protection": null
         },
         {
-          "id": "O_3",
-          "type": "outcome",
+          "id": "C_3",
+          "type": "consequence",
           "name": "Explosion",
           "description": "",
           "identifier": "",
@@ -415,8 +428,8 @@
           "protection": null
         },
         {
-          "id": "O_4",
-          "type": "outcome",
+          "id": "C_4",
+          "type": "consequence",
           "name": "Release, No Ignition",
           "description": "",
           "identifier": "",
@@ -426,8 +439,8 @@
           "protection": null
         },
         {
-          "id": "O_5",
-          "type": "outcome",
+          "id": "C_5",
+          "type": "consequence",
           "name": "Ground/Water Contamination",
           "description": "",
           "identifier": "",
@@ -552,29 +565,107 @@
           "owner": "Emergency Response",
           "effectiveness": "medium"
         }
+      ],
+      "escalationFactor": [
+        {
+          "id": "EF_1",
+          "type": "escalationFactor",
+          "name": "ESDV not proof tested on schedule",
+          "description": "Valve closure time drifts out of specification between overhauls.",
+          "identifier": "",
+          "likelihoodClassId": null,
+          "severityClassId": null,
+          "frequency": null,
+          "protection": null,
+          "barrierType": null,
+          "owner": "Maintenance",
+          "effectiveness": null
+        }
+      ],
+      "escalationBarrier": [
+        {
+          "id": "EB_1",
+          "type": "escalationBarrier",
+          "name": "Quarterly partial-stroke test",
+          "description": "Scheduled test regime with results trended against the closure-time limit.",
+          "identifier": "",
+          "likelihoodClassId": null,
+          "severityClassId": null,
+          "frequency": null,
+          "protection": null,
+          "barrierType": "human",
+          "owner": "Maintenance",
+          "effectiveness": "medium"
+        }
       ]
     },
     "identifierDisplayMode": "internal",
+    "document": {
+      "reference": "HAZOP-2026-014",
+      "revision": "A",
+      "status": "Draft",
+      "date": "2026-03-12",
+      "author": "A. Fenwick (Process Safety)",
+      "checkedBy": "",
+      "approvedBy": "",
+      "organisation": "Northfield Terminal",
+      "notes": "Worked example shipped with the editor. Illustrative figures only — not a real assessment of any real facility.",
+      "history": [
+        {
+          "revision": "A",
+          "date": "2026-03-12",
+          "author": "A. Fenwick",
+          "summary": "First draft for internal comment."
+        }
+      ]
+    },
     "mode": "simple",
-    "riskMatrix": null
+    "riskMatrix": null,
+    "escalationFactors": [
+      {
+        "id": "PLACEMENT_19",
+        "nodeId": "EF_1",
+        "x": 470,
+        "y": 335,
+        "w": 120,
+        "h": 44,
+        "pageId": "PAGE_1",
+        "barrierId": "PLACEMENT_11"
+      }
+    ],
+    "escalationBarriers": [
+      {
+        "id": "PLACEMENT_20",
+        "nodeId": "EB_1",
+        "x": 470,
+        "y": 265,
+        "w": 55,
+        "h": 18,
+        "pageId": "PAGE_1"
+      }
+    ]
   },
   "qualitative": {
-    "version": 10,
+    "version": 15,
     "name": "Demo: Pipeline Overpressure Release",
     "idCounters": {
       "page": 2,
-      "cause": 5,
-      "outcome": 5,
+      "threat": 5,
+      "consequence": 5,
       "preventativeBarrier": 4,
       "mitigativeBarrier": 4,
-      "line": 10,
-      "placement": 18
+      "line": 11,
+      "placement": 20,
+      "escalationFactor": 1,
+      "escalationBarrier": 1
     },
     "retiredIds": {
-      "cause": [],
-      "outcome": [],
+      "threat": [],
+      "consequence": [],
       "preventativeBarrier": [],
-      "mitigativeBarrier": []
+      "mitigativeBarrier": [],
+      "escalationFactor": [],
+      "escalationBarrier": []
     },
     "pages": [
       {
@@ -610,10 +701,10 @@
         }
       }
     ],
-    "causes": [
+    "threats": [
       {
         "id": "PLACEMENT_1",
-        "nodeId": "C_1",
+        "nodeId": "T_1",
         "x": 150,
         "y": 90,
         "w": 140,
@@ -622,7 +713,7 @@
       },
       {
         "id": "PLACEMENT_2",
-        "nodeId": "C_2",
+        "nodeId": "T_2",
         "x": 150,
         "y": 310,
         "w": 140,
@@ -631,7 +722,7 @@
       },
       {
         "id": "PLACEMENT_3",
-        "nodeId": "C_3",
+        "nodeId": "T_3",
         "x": 150,
         "y": 530,
         "w": 140,
@@ -640,7 +731,7 @@
       },
       {
         "id": "PLACEMENT_4",
-        "nodeId": "C_4",
+        "nodeId": "T_4",
         "x": 150,
         "y": 750,
         "w": 140,
@@ -649,7 +740,7 @@
       },
       {
         "id": "PLACEMENT_5",
-        "nodeId": "C_5",
+        "nodeId": "T_5",
         "x": 150,
         "y": 200,
         "w": 140,
@@ -657,10 +748,10 @@
         "pageId": "PAGE_2"
       }
     ],
-    "outcomes": [
+    "consequences": [
       {
         "id": "PLACEMENT_6",
-        "nodeId": "O_1",
+        "nodeId": "C_1",
         "x": 2070,
         "y": 90,
         "w": 140,
@@ -669,7 +760,7 @@
       },
       {
         "id": "PLACEMENT_7",
-        "nodeId": "O_2",
+        "nodeId": "C_2",
         "x": 2070,
         "y": 310,
         "w": 140,
@@ -678,7 +769,7 @@
       },
       {
         "id": "PLACEMENT_8",
-        "nodeId": "O_3",
+        "nodeId": "C_3",
         "x": 2070,
         "y": 530,
         "w": 140,
@@ -687,7 +778,7 @@
       },
       {
         "id": "PLACEMENT_9",
-        "nodeId": "O_4",
+        "nodeId": "C_4",
         "x": 2070,
         "y": 750,
         "w": 140,
@@ -696,7 +787,7 @@
       },
       {
         "id": "PLACEMENT_10",
-        "nodeId": "O_5",
+        "nodeId": "C_5",
         "x": 1550,
         "y": 200,
         "w": 140,
@@ -783,7 +874,7 @@
     "lines": [
       {
         "id": "LINE_1",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_1",
         "stops": [
           "PLACEMENT_11",
@@ -793,7 +884,7 @@
       },
       {
         "id": "LINE_2",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_2",
         "stops": [
           "PLACEMENT_12",
@@ -803,7 +894,7 @@
       },
       {
         "id": "LINE_3",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_3",
         "stops": [
           "PLACEMENT_13"
@@ -812,14 +903,14 @@
       },
       {
         "id": "LINE_4",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_4",
         "stops": [],
         "pageId": "PAGE_1"
       },
       {
         "id": "LINE_5",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_6",
         "stops": [
           "PLACEMENT_15",
@@ -829,7 +920,7 @@
       },
       {
         "id": "LINE_6",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_7",
         "stops": [
           "PLACEMENT_16"
@@ -838,7 +929,7 @@
       },
       {
         "id": "LINE_7",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_8",
         "stops": [
           "PLACEMENT_17"
@@ -847,14 +938,14 @@
       },
       {
         "id": "LINE_8",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_9",
         "stops": [],
         "pageId": "PAGE_1"
       },
       {
         "id": "LINE_9",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_5",
         "stops": [
           "PLACEMENT_14"
@@ -863,19 +954,28 @@
       },
       {
         "id": "LINE_10",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_10",
         "stops": [
           "PLACEMENT_18"
         ],
         "pageId": "PAGE_2"
+      },
+      {
+        "id": "LINE_11",
+        "originType": "escalationFactor",
+        "originId": "PLACEMENT_19",
+        "stops": [
+          "PLACEMENT_20"
+        ],
+        "pageId": "PAGE_1"
       }
     ],
     "library": {
-      "cause": [
+      "threat": [
         {
-          "id": "C_1",
-          "type": "cause",
+          "id": "T_1",
+          "type": "threat",
           "name": "Valve Inadvertently Opened",
           "description": "",
           "identifier": "",
@@ -885,8 +985,8 @@
           "protection": null
         },
         {
-          "id": "C_2",
-          "type": "cause",
+          "id": "T_2",
+          "type": "threat",
           "name": "Flange Leak",
           "description": "",
           "identifier": "",
@@ -896,8 +996,8 @@
           "protection": null
         },
         {
-          "id": "C_3",
-          "type": "cause",
+          "id": "T_3",
+          "type": "threat",
           "name": "Corrosion or Erosion",
           "description": "",
           "identifier": "",
@@ -907,8 +1007,8 @@
           "protection": null
         },
         {
-          "id": "C_4",
-          "type": "cause",
+          "id": "T_4",
+          "type": "threat",
           "name": "Dropped Object or Vehicle Collision",
           "description": "",
           "identifier": "",
@@ -918,8 +1018,8 @@
           "protection": null
         },
         {
-          "id": "C_5",
-          "type": "cause",
+          "id": "T_5",
+          "type": "threat",
           "name": "Bund Wall Cracking",
           "description": "",
           "identifier": "",
@@ -929,10 +1029,10 @@
           "protection": null
         }
       ],
-      "outcome": [
+      "consequence": [
         {
-          "id": "O_1",
-          "type": "outcome",
+          "id": "C_1",
+          "type": "consequence",
           "name": "Pool Fire",
           "description": "",
           "identifier": "",
@@ -942,8 +1042,8 @@
           "protection": null
         },
         {
-          "id": "O_2",
-          "type": "outcome",
+          "id": "C_2",
+          "type": "consequence",
           "name": "Flash Fire",
           "description": "",
           "identifier": "",
@@ -953,8 +1053,8 @@
           "protection": null
         },
         {
-          "id": "O_3",
-          "type": "outcome",
+          "id": "C_3",
+          "type": "consequence",
           "name": "Explosion",
           "description": "",
           "identifier": "",
@@ -964,8 +1064,8 @@
           "protection": null
         },
         {
-          "id": "O_4",
-          "type": "outcome",
+          "id": "C_4",
+          "type": "consequence",
           "name": "Release, No Ignition",
           "description": "",
           "identifier": "",
@@ -975,8 +1075,8 @@
           "protection": null
         },
         {
-          "id": "O_5",
-          "type": "outcome",
+          "id": "C_5",
+          "type": "consequence",
           "name": "Ground/Water Contamination",
           "description": "",
           "identifier": "",
@@ -1101,9 +1201,66 @@
           "owner": "Emergency Response",
           "effectiveness": "medium"
         }
+      ],
+      "escalationFactor": [
+        {
+          "id": "EF_1",
+          "type": "escalationFactor",
+          "name": "ESDV not proof tested on schedule",
+          "description": "Valve closure time drifts out of specification between overhauls.",
+          "identifier": "",
+          "likelihoodClassId": null,
+          "severityClassId": null,
+          "frequency": null,
+          "protection": null,
+          "barrierType": null,
+          "owner": "Maintenance",
+          "effectiveness": null
+        }
+      ],
+      "escalationBarrier": [
+        {
+          "id": "EB_1",
+          "type": "escalationBarrier",
+          "name": "Quarterly partial-stroke test",
+          "description": "Scheduled test regime with results trended against the closure-time limit.",
+          "identifier": "",
+          "likelihoodClassId": null,
+          "severityClassId": null,
+          "frequency": null,
+          "protection": null,
+          "barrierType": "human",
+          "owner": "Maintenance",
+          "effectiveness": "medium"
+        }
       ]
     },
     "identifierDisplayMode": "internal",
+    "document": {
+      "reference": "HAZOP-2026-014",
+      "revision": "B",
+      "status": "For review",
+      "date": "2026-04-02",
+      "author": "A. Fenwick (Process Safety)",
+      "checkedBy": "R. Oduya (Operations)",
+      "approvedBy": "",
+      "organisation": "Northfield Terminal",
+      "notes": "Worked example shipped with the editor. Illustrative figures only — not a real assessment of any real facility.",
+      "history": [
+        {
+          "revision": "A",
+          "date": "2026-03-12",
+          "author": "A. Fenwick",
+          "summary": "First draft for internal comment."
+        },
+        {
+          "revision": "B",
+          "date": "2026-04-02",
+          "author": "A. Fenwick",
+          "summary": "Likelihood and severity classes assigned; sent for operations review."
+        }
+      ]
+    },
     "mode": "qualitative",
     "riskMatrix": {
       "id": "leaflet5",
@@ -1287,25 +1444,52 @@
           "A"
         ]
       ]
-    }
+    },
+    "escalationFactors": [
+      {
+        "id": "PLACEMENT_19",
+        "nodeId": "EF_1",
+        "x": 470,
+        "y": 335,
+        "w": 120,
+        "h": 44,
+        "pageId": "PAGE_1",
+        "barrierId": "PLACEMENT_11"
+      }
+    ],
+    "escalationBarriers": [
+      {
+        "id": "PLACEMENT_20",
+        "nodeId": "EB_1",
+        "x": 470,
+        "y": 265,
+        "w": 55,
+        "h": 18,
+        "pageId": "PAGE_1"
+      }
+    ]
   },
   "quantitative": {
-    "version": 10,
+    "version": 15,
     "name": "Demo: Pipeline Overpressure Release",
     "idCounters": {
       "page": 2,
-      "cause": 5,
-      "outcome": 5,
+      "threat": 5,
+      "consequence": 5,
       "preventativeBarrier": 4,
       "mitigativeBarrier": 4,
-      "line": 10,
-      "placement": 18
+      "line": 11,
+      "placement": 20,
+      "escalationFactor": 1,
+      "escalationBarrier": 1
     },
     "retiredIds": {
-      "cause": [],
-      "outcome": [],
+      "threat": [],
+      "consequence": [],
       "preventativeBarrier": [],
-      "mitigativeBarrier": []
+      "mitigativeBarrier": [],
+      "escalationFactor": [],
+      "escalationBarrier": []
     },
     "pages": [
       {
@@ -1341,10 +1525,10 @@
         }
       }
     ],
-    "causes": [
+    "threats": [
       {
         "id": "PLACEMENT_1",
-        "nodeId": "C_1",
+        "nodeId": "T_1",
         "x": 150,
         "y": 90,
         "w": 140,
@@ -1353,7 +1537,7 @@
       },
       {
         "id": "PLACEMENT_2",
-        "nodeId": "C_2",
+        "nodeId": "T_2",
         "x": 150,
         "y": 310,
         "w": 140,
@@ -1362,7 +1546,7 @@
       },
       {
         "id": "PLACEMENT_3",
-        "nodeId": "C_3",
+        "nodeId": "T_3",
         "x": 150,
         "y": 530,
         "w": 140,
@@ -1371,7 +1555,7 @@
       },
       {
         "id": "PLACEMENT_4",
-        "nodeId": "C_4",
+        "nodeId": "T_4",
         "x": 150,
         "y": 750,
         "w": 140,
@@ -1380,7 +1564,7 @@
       },
       {
         "id": "PLACEMENT_5",
-        "nodeId": "C_5",
+        "nodeId": "T_5",
         "x": 150,
         "y": 200,
         "w": 140,
@@ -1388,10 +1572,10 @@
         "pageId": "PAGE_2"
       }
     ],
-    "outcomes": [
+    "consequences": [
       {
         "id": "PLACEMENT_6",
-        "nodeId": "O_1",
+        "nodeId": "C_1",
         "x": 2070,
         "y": 90,
         "w": 140,
@@ -1400,7 +1584,7 @@
       },
       {
         "id": "PLACEMENT_7",
-        "nodeId": "O_2",
+        "nodeId": "C_2",
         "x": 2070,
         "y": 310,
         "w": 140,
@@ -1409,7 +1593,7 @@
       },
       {
         "id": "PLACEMENT_8",
-        "nodeId": "O_3",
+        "nodeId": "C_3",
         "x": 2070,
         "y": 530,
         "w": 140,
@@ -1418,7 +1602,7 @@
       },
       {
         "id": "PLACEMENT_9",
-        "nodeId": "O_4",
+        "nodeId": "C_4",
         "x": 2070,
         "y": 750,
         "w": 140,
@@ -1427,7 +1611,7 @@
       },
       {
         "id": "PLACEMENT_10",
-        "nodeId": "O_5",
+        "nodeId": "C_5",
         "x": 1550,
         "y": 200,
         "w": 140,
@@ -1514,7 +1698,7 @@
     "lines": [
       {
         "id": "LINE_1",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_1",
         "stops": [
           "PLACEMENT_11",
@@ -1524,7 +1708,7 @@
       },
       {
         "id": "LINE_2",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_2",
         "stops": [
           "PLACEMENT_12",
@@ -1534,7 +1718,7 @@
       },
       {
         "id": "LINE_3",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_3",
         "stops": [
           "PLACEMENT_13"
@@ -1543,14 +1727,14 @@
       },
       {
         "id": "LINE_4",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_4",
         "stops": [],
         "pageId": "PAGE_1"
       },
       {
         "id": "LINE_5",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_6",
         "stops": [
           "PLACEMENT_15",
@@ -1560,7 +1744,7 @@
       },
       {
         "id": "LINE_6",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_7",
         "stops": [
           "PLACEMENT_16"
@@ -1569,7 +1753,7 @@
       },
       {
         "id": "LINE_7",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_8",
         "stops": [
           "PLACEMENT_17"
@@ -1578,14 +1762,14 @@
       },
       {
         "id": "LINE_8",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_9",
         "stops": [],
         "pageId": "PAGE_1"
       },
       {
         "id": "LINE_9",
-        "originType": "cause",
+        "originType": "threat",
         "originId": "PLACEMENT_5",
         "stops": [
           "PLACEMENT_14"
@@ -1594,58 +1778,67 @@
       },
       {
         "id": "LINE_10",
-        "originType": "outcome",
+        "originType": "consequence",
         "originId": "PLACEMENT_10",
         "stops": [
           "PLACEMENT_18"
         ],
         "pageId": "PAGE_2"
+      },
+      {
+        "id": "LINE_11",
+        "originType": "escalationFactor",
+        "originId": "PLACEMENT_19",
+        "stops": [
+          "PLACEMENT_20"
+        ],
+        "pageId": "PAGE_1"
       }
     ],
     "library": {
-      "cause": [
+      "threat": [
         {
-          "id": "C_1",
-          "type": "cause",
+          "id": "T_1",
+          "type": "threat",
           "name": "Valve Inadvertently Opened",
-          "description": "",
+          "description": "Typical LOPA initiating event frequency, ~0.1/yr.",
           "identifier": "",
           "likelihoodClassId": null,
           "severityClassId": null,
           "frequency": {
-            "value": "0.001"
+            "value": "1.14E-5"
           },
           "protection": null
         },
         {
-          "id": "C_2",
-          "type": "cause",
+          "id": "T_2",
+          "type": "threat",
           "name": "Flange Leak",
-          "description": "",
+          "description": "Typical LOPA initiating event frequency, ~0.01/yr.",
           "identifier": "",
           "likelihoodClassId": null,
           "severityClassId": null,
           "frequency": {
-            "value": "0.01"
+            "value": "1.14E-6"
           },
           "protection": null
         },
         {
-          "id": "C_3",
-          "type": "cause",
+          "id": "T_3",
+          "type": "threat",
           "name": "Corrosion or Erosion",
-          "description": "",
+          "description": "Typical LOPA initiating event frequency, ~0.01/yr.",
           "identifier": "",
           "likelihoodClassId": null,
           "severityClassId": null,
           "frequency": {
-            "value": "0.0001"
+            "value": "1.14E-6"
           },
           "protection": null
         },
         {
-          "id": "C_4",
-          "type": "cause",
+          "id": "T_4",
+          "type": "threat",
           "name": "Dropped Object or Vehicle Collision",
           "description": "",
           "identifier": "",
@@ -1657,23 +1850,23 @@
           "protection": null
         },
         {
-          "id": "C_5",
-          "type": "cause",
+          "id": "T_5",
+          "type": "threat",
           "name": "Bund Wall Cracking",
-          "description": "",
+          "description": "Typical LOPA initiating event frequency, ~0.05/yr.",
           "identifier": "",
           "likelihoodClassId": null,
           "severityClassId": null,
           "frequency": {
-            "value": "0.00005"
+            "value": "5.7E-6"
           },
           "protection": null
         }
       ],
-      "outcome": [
+      "consequence": [
         {
-          "id": "O_1",
-          "type": "outcome",
+          "id": "C_1",
+          "type": "consequence",
           "name": "Pool Fire",
           "description": "",
           "identifier": "",
@@ -1683,8 +1876,8 @@
           "protection": null
         },
         {
-          "id": "O_2",
-          "type": "outcome",
+          "id": "C_2",
+          "type": "consequence",
           "name": "Flash Fire",
           "description": "",
           "identifier": "",
@@ -1694,8 +1887,8 @@
           "protection": null
         },
         {
-          "id": "O_3",
-          "type": "outcome",
+          "id": "C_3",
+          "type": "consequence",
           "name": "Explosion",
           "description": "",
           "identifier": "",
@@ -1705,8 +1898,8 @@
           "protection": null
         },
         {
-          "id": "O_4",
-          "type": "outcome",
+          "id": "C_4",
+          "type": "consequence",
           "name": "Release, No Ignition",
           "description": "",
           "identifier": "",
@@ -1716,8 +1909,8 @@
           "protection": null
         },
         {
-          "id": "O_5",
-          "type": "outcome",
+          "id": "C_5",
+          "type": "consequence",
           "name": "Ground/Water Contamination",
           "description": "",
           "identifier": "",
@@ -1867,9 +2060,76 @@
           "owner": "Emergency Response",
           "effectiveness": "medium"
         }
+      ],
+      "escalationFactor": [
+        {
+          "id": "EF_1",
+          "type": "escalationFactor",
+          "name": "ESDV not proof tested on schedule",
+          "description": "Valve closure time drifts out of specification between overhauls.",
+          "identifier": "",
+          "likelihoodClassId": null,
+          "severityClassId": null,
+          "frequency": null,
+          "protection": null,
+          "barrierType": null,
+          "owner": "Maintenance",
+          "effectiveness": null,
+          "degradation": {
+            "mode": "factor",
+            "value": "10"
+          }
+        }
+      ],
+      "escalationBarrier": [
+        {
+          "id": "EB_1",
+          "type": "escalationBarrier",
+          "name": "Quarterly partial-stroke test",
+          "description": "Scheduled test regime with results trended against the closure-time limit.",
+          "identifier": "",
+          "likelihoodClassId": null,
+          "severityClassId": null,
+          "frequency": null,
+          "protection": null,
+          "barrierType": "human",
+          "owner": "Maintenance",
+          "effectiveness": "medium"
+        }
       ]
     },
     "identifierDisplayMode": "internal",
+    "document": {
+      "reference": "HAZOP-2026-014",
+      "revision": "C",
+      "status": "Issued",
+      "date": "2026-05-20",
+      "author": "A. Fenwick (Process Safety)",
+      "checkedBy": "R. Oduya (Operations)",
+      "approvedBy": "M. Halvorsen (Technical Authority)",
+      "organisation": "Northfield Terminal",
+      "notes": "Worked example shipped with the editor. Illustrative figures only — not a real assessment of any real facility.",
+      "history": [
+        {
+          "revision": "A",
+          "date": "2026-03-12",
+          "author": "A. Fenwick",
+          "summary": "First draft for internal comment."
+        },
+        {
+          "revision": "B",
+          "date": "2026-04-02",
+          "author": "A. Fenwick",
+          "summary": "Likelihood and severity classes assigned; sent for operations review."
+        },
+        {
+          "revision": "C",
+          "date": "2026-05-20",
+          "author": "A. Fenwick",
+          "summary": "Barrier measures quantified (PFD/RRF); issued."
+        }
+      ]
+    },
     "mode": "quantitative",
     "riskMatrix": {
       "id": "leaflet5",
@@ -2053,7 +2313,30 @@
           "A"
         ]
       ]
-    }
+    },
+    "escalationFactors": [
+      {
+        "id": "PLACEMENT_19",
+        "nodeId": "EF_1",
+        "x": 470,
+        "y": 335,
+        "w": 120,
+        "h": 44,
+        "pageId": "PAGE_1",
+        "barrierId": "PLACEMENT_11"
+      }
+    ],
+    "escalationBarriers": [
+      {
+        "id": "PLACEMENT_20",
+        "nodeId": "EB_1",
+        "x": 470,
+        "y": 265,
+        "w": 55,
+        "h": 18,
+        "pageId": "PAGE_1"
+      }
+    ]
   }
 };
   // Back-compat alias for every existing call site written before demo

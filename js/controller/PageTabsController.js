@@ -34,6 +34,7 @@
           this._render();
         }
       });
+      window.addEventListener('resize', () => this._syncJumpVisibility());
 
       // Nothing in this app currently mutates `pages` outside this
       // controller's own handlers below, but re-rendering (and re-checking
@@ -44,6 +45,12 @@
     }
 
     getActivePageId() { return this.activePageId; }
+
+    // Programmatic page switch (the Warnings modal's "Show") -- same path
+    // as clicking the tab, listeners and all.
+    select(pageId) {
+      if (this.model.getPage(pageId)) this._select(pageId);
+    }
 
     onChange(fn) { this._listeners.push(fn); }
 
@@ -58,6 +65,20 @@
 
     _render() {
       this.view.render(this.model.pages, this.activePageId, { jumpOpen: this.jumpOpen });
+      this._syncJumpVisibility();
+    }
+
+    // "Jump to page" only earns its place once the tab strip has more
+    // pages than fit -- with every tab visible it just duplicates them
+    // (ui_fitness_proposal.md). Measured after render (and again on
+    // resize, see the constructor), since overflow is a layout fact.
+    _syncJumpVisibility() {
+      const scroll = this.container.querySelector('.page-tabs-scroll');
+      const jump = this.container.querySelector('.page-jump');
+      if (!scroll || !jump) return;
+      const overflowing = scroll.scrollWidth > scroll.clientWidth + 1;
+      jump.hidden = !overflowing;
+      if (!overflowing && this.jumpOpen) this.jumpOpen = false;
     }
 
     _scrollActiveIntoView() {

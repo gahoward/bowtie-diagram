@@ -2,20 +2,28 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<!-- Without this a tablet renders an emulated 980px viewport and
+     scales the whole app down (proposals/18). -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bowtie Diagram Editor</title>
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
   <div id="app" class="pre-welcome">
-    <div id="toolbar">
+    <header id="toolbar">
+      <!-- The app's name, for heading navigation. Visually hidden: the
+           toolbar already shows the analysis title, and a second visible
+           one would just take space. Inside the header so it sits in a
+           landmark rather than loose in the document (proposals/18). -->
+      <h1 class="sr-only">Bowtie Diagram Editor</h1>
       <div class="toolbar-group toolbar-left">
-        <button id="btn-undo" type="button" class="icon-btn" disabled title="Undo (Ctrl+Z)">
+        <button id="btn-undo" type="button" class="icon-btn" disabled title="Undo (Ctrl+Z)" aria-label="Undo">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M9 14 4 9l5-5"/>
             <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>
           </svg>
         </button>
-        <button id="btn-redo" type="button" class="icon-btn" disabled title="Redo (Ctrl+Y)">
+        <button id="btn-redo" type="button" class="icon-btn" disabled title="Redo (Ctrl+Y)" aria-label="Redo">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M15 14l5-5-5-5"/>
             <path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>
@@ -30,13 +38,19 @@
               <div class="menu-separator"></div>
               <button id="btn-export-svg" type="button" class="menu-dropdown-item" disabled>Export to SVG</button>
               <button id="btn-export-png" type="button" class="menu-dropdown-item" disabled>Export to PNG</button>
+              <div class="menu-separator"></div>
+              <button id="btn-export-all-svg" type="button" class="menu-dropdown-item" disabled>Export all pages as SVG…</button>
+              <button id="btn-export-all-png" type="button" class="menu-dropdown-item" disabled>Export all pages as PNG…</button>
+              <button id="btn-print" type="button" class="menu-dropdown-item" disabled>Print…</button>
             </div>
           </div>
           <div class="menu-bar-item">
             <button type="button" id="menu-trigger-add" class="menu-bar-trigger" disabled>Add</button>
             <div id="menu-dropdown-add" class="menu-dropdown" hidden>
-              <button id="btn-add-cause" type="button" class="menu-dropdown-item" disabled>Add Cause</button>
-              <button id="btn-add-outcome" type="button" class="menu-dropdown-item" disabled>Add Outcome</button>
+              <button id="btn-add-threat" type="button" class="menu-dropdown-item" disabled>Add Threat</button>
+              <button id="btn-add-consequence" type="button" class="menu-dropdown-item" disabled>Add Consequence</button>
+              <div class="menu-separator"></div>
+              <button id="btn-manage-ids" type="button" class="menu-dropdown-item" disabled>Node Library…</button>
             </div>
           </div>
           <div class="menu-bar-item">
@@ -44,35 +58,58 @@
             <div id="menu-dropdown-view" class="menu-dropdown" hidden>
               <button id="btn-auto-arrange" type="button" class="menu-dropdown-item" disabled>Auto-arrange</button>
               <button id="btn-reset-view" type="button" class="menu-dropdown-item" disabled>Reset view</button>
+              <button id="btn-risk-summary" type="button" class="menu-dropdown-item" disabled>Risk Summary…</button>
+              <button id="btn-barrier-register" type="button" class="menu-dropdown-item" disabled>Barrier Register…</button>
+              <button id="btn-barrier-criticality" type="button" class="menu-dropdown-item" disabled>Barrier Criticality…</button>
+              <div class="menu-separator"></div>
+              <button id="btn-shortcuts" type="button" class="menu-dropdown-item" disabled>Keyboard shortcuts…</button>
             </div>
           </div>
           <div class="menu-bar-item">
             <button type="button" id="menu-trigger-settings" class="menu-bar-trigger" disabled>Settings</button>
             <div id="menu-dropdown-settings" class="menu-dropdown" hidden>
-              <button id="btn-settings" type="button" class="menu-dropdown-item" disabled>Visual Settings…</button>
-              <button id="btn-manage-ids" type="button" class="menu-dropdown-item" disabled>Node Library…</button>
               <button id="btn-project-settings" type="button" class="menu-dropdown-item" disabled>Project Settings…</button>
+              <button id="btn-preferences" type="button" class="menu-dropdown-item" disabled>Preferences…</button>
             </div>
           </div>
         </div>
       </div>
       <button id="bowtie-name" type="button" class="toolbar-name" title="Rename this analysis">Untitled Bowtie</button>
       <div class="toolbar-group toolbar-right">
-        <button id="btn-warnings" type="button" class="warning-badge" hidden title="Warnings">
+        <button id="btn-warnings" type="button" class="warning-badge" hidden title="Warnings" aria-label="Warnings">
           <span class="warning-icon">&#9888;</span><span class="warning-count">0</span>
         </button>
       </div>
       <input id="import-file-input" type="file" accept="application/json,.json" hidden>
       <input id="import-risk-matrix-input" type="file" accept="application/json,.json" hidden>
-    </div>
-    <div id="canvas-wrapper">
-      <svg id="bowtie-canvas" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 800">
+    </header>
+    <!-- Landmarks (proposals/18): a screen-reader user navigates by
+         these, and axe reported the whole app as content outside any
+         landmark. header/main/footer rather than role="..." on a div --
+         the elements carry the roles natively. -->
+    <main id="canvas-wrapper">
+      <!-- role="application" so arrow keys reach the canvas's own
+           navigation rather than being eaten by the screen reader's
+           browse mode; every node carries a self-describing aria-label to
+           pay for that (proposals/13, open question 1). -->
+      <svg id="bowtie-canvas" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 800"
+           role="application" aria-roledescription="bowtie diagram"
+           aria-label="Bowtie diagram">
         <g id="connections-layer"></g>
         <g id="nodes-layer"></g>
       </svg>
       <div id="minimap-container"></div>
-    </div>
-    <div id="page-tabs"></div>
+      <!-- Announces the outcome of a keyboard action on the canvas
+           ("Removed T_1 from the page"). Polite, so it never interrupts
+           what the user is already hearing. -->
+      <div id="canvas-live-region" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+    </main>
+    <!-- One bottom bar: the page tabs (rebuilt wholesale by PageTabsView,
+         hence its own element) and the document's status strip beside it. -->
+    <footer id="bottom-bar">
+      <div id="page-tabs"></div>
+      <div id="status-strip-container"></div>
+    </footer>
   </div>
 
   <script src="js/model/Decimal.js"></script>
@@ -89,6 +126,7 @@
   <script src="js/model/Quantitative.js"></script>
   <script src="js/model/Warnings.js"></script>
   <script src="js/model/DocumentSerializer.js"></script>
+  <script src="js/model/Migrations.js"></script>
   <script src="js/model/NodeLibrary.js"></script>
   <script src="js/model/LineTopology.js"></script>
   <script src="js/model/BowtieModel.js"></script>
@@ -97,14 +135,26 @@
   <script src="js/data/RiskMatrixPresets.js"></script>
   <script src="js/data/DemoData.js"></script>
 
+  <script src="js/view/Dom.js"></script>
+  <script src="js/view/Svg.js"></script>
   <script src="js/view/TextWrap.js"></script>
   <script src="js/view/Layout.js"></script>
   <script src="js/view/ShapeRenderer.js"></script>
   <script src="js/view/ConnectionRenderer.js"></script>
   <script src="js/view/CanvasView.js"></script>
   <script src="js/view/ExportUtil.js"></script>
+  <script src="js/view/TableExport.js"></script>
+  <script src="js/view/SummaryModalView.js"></script>
+  <script src="js/view/PrintView.js"></script>
   <script src="js/view/MinimapView.js"></script>
   <script src="js/view/ModalView.js"></script>
+  <script src="js/view/FormControls.js"></script>
+  <script src="js/view/RiskModeCards.js"></script>
+  <script src="js/view/WelcomeIllustration.js"></script>
+  <script src="js/view/NodeLibraryView.js"></script>
+  <script src="js/view/SettingsFormView.js"></script>
+  <script src="js/view/WelcomeView.js"></script>
+  <script src="js/view/FatalErrorView.js"></script>
   <script src="js/view/CreateOrChooseNodeModal.js"></script>
   <script src="js/view/RiskFieldsForm.js"></script>
   <script src="js/view/PropertiesModal.js"></script>
@@ -112,6 +162,7 @@
   <script src="js/view/ContextMenuView.js"></script>
 
   <script src="js/controller/UndoController.js"></script>
+  <script src="js/controller/UnsavedChangesController.js"></script>
   <script src="js/controller/PageTabsController.js"></script>
   <script src="js/controller/ToolbarController.js"></script>
   <script src="js/controller/MenuBarController.js"></script>
@@ -121,12 +172,20 @@
   <script src="js/controller/AutoArrangeController.js"></script>
   <script src="js/controller/ImportExportController.js"></script>
   <script src="js/controller/PanZoomController.js"></script>
+  <script src="js/controller/RecoveryController.js"></script>
+  <script src="js/controller/RecentFilesController.js"></script>
   <script src="js/controller/WelcomeController.js"></script>
   <script src="js/controller/NodeLibraryController.js"></script>
   <script src="js/controller/ProjectSettingsController.js"></script>
   <script src="js/controller/WarningsController.js"></script>
-  <script src="js/controller/SettingsController.js"></script>
+  <script src="js/controller/RiskSummaryController.js"></script>
+  <script src="js/controller/BarrierRegisterController.js"></script>
+  <script src="js/controller/BarrierCriticalityController.js"></script>
+  <script src="js/controller/StatusStripController.js"></script>
+  <script src="js/controller/PreferencesController.js"></script>
   <script src="js/controller/FocusController.js"></script>
+  <script src="js/controller/CanvasKeyboardController.js"></script>
+  <script src="js/controller/ShortcutsController.js"></script>
 
   <script src="js/main.js"></script>
 </body>

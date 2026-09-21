@@ -11,8 +11,23 @@
   function validateRiskMatrix(raw) {
     if (!raw || typeof raw !== 'object') return { ok: false, error: 'Not a JSON object.' };
     if (!raw.id || !raw.name || !raw.cells) return { ok: false, error: 'Missing id/name/cells.' };
-    if (!['hour', 'year'].includes(raw.authoringUnit)) {
-      return { ok: false, error: 'authoringUnit must be "hour" or "year".' };
+    if (!['hour', 'year', 'lifetime'].includes(raw.authoringUnit)) {
+      return { ok: false, error: 'authoringUnit must be "hour", "year" or "lifetime".' };
+    }
+    // "lifetime" means the bands are probabilities per item life rather
+    // than rates (MIL-STD-882E, proposals/10). The item life is the one
+    // number such a standard doesn't supply, so the matrix has to state
+    // its own assumption -- without it there is no way to reach canonical
+    // events/hour, and silently picking one would bury the assumption.
+    if (raw.authoringUnit === 'lifetime') {
+      const exposure = Number(raw.authoringExposureHours);
+      if (!Number.isFinite(exposure) || exposure <= 0) {
+        return {
+          ok: false,
+          error: 'authoringUnit "lifetime" requires a positive authoringExposureHours '
+            + '(the item life the probabilities are stated over, in hours).',
+        };
+      }
     }
 
     const severity = raw.severityClasses || [];
@@ -31,18 +46,35 @@
     }
 
     // Ordinals contiguous from 0, one per class, no gaps or duplicates.
+    const contiguousFromZero = (values, label, field) => {
+      const sorted = values.slice().sort((a, b) => a - b);
+      for (let idx = 0; idx < sorted.length; idx += 1) {
+        if (sorted[idx] !== idx) {
+          return `${label} ${field} must be contiguous from 0 (got ${JSON.stringify(sorted)}).`;
+        }
+      }
+      return null;
+    };
     const classGroups = [
       { label: 'severityClasses', classes: severity },
       { label: 'likelihoodClasses', classes: likelihood },
     ];
     for (let g = 0; g < classGroups.length; g += 1) {
       const { label, classes } = classGroups[g];
-      const ordinals = classes.map((c) => c.ordinal).slice().sort((a, b) => a - b);
-      for (let idx = 0; idx < ordinals.length; idx += 1) {
-        if (ordinals[idx] !== idx) {
-          return { ok: false, error: `${label} ordinals must be contiguous from 0 (got ${JSON.stringify(ordinals)}).` };
-        }
-      }
+      const err = contiguousFromZero(classes.map((c) => c.ordinal), label, 'ordinals');
+      if (err) return { ok: false, error: err };
+    }
+
+    // `rank` orders risk classes by severity, 0 = worst. All-or-nothing:
+    // a partially ranked matrix is a mistake, not a default. See
+    // withRiskClassRanks below for the back-fill an unranked matrix gets.
+    const ranked = riskClasses.filter((r) => r.rank !== undefined && r.rank !== null);
+    if (ranked.length > 0 && ranked.length !== riskClasses.length) {
+      return { ok: false, error: 'riskClasses: either every class has a rank or none does.' };
+    }
+    if (ranked.length === riskClasses.length) {
+      const err = contiguousFromZero(riskClasses.map((r) => r.rank), 'riskClasses', 'ranks');
+      if (err) return { ok: false, error: err };
     }
 
     // likelihoodClasses must be sorted most-frequent-first (array order,
@@ -100,11 +132,42 @@
       } catch {
         return cls; // already reported above if this were reachable; kept defensive
       }
-      const canonical = raw.authoringUnit === 'year' ? Bowtie.convertHourYear(parsed, 'yearToHour') : parsed;
+      let canonical = parsed;
+      if (raw.authoringUnit === 'year') canonical = Bowtie.convertHourYear(parsed, 'yearToHour');
+      else if (raw.authoringUnit === 'lifetime') {
+        canonical = Bowtie.convertLifetimeHour(parsed, 'lifetimeToHour', raw.authoringExposureHours);
+      }
       return { ...cls, minValue: canonical.toDecimalString() };
     });
 
-    return { ok: true, matrix: { ...raw, likelihoodClasses: convertedLikelihood } };
+    return { ok: true, matrix: withRiskClassRanks({ ...raw, likelihoodClasses: convertedLikelihood }) };
+  }
+
+  // `rank` orders risk classes by severity, 0 = worst -- what the Risk
+  // Summary ranks by and what the legend/chips display in. Distinct from
+  // `ordinal` (higher = more severe/frequent) precisely because its
+  // direction is the opposite, which is why it has its own name.
+  //
+  // A matrix that omits it gets rank = array index, so every matrix
+  // authored or embedded in a document before this field existed keeps
+  // exactly its current meaning: the bundled presets and
+  // quantitative_mode_proposal.md have always listed risk classes
+  // most-severe-first, and index order is what the ranking code used to
+  // read directly. Idempotent, and safe on a null/odd matrix (returns it
+  // untouched) since it runs on every load, not only on a validated
+  // import.
+  function withRiskClassRanks(matrix) {
+    if (!matrix || !Array.isArray(matrix.riskClasses)) return matrix;
+    if (matrix.riskClasses.every((r) => r.rank !== undefined && r.rank !== null)) return matrix;
+    return { ...matrix, riskClasses: matrix.riskClasses.map((r, i) => ({ ...r, rank: i })) };
+  }
+
+  // Risk classes most-severe-first, whatever order the matrix lists them
+  // in -- the one place the legend, the summary chips and any future
+  // consumer get their display order from.
+  function riskClassesByRank(matrix) {
+    if (!matrix || !Array.isArray(matrix.riskClasses)) return [];
+    return withRiskClassRanks(matrix).riskClasses.slice().sort((a, b) => a.rank - b.rank);
   }
 
   // The mirror image of validateRiskMatrix's own conversion step, for
@@ -122,7 +185,11 @@
   function denormalizeRiskMatrixForExport(matrix) {
     const likelihoodClasses = matrix.likelihoodClasses.map((cls) => {
       const canonical = Bowtie.Decimal.parse(cls.minValue);
-      const authored = matrix.authoringUnit === 'year' ? Bowtie.convertHourYear(canonical, 'hourToYear') : canonical;
+      let authored = canonical;
+      if (matrix.authoringUnit === 'year') authored = Bowtie.convertHourYear(canonical, 'hourToYear');
+      else if (matrix.authoringUnit === 'lifetime') {
+        authored = Bowtie.convertLifetimeHour(canonical, 'hourToLifetime', matrix.authoringExposureHours);
+      }
       return { ...cls, minValue: authored.toDecimalString() };
     });
     return { ...matrix, likelihoodClasses };
@@ -130,4 +197,6 @@
 
   Bowtie.validateRiskMatrix = validateRiskMatrix;
   Bowtie.denormalizeRiskMatrixForExport = denormalizeRiskMatrixForExport;
+  Bowtie.withRiskClassRanks = withRiskClassRanks;
+  Bowtie.riskClassesByRank = riskClassesByRank;
 })(window.Bowtie = window.Bowtie || {});

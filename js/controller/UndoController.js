@@ -6,7 +6,7 @@
   // (deleteElement, renameElement) mutate or remove the very element being
   // looked up. Each resolver reads whichever argument names the
   // anchor/element/line this particular method is scoped to.
-  // addCause/addOutcome don't need a findById lookup: PageScopedModel
+  // addThreat/addConsequence don't need a findById lookup: PageScopedModel
   // always injects `pageId` directly into their opts before the call ever
   // reaches this proxy. Callers that predate multi-page support (every
   // existing test included) omit it instead, relying on BowtieModel's own
@@ -14,8 +14,8 @@
   // this resolves to the exact same page the real call is about to use,
   // rather than skipping the snapshot for lack of an explicit pageId.
   const PAGE_RESOLVERS = {
-    addCause: (rawModel, args) => (args[0] && args[0].pageId) || rawModel.pages[0].id,
-    addOutcome: (rawModel, args) => (args[0] && args[0].pageId) || rawModel.pages[0].id,
+    addThreat: (rawModel, args) => (args[0] && args[0].pageId) || rawModel.pages[0].id,
+    addConsequence: (rawModel, args) => (args[0] && args[0].pageId) || rawModel.pages[0].id,
     addPreventativeControl: (rawModel, args) => rawModel.findById(args[0]).pageId,
     addMitigativeControl: (rawModel, args) => rawModel.findById(args[0]).pageId,
     insertBarrier: (rawModel, args) => rawModel.findById(args[2]).pageId,
@@ -38,6 +38,11 @@
       return first ? rawModel.findById(first.id).pageId : null;
     },
     swapBarrierWithNeighbor: (rawModel, args) => rawModel.findById(args[1]).pageId,
+    // Escalation factors (proposals/08): the anchor's page, like every
+    // other id-scoped creation above.
+    addEscalationFactor: (rawModel, args) => rawModel.findById(args[0]).pageId,
+    addEscalationBarrier: (rawModel, args) => rawModel.findById(args[0]).pageId,
+    attachExistingEscalationBarrier: (rawModel, args) => rawModel.findById(args[0]).pageId,
   };
 
   // Genuinely document-wide mutations — one whole-document snapshot each,
@@ -58,9 +63,17 @@
     'reEnableId', 'disableRetiredId', 'reassignId', 'setName',
     'addNode', 'renameNode', 'deleteNode', 'setMode', 'setRiskMatrix', 'setIdentifierDisplayMode',
     'setTleAggregation', 'setQuantitativeDefaults',
+    // proposals/20. Document identity is document-wide by definition --
+    // an approval is of the analysis, not of one page of it.
+    'setDocumentMetadata', 'addDocumentRevision', 'removeDocumentRevision',
+    // proposals/22. A cross-page link spans two pages by definition, and
+    // escalating a consequence CREATES a page -- neither can be a
+    // page-scoped step, and undoing an escalation has to take the new
+    // page with it rather than leaving an empty one behind.
+    'linkPageToConsequence', 'unlinkPage', 'escalateConsequenceToNewPage',
   ];
 
-  // addCause/addOutcome/addPreventativeControl/addMitigativeControl/
+  // addThreat/addConsequence/addPreventativeControl/addMitigativeControl/
   // insertBarrier are MIXED (node_library_proposal.md "Undo tier"): each
   // accepts two call shapes -- `{ name, ... }` (create a brand-new node AND
   // a new placement in one call: a document-level step, so undoing it
@@ -70,13 +83,15 @@
   // shape a given call used has to be read from ITS OWN arguments, not just
   // its method name -- the one dispatch case here that isn't mechanical.
   const WHOLE_DOCUMENT_ON_CREATE = [
-    'addCause', 'addOutcome', 'addPreventativeControl', 'addMitigativeControl', 'insertBarrier',
+    'addThreat', 'addConsequence', 'addPreventativeControl', 'addMitigativeControl', 'insertBarrier',
+    'addEscalationFactor', 'addEscalationBarrier',
   ];
   // Index of the `opts` argument within each method's own parameter list --
   // `{ nodeId }` present in opts means "place an existing node" (page-
   // scoped); its absence means "create a new node" (document-scoped).
   const OPTS_ARG_INDEX = {
-    addCause: 0, addOutcome: 0, addPreventativeControl: 1, addMitigativeControl: 1, insertBarrier: 3,
+    addThreat: 0, addConsequence: 0, addPreventativeControl: 1, addMitigativeControl: 1, insertBarrier: 3,
+    addEscalationFactor: 1, addEscalationBarrier: 1,
   };
   function isPlacingExistingNode(methodName, args) {
     const opts = args[OPTS_ARG_INDEX[methodName]] || {};
@@ -88,7 +103,7 @@
   // "add a page", etc. becomes one undo step automatically, with no changes
   // needed in the controllers that already call these methods on `model`.
   // Everything else (property reads, non-mutating methods) passes through
-  // untouched, so existing code like `this.model.causes` or
+  // untouched, so existing code like `this.model.threats` or
   // `this.model.findById(id)` keeps working exactly as before.
   //
   // Undo/redo runs on two independent tiers rather than one shared stack:

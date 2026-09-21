@@ -10,7 +10,7 @@
   // shape.
   //
   // Design review finding 07: this used to be four separate classes
-  // (Cause/Outcome/PreventativeBarrier/MitigativeBarrier) whose bodies
+  // (Threat/Consequence/PreventativeBarrier/MitigativeBarrier) whose bodies
   // were otherwise byte-identical -- every field, every line, the same --
   // differing only in `type` and each kind's own default w/h. Collapsing
   // them doesn't touch the actual duplication finding 07 was about (which
@@ -23,29 +23,39 @@
   // Every live construction site passes `w`/`h` explicitly; the defaults
   // below only matter when parsing a document (DocumentSerializer) whose
   // stored placement is missing one -- an older or hand-edited file.
-  // Cause/Outcome's `h` (60) has no Geometry entry of its own -- it's a
+  // Threat/Consequence's `h` (60) has no Geometry entry of its own -- it's a
   // dynamic minimum a real box always grows past once its name wraps
   // (Layout.MIN_H), not a true fixed shape constant the way `w` is.
   const DEFAULT_DIMENSIONS = {
-    cause: { w: Bowtie.Geometry.CAUSE_OUTCOME_W, h: 60 },
-    outcome: { w: Bowtie.Geometry.CAUSE_OUTCOME_W, h: 60 },
+    threat: { w: Bowtie.Geometry.THREAT_CONSEQUENCE_W, h: 60 },
+    consequence: { w: Bowtie.Geometry.THREAT_CONSEQUENCE_W, h: 60 },
     preventativeBarrier: { w: Bowtie.Geometry.BARRIER_W, h: Bowtie.Geometry.BARRIER_H },
     mitigativeBarrier: { w: Bowtie.Geometry.BARRIER_W, h: Bowtie.Geometry.BARRIER_H },
+    escalationFactor: { w: Bowtie.Geometry.ESCALATION_FACTOR_W, h: Bowtie.Geometry.ESCALATION_FACTOR_H },
+    escalationBarrier: { w: Bowtie.Geometry.ESCALATION_BARRIER_W, h: Bowtie.Geometry.ESCALATION_BARRIER_H },
   };
 
   class Placement {
     constructor({
-      id, type, nodeId, x = 0, y = 0, w, h, pageId,
+      id, type, nodeId, x = 0, y = 0, w, h, pageId, barrierId = null,
     } = {}) {
       const defaults = DEFAULT_DIMENSIONS[type] || {};
       this.id = id;
-      this.type = type; // 'cause' | 'outcome' | 'preventativeBarrier' | 'mitigativeBarrier'
+      // 'threat' | 'consequence' | 'preventativeBarrier' | 'mitigativeBarrier'
+      // | 'escalationFactor' | 'escalationBarrier'
+      this.type = type;
       this.nodeId = nodeId;
       this.x = x;
       this.y = y;
       this.w = w ?? defaults.w;
       this.h = h ?? defaults.h;
       this.pageId = pageId;
+      // Escalation factors only (proposals/08): the barrier PLACEMENT this
+      // factor degrades. An EF is the one placement kind that is anchored
+      // to another placement rather than free on the page -- it has no
+      // meaning apart from the barrier it hangs off, and deleting that
+      // barrier takes it with it. Null for every other kind.
+      this.barrierId = barrierId;
     }
   }
 

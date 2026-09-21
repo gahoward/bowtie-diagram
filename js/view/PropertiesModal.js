@@ -1,9 +1,11 @@
 (function (Bowtie) {
   const TYPE_LABELS = {
-    cause: 'Cause',
-    outcome: 'Outcome',
+    threat: 'Threat',
+    consequence: 'Consequence',
     preventativeBarrier: 'Preventative Barrier',
     mitigativeBarrier: 'Mitigative Barrier',
+    escalationFactor: 'Escalation Factor',
+    escalationBarrier: 'Escalation Barrier',
     topLevelEvent: 'Top-Level Event',
     hazard: 'Hazard',
   };
@@ -92,7 +94,9 @@
     swatch.className = 'modal-risk-chip-swatch';
     swatch.style.background = riskClass.colour || '#888';
     const label = document.createElement('span');
-    label.textContent = `${riskClass.id} — ${riskClass.label}`;
+    // Every shipped preset's label already leads with the letter ("A -
+    // Intolerable"), so the label alone is the whole chip text.
+    label.textContent = riskClass.label;
     chip.appendChild(swatch);
     chip.appendChild(label);
     return chip;
@@ -122,44 +126,55 @@
     if (!excludedThreatCount) return;
     const note = document.createElement('p');
     note.className = 'modal-computed-note';
-    note.textContent = `${excludedThreatCount} contributing cause(s) excluded (frequency Unknown) -- `
+    note.textContent = `${excludedThreatCount} contributing threat(s) excluded (frequency Unknown) -- `
       + 'this figure is not the full picture.';
     container.appendChild(note);
   }
 
-  // The Computed section for an Outcome: risk class chip (either risk
-  // mode) plus, in Quantitative mode, the computed residual likelihood and
-  // any excluded-threat note (quantitative_mode_proposal.md "Canvas
-  // badges"/"Computed values are never stored").
-  function buildOutcomeComputedSection(model, el, displayUnit) {
-    if (model.mode === 'simple' || !model.riskMatrix) return null;
+  function makeRiskClassRow(label, riskClass) {
+    const row = document.createElement('div');
+    row.className = 'modal-computed-row';
+    const l = document.createElement('span');
+    l.className = 'modal-computed-label';
+    l.textContent = label;
+    row.appendChild(l);
+    row.appendChild(makeRiskClassChip(riskClass));
+    return row;
+  }
+
+  // The Computed section for an Consequence: risk class chip (either risk
+  // mode) plus, in Quantitative mode, the pre-mitigation (inherent, no
+  // barriers) and post-mitigation (residual) pair of both the class and
+  // the computed likelihood, and any excluded-threat note
+  // (quantitative_mode_proposal.md "Canvas badges"/"Computed values are
+  // never stored"). Qualitative mode has no pre-mitigation half -- see
+  // Quantitative.assessConsequence -- so it keeps the single unlabelled
+  // "Risk class" row.
+  function buildConsequenceComputedSection(model, el, displayUnit) {
+    const assessment = model.assessConsequence(el.id);
+    if (!assessment) return null;
     const section = makeSection('Computed');
     let any = false;
+    const { pre, post } = assessment;
 
-    const riskClassId = model.getConsequenceRiskClass(el.id);
-    if (riskClassId) {
-      const riskClass = Bowtie.RiskMatrix.riskClass(model.riskMatrix, riskClassId);
-      if (riskClass) {
-        const row = document.createElement('div');
-        row.className = 'modal-computed-row';
-        const l = document.createElement('span');
-        l.className = 'modal-computed-label';
-        l.textContent = 'Risk class';
-        row.appendChild(l);
-        row.appendChild(makeRiskClassChip(riskClass));
-        section.appendChild(row);
-        any = true;
-      }
+    if (pre && pre.riskClass) {
+      section.appendChild(makeRiskClassRow('Risk class (pre-mitigation, inherent)', pre.riskClass));
+      any = true;
+    }
+    if (post.riskClass) {
+      section.appendChild(makeRiskClassRow(pre ? 'Risk class (post-mitigation, residual)' : 'Risk class', post.riskClass));
+      any = true;
     }
 
     if (model.mode === 'quantitative') {
-      const residual = model.computeConsequenceLikelihood(el.id);
-      const text = formatLikelihood(residual.value, displayUnit);
-      if (text) {
-        section.appendChild(makeComputedRow('Likelihood (residual)', text));
-        appendExcludedNote(section, residual.excludedThreatCount);
-        any = true;
+      const inherentText = pre.likelihood ? formatLikelihood(pre.likelihood.value, displayUnit) : null;
+      const residualText = post.likelihood ? formatLikelihood(post.likelihood.value, displayUnit) : null;
+      if (inherentText) section.appendChild(makeComputedRow('Likelihood (pre-mitigation, inherent)', inherentText));
+      if (residualText) {
+        section.appendChild(makeComputedRow('Likelihood (post-mitigation, residual)', residualText));
+        appendExcludedNote(section, post.likelihood.excludedThreatCount);
       }
+      if (inherentText || residualText) any = true;
     }
 
     return any ? section : null;
@@ -189,11 +204,11 @@
     return section;
   }
 
-  // The Computed section for the TLE: the highest contributing cause's
+  // The Computed section for the TLE: the highest contributing threat's
   // frequency x its own known preventative barriers (BowtieModel.
   // computeTleLikelihoodForActivePage), residual and inherent (before any
   // barriers), Quantitative mode only -- Qualitative mode has no arithmetic
-  // combination defined for causes at all (each is a direct class pick).
+  // combination defined for threats at all (each is a direct class pick).
   function buildTleComputedSection(model, displayUnit) {
     if (model.mode !== 'quantitative') return null;
     const residual = model.computeTleLikelihoodForActivePage();
@@ -210,7 +225,7 @@
   }
 
   // Bowtie.openPropertiesModal({model, el, displayUnit}) -- the single
-  // modal every node type (Cause/Outcome/Barrier/TLE/Hazard) opens on
+  // modal every node type (Threat/Consequence/Barrier/TLE/Hazard) opens on
   // double-click or the context menu's "Properties" item. Replaces the old
   // ad hoc rename-only modal: Identity (name/description, + identifier for
   // library nodes in custom-identifier mode, + barrier type/owner/
@@ -219,8 +234,17 @@
   // mode), and a read-only Computed section wherever BowtieModel has
   // something derived to show.
   function openPropertiesModal({ model, el, displayUnit = 'hour' }) {
-    const isNode = ['cause', 'outcome', 'preventativeBarrier', 'mitigativeBarrier'].includes(el.type);
-    const isBarrier = el.type === 'preventativeBarrier' || el.type === 'mitigativeBarrier';
+    const isNode = [
+      'threat', 'consequence', 'preventativeBarrier', 'mitigativeBarrier',
+      'escalationFactor', 'escalationBarrier',
+    ].includes(el.type);
+    // Escalation factors and their controls carry the same descriptive
+    // metadata a barrier does -- type, owner, effectiveness -- because the
+    // same questions apply ("whose job is this, and how well does it
+    // work?"). They carry no `protection`: an escalation factor is
+    // deliberately outside the quantitative fold (proposals/08), so the
+    // Risk Analysis section has nothing to offer them either.
+    const isBarrier = ['preventativeBarrier', 'mitigativeBarrier', 'escalationBarrier'].includes(el.type);
     const node = isNode ? model.getNode(el.nodeId) : null;
     const currentName = isNode ? node.name : el.name;
     const displayId = isNode ? model.displayIdentifierFor(node) : el.id;
@@ -242,18 +266,36 @@
       hint.textContent = `Internal id: ${node.id}`;
       identitySection.appendChild(hint);
     }
+    body.appendChild(identitySection);
+
+    // Barrier metadata (design review finding 10, phase 1) is descriptive
+    // -- who owns it, what kind, how good -- not identity, so it gets its
+    // own section rather than padding out Identity.
     let barrierTypeField = null;
     let ownerField = null;
     let effectivenessField = null;
     if (isBarrier) {
+      const barrierSection = makeSection('Barrier');
       barrierTypeField = makeSelectField('Barrier type', BARRIER_TYPES, node.barrierType);
-      identitySection.appendChild(barrierTypeField.wrap);
+      barrierSection.appendChild(barrierTypeField.wrap);
       ownerField = makeTextField('Owner', node.owner);
-      identitySection.appendChild(ownerField.wrap);
+      barrierSection.appendChild(ownerField.wrap);
       effectivenessField = makeSelectField('Effectiveness', EFFECTIVENESS_LEVELS, node.effectiveness);
-      identitySection.appendChild(effectivenessField.wrap);
+      barrierSection.appendChild(effectivenessField.wrap);
+      body.appendChild(barrierSection);
     }
-    body.appendChild(identitySection);
+    // An escalation factor gets an owner but no type or effectiveness
+    // (proposals/08 proposed all three). A factor is a PROBLEM, not a
+    // control: "how effective is this degradation?" has no answer, and
+    // "hardware or human?" describes the thing being degraded rather than
+    // the degradation. Who is accountable for it, though, is exactly what
+    // an escalation factor needs recorded against it.
+    if (el.type === 'escalationFactor') {
+      const ownerSection = makeSection('Ownership');
+      ownerField = makeTextField('Owner', node.owner);
+      ownerSection.appendChild(ownerField.wrap);
+      body.appendChild(ownerSection);
+    }
 
     let riskFields = null;
     if (isNode && model.mode !== 'simple') {
@@ -263,7 +305,7 @@
     }
 
     let computedSection = null;
-    if (el.type === 'outcome') computedSection = buildOutcomeComputedSection(model, el, displayUnit);
+    if (el.type === 'consequence') computedSection = buildConsequenceComputedSection(model, el, displayUnit);
     else if (el.type === 'topLevelEvent') computedSection = buildTleComputedSection(model, displayUnit);
     else if (isBarrier && model.mode === 'quantitative') computedSection = buildBarrierComputedSection(model, el, displayUnit);
     if (computedSection) body.appendChild(computedSection);
@@ -314,6 +356,9 @@
                     owner: ownerField.input.value.trim(),
                     effectiveness: effectivenessField.select.value || null,
                   } : {}),
+                  // An escalation factor has an owner and nothing else
+                  // from that group -- see the Ownership section above.
+                  ...(el.type === 'escalationFactor' ? { owner: ownerField.input.value.trim() } : {}),
                   ...riskValues,
                 });
               } else {

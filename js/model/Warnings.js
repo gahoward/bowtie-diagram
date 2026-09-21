@@ -20,21 +20,26 @@
     getWarnings() {
       const model = this.model;
       const warnings = [];
-      const usedPb = new Set(model.lines.filter((l) => l.originType === 'cause').flatMap((l) => l.stops));
+      const usedPb = new Set(model.lines.filter((l) => l.originType === 'threat').flatMap((l) => l.stops));
       model.preventativeBarriers.forEach((pb) => {
         if (!usedPb.has(pb.id)) {
           // Always safe: a live barrier's page can't have been deleted,
           // since deletePage cascades to remove it too.
           const page = model.getPage(pb.pageId);
           const node = model.getNode(pb.nodeId);
+          // `message` is the full, self-contained sentence (what a log or
+          // an export note wants); `detail` is the same finding without
+          // the who/where, for a UI that already shows those as their own
+          // columns (WarningsController's rows).
           warnings.push({
             id: pb.id, type: 'orphaned-preventative-control', severity: 'blocking',
             pageId: page.id, pageName: page.name,
-            message: `${node.id} (${node.name}) on page "${page.name}" is not connected to any Cause.`,
+            message: `${node.id} (${node.name}) on page "${page.name}" is not connected to any Threat.`,
+            detail: 'Not connected to any Threat — nothing flows through it.',
           });
         }
       });
-      const usedMb = new Set(model.lines.filter((l) => l.originType === 'outcome').flatMap((l) => l.stops));
+      const usedMb = new Set(model.lines.filter((l) => l.originType === 'consequence').flatMap((l) => l.stops));
       model.mitigativeBarriers.forEach((mb) => {
         if (!usedMb.has(mb.id)) {
           const page = model.getPage(mb.pageId);
@@ -42,10 +47,105 @@
           warnings.push({
             id: mb.id, type: 'orphaned-mitigative-control', severity: 'blocking',
             pageId: page.id, pageName: page.name,
-            message: `${node.id} (${node.name}) on page "${page.name}" is not connected to any Outcome.`,
+            message: `${node.id} (${node.name}) on page "${page.name}" is not connected to any Consequence.`,
+            detail: 'Not connected to any Consequence — nothing flows through it.',
           });
         }
       });
+      // Escalation factors (proposals/08). Two checks, mirroring the two
+      // above in spirit but not in severity:
+      //
+      //   - an escalation barrier on no escalation line is an orphan in
+      //     exactly the sense the barrier checks above mean -- it claims
+      //     to control something and controls nothing -- so it is
+      //     BLOCKING, and export stops until it is resolved;
+      //   - an escalation factor with no escalation barrier is a real
+      //     finding, not a broken document: "this barrier can be degraded
+      //     and nothing is stopping that" is often exactly what an
+      //     analyst means to record, so it is ADVISORY.
+      const usedEb = new Set(
+        model.lines.filter((l) => l.originType === 'escalationFactor').flatMap((l) => l.stops),
+      );
+      model.escalationBarriers.forEach((eb) => {
+        if (!usedEb.has(eb.id)) {
+          const page = model.getPage(eb.pageId);
+          const node = model.getNode(eb.nodeId);
+          warnings.push({
+            id: eb.id, type: 'orphaned-escalation-barrier', severity: 'blocking',
+            pageId: page.id, pageName: page.name,
+            message: `${node.id} (${node.name}) on page "${page.name}" is not connected to any Escalation Factor.`,
+            detail: 'Not connected to any Escalation Factor — it controls nothing.',
+          });
+        }
+      });
+      model.escalationFactors.forEach((ef) => {
+        // One definition, shared with the arithmetic -- see
+        // BowtieModel.isEscalationFactorUncontrolled.
+        if (!model.isEscalationFactorUncontrolled(ef)) return;
+        const page = model.getPage(ef.pageId);
+        const node = model.getNode(ef.nodeId);
+        const barrier = model.findById(ef.barrierId);
+        const barrierName = barrier ? model.getNode(barrier.nodeId).id : 'its barrier';
+        warnings.push({
+          id: ef.id, type: 'uncontrolled-escalation-factor', severity: 'advisory',
+          pageId: page.id, pageName: page.name,
+          message: `${node.id} (${node.name}) on page "${page.name}" degrades ${barrierName} `
+            + 'with no escalation barrier controlling it.',
+          detail: 'No escalation barrier — nothing is controlling this factor.',
+        });
+      });
+      // A barrier credited twice along one chain, across a cross-page
+      // link (proposals/22). The link carries the source consequence's
+      // POST-mitigation likelihood, so the mitigative barriers on that
+      // consequence's own line are already inside the number the derived
+      // page's top event starts from. Placing one of them again on the
+      // derived page credits it a second time on the same causal chain
+      // -- easy to do by accident ("bunding" is a real control on both
+      // diagrams), and otherwise invisible: the figure just comes out
+      // optimistic.
+      //
+      // Deliberately only the MITIGATIVE side of the derived page.
+      // Everything downstream of that page's top event is downstream of
+      // the link; its own preventative barriers sit on its own threats'
+      // lines, which are a different chain. The same node appearing as a
+      // preventative barrier on two pages is the ordinary shared-barrier
+      // case the node library exists to support, and flagging it would
+      // fire on correct models.
+      //
+      // The library gives identity, so this is detected rather than
+      // guessed. Advisory, not blocking: a re-stated barrier can be
+      // deliberate, and stopping an export over a modelling judgement
+      // would be overreach -- the same line proposals/23 drew for
+      // sole protection.
+      model.pages.forEach((page) => {
+        const source = model.derivedSourceFor(page.id);
+        if (!source) return;
+        const sourceLine = model._lineFor(source.consequence.id);
+        const upstream = new Set(
+          model.mitigativeBarriers.filter((b) => sourceLine.stops.includes(b.id)).map((b) => b.nodeId),
+        );
+        model.mitigativeBarriersForPage(page.id).forEach((barrier) => {
+          if (!upstream.has(barrier.nodeId)) return;
+          const node = model.getNode(barrier.nodeId);
+          warnings.push({
+            id: barrier.id, type: 'double-counted-barrier', severity: 'advisory',
+            pageId: page.id, pageName: page.name,
+            message: `${node.id} (${node.name}) on page "${page.name}" is also credited on `
+              + `"${source.page.name}", upstream of the link this page's top event comes from.`,
+            detail: `Also credited upstream on "${source.page.name}" — it may be counted twice.`,
+          });
+        });
+      });
+
+      // No broken-cross-page-link warning here, deliberately
+      // (proposals/22 asked for one). A dangling `derivedFrom` cannot
+      // reach this code: `DocumentSerializer.validate` refuses the file
+      // outright, and the model clears a link when its consequence or
+      // its page is deleted. That is the same division the escalation
+      // checks above follow -- referential integrity refuses the
+      // document, orphanhood warns about it -- and a warning for a state
+      // that cannot exist would be dead code pretending to be a safety
+      // net.
       return warnings;
     }
   }

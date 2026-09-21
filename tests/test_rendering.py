@@ -6,10 +6,10 @@ cropping the lowest barrier's descriptive text.
 def test_annotation_label_does_not_overlap_its_own_barrier(page):
     page.evaluate("""() => {
       const m = window.__lastModel;
-      m.addCause({x: 150, y: 200});
-      const pb1 = m.addPreventativeControl(m.causes[0].id);
-      m.addCause({x: 150, y: 400});
-      m.attachInputToPreventativeControl(m.causes[1].id, pb1.id); // gives PB_1 two lanes -> labels drawn
+      m.addThreat({x: 150, y: 200});
+      const pb1 = m.addPreventativeControl(m.threats[0].id);
+      m.addThreat({x: 150, y: 400});
+      m.attachInputToPreventativeControl(m.threats[1].id, pb1.id); // gives PB_1 two lanes -> labels drawn
     }""")
     page.wait_for_timeout(150)
 
@@ -33,18 +33,18 @@ def test_annotation_label_does_not_overlap_its_own_barrier(page):
 
 
 def test_shared_barrier_labels_show_node_display_ids_not_placement_ids(page):
-    """Regression: `line.originId` is the origin Cause/Outcome's own
+    """Regression: `line.originId` is the origin Threat/Consequence's own
     PLACEMENT id (an internal bookkeeping key, never meant to be shown --
     see "Two id spaces" in node_library_proposal.md), but ConnectionRenderer
     used to pass it straight to the label instead of resolving it through
     the origin's NODE, so a shared barrier's lane annotations showed
-    "PLACEMENT_3" instead of "C_1"/"C_2"."""
+    "PLACEMENT_3" instead of "T_1"/"T_2"."""
     page.evaluate("""() => {
       const m = window.__lastModel;
-      m.addCause({x: 150, y: 200});
-      const pb1 = m.addPreventativeControl(m.causes[0].id);
-      m.addCause({x: 150, y: 400});
-      m.attachInputToPreventativeControl(m.causes[1].id, pb1.id); // gives PB_1 two lanes -> labels drawn
+      m.addThreat({x: 150, y: 200});
+      const pb1 = m.addPreventativeControl(m.threats[0].id);
+      m.addThreat({x: 150, y: 400});
+      m.attachInputToPreventativeControl(m.threats[1].id, pb1.id); // gives PB_1 two lanes -> labels drawn
     }""")
     page.wait_for_timeout(150)
 
@@ -58,7 +58,7 @@ def test_shared_barrier_labels_show_node_display_ids_not_placement_ids(page):
     """)
     display_ids = page.evaluate("""() => {
       const m = window.__lastModel;
-      return m.causes.map((c) => m.getNode(c.nodeId).id);
+      return m.threats.map((c) => m.getNode(c.nodeId).id);
     }""")
     assert len(labels) == 2
     assert sorted(labels) == sorted(display_ids)
@@ -68,8 +68,8 @@ def test_shared_barrier_labels_show_node_display_ids_not_placement_ids(page):
 def test_content_bounds_include_lowest_barrier_label(page):
     page.evaluate("""() => {
       const m = window.__lastModel;
-      m.addCause({x: 150, y: 200});
-      m.addPreventativeControl(m.causes[0].id);
+      m.addThreat({x: 150, y: 200});
+      m.addPreventativeControl(m.threats[0].id);
     }""")
     page.wait_for_timeout(150)
 
@@ -88,17 +88,17 @@ def test_content_bounds_include_lowest_barrier_label(page):
 
 def test_export_style_reflects_live_css_variables(page):
     """The export style block used to be a hand-copied hex duplicate of
-    css/styles.css; it must now read the same --cause-fill etc. custom
+    css/styles.css; it must now read the same --threat-fill etc. custom
     properties the live page uses, so a palette change can't silently
     desync exports from what's on screen."""
     page.evaluate("""() => {
       const m = window.__lastModel;
-      m.addCause({x: 150, y: 200});
+      m.addThreat({x: 150, y: 200});
     }""")
     page.wait_for_timeout(100)
 
     live_fill = page.evaluate(
-        "() => getComputedStyle(document.documentElement).getPropertyValue('--cause-fill').trim()"
+        "() => getComputedStyle(document.documentElement).getPropertyValue('--threat-fill').trim()"
     )
     svg_text = page.evaluate("""() => {
       const svgRoot = document.querySelector('#bowtie-canvas');

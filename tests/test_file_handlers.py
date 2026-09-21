@@ -14,7 +14,7 @@ import json
 def test_export_json_uses_the_native_save_picker_when_available(page):
     page.evaluate("""() => {
       const m = window.__lastModel;
-      m.addCause({x: 150, y: 200});
+      m.addThreat({x: 150, y: 200});
     }""")
     page.wait_for_timeout(100)
 
@@ -35,7 +35,7 @@ def test_export_json_uses_the_native_save_picker_when_available(page):
       return { suggestedName: savedOpts.suggestedName, written: JSON.parse(writtenText) };
     }""")
     assert result["suggestedName"] == "bowtie-diagram.json"
-    assert result["written"]["causes"][0]["nodeId"] == "C_1"
+    assert result["written"]["threats"][0]["nodeId"] == "T_1"
 
 
 def test_export_falls_back_to_download_when_the_api_is_unavailable(page):
@@ -48,17 +48,17 @@ def test_export_falls_back_to_download_when_the_api_is_unavailable(page):
     assert download.suggested_filename == "bowtie-diagram.json"
 
 
-def _sample_export_with_one_cause_named(page, name):
+def _sample_export_with_one_threat_named(page, name):
     """A real, structurally-valid export doc (built via the model's own
-    addCause + toJSON, then renamed) rather than a hand-spliced one — a
-    Cause also needs a matching entry in `lines`, which the model keeps in
+    addThreat + toJSON, then renamed) rather than a hand-spliced one — a
+    Threat also needs a matching entry in `lines`, which the model keeps in
     sync automatically but a hand-built fixture easily forgets."""
     return page.evaluate(
         """(name) => {
           const m = window.__lastModel;
-          m.addCause({x: 150, y: 200});
+          m.addThreat({x: 150, y: 200});
           const data = m.toJSON();
-          data.library.cause[0].name = name; // a placement has no name of its own -- see Node.js
+          data.library.threat[0].name = name; // a placement has no name of its own -- see Node.js
           return data;
         }""",
         name,
@@ -66,7 +66,7 @@ def _sample_export_with_one_cause_named(page, name):
 
 
 def test_import_uses_the_native_open_picker_when_available(page):
-    data = _sample_export_with_one_cause_named(page, "From Picker")
+    data = _sample_export_with_one_threat_named(page, "From Picker")
     page.evaluate(
         """(text) => {
           window.showOpenFilePicker = async () => [{
@@ -79,14 +79,14 @@ def test_import_uses_the_native_open_picker_when_available(page):
     page.click("#btn-import-json")
     page.wait_for_timeout(100)
 
-    causes = page.evaluate("() => window.__lastModel.causes.map((c) => window.__lastModel.getNode(c.nodeId).name)")
-    assert causes == ["From Picker"]
+    threats = page.evaluate("() => window.__lastModel.threats.map((c) => window.__lastModel.getNode(c.nodeId).name)")
+    assert threats == ["From Picker"]
 
 
 def test_import_falls_back_to_the_hidden_input_when_the_api_is_unavailable(page, tmp_path):
     page.evaluate("() => { delete window.showOpenFilePicker; }")
 
-    data = _sample_export_with_one_cause_named(page, "From Input")
+    data = _sample_export_with_one_threat_named(page, "From Input")
     file_path = tmp_path / "import.json"
     file_path.write_text(json.dumps(data))
 
@@ -96,8 +96,8 @@ def test_import_falls_back_to_the_hidden_input_when_the_api_is_unavailable(page,
     fc_info.value.set_files(str(file_path))
     page.wait_for_timeout(100)
 
-    causes = page.evaluate("() => window.__lastModel.causes.map((c) => window.__lastModel.getNode(c.nodeId).name)")
-    assert causes == ["From Input"]
+    threats = page.evaluate("() => window.__lastModel.threats.map((c) => window.__lastModel.getNode(c.nodeId).name)")
+    assert threats == ["From Input"]
 
 
 def test_png_export_handles_a_null_blob_without_throwing(page):
@@ -135,4 +135,4 @@ def test_cancelling_the_native_open_picker_does_nothing(page):
     page.wait_for_timeout(100)
 
     # No file chooser opened, no crash, and the diagram is untouched.
-    assert page.evaluate("() => window.__lastModel.causes.length") == 0
+    assert page.evaluate("() => window.__lastModel.threats.length") == 0

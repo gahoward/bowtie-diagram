@@ -1,5 +1,5 @@
 (function (Bowtie) {
-  // "Focus": clicking a Cause, Outcome, or a specific line greys out
+  // "Focus": clicking a Threat, Consequence, or a specific line greys out
   // everything on that same side not connected to the selection. Purely a
   // transient UI/view concern — not diagram data, computed fresh from the
   // model's Lines each time, and re-applied after every render (since
@@ -10,12 +10,21 @@
       this.svgRoot = svgRoot;
       this.focusedLineIds = null; // Set<string> | null
       this.hoveredLineId = null; // string | null
+      // The placement the user last clicked -- what Delete removes, and
+      // (later) the seed of the canvas keyboard focus model. Distinct
+      // from `focusedLineIds`: focus dims a whole side, selection marks
+      // one node, and a barrier click selects without focusing anything.
+      this.selectedId = null; // placement id | null
 
       svgRoot.addEventListener('click', (e) => this._onClick(e));
       svgRoot.addEventListener('pointerover', (e) => this._onPointerOver(e));
       svgRoot.addEventListener('pointerout', (e) => this._onPointerOut(e));
       model.onChange(() => {
         this.hoveredLineId = null;
+        // A selected node can have been deleted (or removed with the very
+        // Delete key that reads this) -- drop a selection that no longer
+        // resolves rather than leaving a dangling id behind.
+        if (this.selectedId && !this.model.findById(this.selectedId)) this.selectedId = null;
         this._apply();
       });
     }
@@ -49,14 +58,55 @@
       });
     }
 
+    getSelectedId() {
+      return this.selectedId;
+    }
+
+    // Public: the keyboard controller (proposals/13) moves the selection
+    // as focus moves, so the roving tabindex and the click selection are
+    // one piece of state rather than two that can disagree.
+    selectPlacement(placementId) {
+      this.selectedId = placementId;
+      this._apply();
+    }
+
+    clearSelection() {
+      this.selectedId = null;
+      this._apply();
+    }
+
     _onClick(e) {
       const nodeEl = e.target.closest('.node');
       const lineEl = e.target.closest('.connection');
 
+      // Selection tracks whichever node was clicked (never the TLE or
+      // Hazard -- neither can be removed from a page). `data-id` is the
+      // NODE id; Delete needs the placement on THIS page, so resolve it
+      // through the model rather than assuming the two are the same.
+      this.selectedId = null;
+      if (nodeEl) {
+        const domId = nodeEl.getAttribute('data-id');
+        const placement = [...this.model.threats, ...this.model.consequences,
+          ...this.model.preventativeBarriers, ...this.model.mitigativeBarriers,
+          ...this.model.escalationBarriers]
+          .find((p) => p.nodeId === domId)
+          // An escalation factor is keyed by its own placement id, not its
+          // node id -- it is the one kind that can appear twice on a page.
+          || this.model.escalationFactors.find((f) => f.id === domId);
+        if (placement) this.selectedId = placement.id;
+      }
+
       let clickedLineIds = null;
       if (nodeEl) {
         const type = nodeEl.className.baseVal || nodeEl.getAttribute('class') || '';
-        if (type.includes('cause') || type.includes('outcome')) {
+        // An escalation factor focuses its own escalation line
+        // (proposals/08) -- checked first, because its class string also
+        // contains neither "threat" nor "consequence" but its data-id is
+        // a placement id rather than a node id.
+        if (type.includes('escalation-factor')) {
+          const line = this.model._lineFor(nodeEl.getAttribute('data-id'));
+          if (line) clickedLineIds = [line.id];
+        } else if (type.includes('threat') || type.includes('consequence')) {
           const id = nodeEl.getAttribute('data-id');
           const line = this.model._lineFor(id);
           if (line) clickedLineIds = [line.id];
@@ -85,9 +135,38 @@
       this._apply();
     }
 
+    // Programmatic focus on one placement (the Warnings modal's "Show"):
+    // a Threat/Consequence focuses its own Line, a barrier every Line through
+    // it -- the same effect as clicking the node, without the click. A
+    // placement with no Line at all (an orphaned barrier -- exactly what
+    // the blocking warnings are about) clears focus instead, since there
+    // is nothing to dim against.
+    focusPlacement(placementId) {
+      const placement = this.model.findById(placementId);
+      if (!placement) return;
+      let lineIds = [];
+      if (placement.type === 'threat' || placement.type === 'consequence') {
+        const line = this.model._lineFor(placementId);
+        if (line) lineIds = [line.id];
+      } else {
+        lineIds = this.model.linesThrough(placementId).map((l) => l.id);
+      }
+      this._setFocus(lineIds.length > 0 ? new Set(lineIds) : null);
+    }
+
     _apply() {
       const nodes = this.svgRoot.querySelectorAll('.node');
       const lines = this.svgRoot.querySelectorAll('.connection');
+
+      // Re-applied after every render, like the dimming below: CanvasView
+      // replaces the whole node layer, so the class has to be put back.
+      const selected = this.selectedId ? this.model.findById(this.selectedId) : null;
+      const selectedDomId = selected
+        ? (selected.type === 'escalationFactor' ? selected.id : selected.nodeId)
+        : null;
+      nodes.forEach((n) => {
+        n.classList.toggle('selected', Boolean(selected) && n.getAttribute('data-id') === selectedDomId);
+      });
 
       if (!this.focusedLineIds) {
         nodes.forEach((n) => n.classList.remove('dimmed'));
@@ -99,7 +178,7 @@
         .map((id) => this.model.lines.find((l) => l.id === id))
         .filter(Boolean);
       if (focusedLines.length === 0) return;
-      const side = focusedLines[0].originType; // 'cause' | 'outcome'
+      const side = focusedLines[0].originType; // 'threat' | 'consequence'
 
       // Line.originId/.stops are internal PLACEMENT ids (never rendered),
       // but a node's DOM element is keyed by its NODE id (`data-id` --
@@ -117,11 +196,11 @@
         const cls = n.getAttribute('class') || '';
         const id = n.getAttribute('data-id');
         let dim = false;
-        if (side === 'cause') {
-          if (cls.includes(' cause')) dim = !relatedOriginIds.has(id);
+        if (side === 'threat') {
+          if (cls.includes(' threat')) dim = !relatedOriginIds.has(id);
           else if (cls.includes('preventative-barrier')) dim = !relatedBarrierIds.has(id);
         } else {
-          if (cls.includes(' outcome')) dim = !relatedOriginIds.has(id);
+          if (cls.includes(' consequence')) dim = !relatedOriginIds.has(id);
           else if (cls.includes('mitigative-barrier')) dim = !relatedBarrierIds.has(id);
         }
         n.classList.toggle('dimmed', dim);
@@ -131,9 +210,9 @@
         const role = l.getAttribute('data-role');
         if (!role) { l.classList.remove('dimmed'); return; } // Hazard<->TLE: always visible
         const lineId = l.getAttribute('data-line-id');
-        const relevantSide = side === 'cause'
-          ? ['cause-line', 'cause-direct'].includes(role)
-          : ['outcome-line', 'outcome-direct'].includes(role);
+        const relevantSide = side === 'threat'
+          ? ['threat-line', 'threat-direct'].includes(role)
+          : ['consequence-line', 'consequence-direct'].includes(role);
         if (!relevantSide) { l.classList.remove('dimmed'); return; }
         l.classList.toggle('dimmed', !this.focusedLineIds.has(lineId));
       });

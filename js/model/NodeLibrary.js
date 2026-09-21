@@ -12,22 +12,38 @@
   // Quantitative does: `placementsForNode`/`deleteNode`/`reassignId` all
   // need to see every placement across all four types, which live on
   // BowtieModel, not here.
-  const CONTROL_TYPES = ['cause', 'outcome', 'preventativeBarrier', 'mitigativeBarrier'];
+  // The library's own type list. Escalation factors and their barriers
+  // (proposals/08) are library nodes like any other -- the same EF ("ESDV
+  // not proof-tested") can degrade barriers on several pages, and the same
+  // escalation barrier ("quarterly test regime") can control it in each
+  // place, which is exactly what a shared library is for.
+  const CONTROL_TYPES = [
+    'threat', 'consequence', 'preventativeBarrier', 'mitigativeBarrier',
+    'escalationFactor', 'escalationBarrier',
+  ];
   const NODE_ID_PREFIX = {
-    cause: 'C', outcome: 'O', preventativeBarrier: 'PB', mitigativeBarrier: 'MB',
+    // Rotated with the rename (proposals/11): a Threat is T_n and a
+    // Consequence takes over C_n, which used to mean Cause. That rotation
+    // is exactly why the schema had to bump -- a v10 file's C_1 and a v11
+    // file's C_1 are different things -- and why Migrations.js's v10 -> v11
+    // step rewrites every id rather than only the type keys.
+    threat: 'T', consequence: 'C', preventativeBarrier: 'PB', mitigativeBarrier: 'MB',
+    escalationFactor: 'EF', escalationBarrier: 'EB',
   };
   const NODE_DEFAULT_NAME = {
-    cause: (n) => `Cause ${n}`,
-    outcome: (n) => `Outcome ${n}`,
+    threat: (n) => `Threat ${n}`,
+    consequence: (n) => `Consequence ${n}`,
     preventativeBarrier: (n) => `Preventative Barrier ${n}`,
     mitigativeBarrier: (n) => `Mitigative Barrier ${n}`,
+    escalationFactor: (n) => `Escalation Factor ${n}`,
+    escalationBarrier: (n) => `Escalation Barrier ${n}`,
   };
 
   class NodeLibrary {
     constructor(model) {
       this.model = model;
       // The shared node library (node_library_proposal.md): one record per
-      // real-world Cause/Outcome/Barrier identity, independent of any page
+      // real-world Threat/Consequence/Barrier identity, independent of any page
       // or placement. A node can have zero, one, or several placements —
       // zero is a normal "staging" state, not an orphan (see
       // placementsForNode). Also the home for quantitative_mode_proposal.md's
@@ -35,7 +51,8 @@
       // likelihoodClassId/severityClassId), since those are globally
       // linked per node, not per placement — see Node.js.
       this.library = {
-        cause: [], outcome: [], preventativeBarrier: [], mitigativeBarrier: [],
+        threat: [], consequence: [], preventativeBarrier: [], mitigativeBarrier: [],
+        escalationFactor: [], escalationBarrier: [],
       };
       // 'internal' (default, today's behaviour: a node's own id renders) |
       // 'custom' (a node's freeform `identifier` renders instead, when set)
@@ -51,14 +68,15 @@
       // showing, per feedback on the design mockup). reEnabled ids are
       // eligible for manual (never automatic) reassignment via reassignId.
       // Lines are not part of this system — they are not user-facing
-      // identifiers and die with their Cause/Outcome placement.
+      // identifiers and die with their Threat/Consequence placement.
       this.retiredIds = {
-        cause: [], outcome: [], preventativeBarrier: [], mitigativeBarrier: [],
+        threat: [], consequence: [], preventativeBarrier: [], mitigativeBarrier: [],
+        escalationFactor: [], escalationBarrier: [],
       };
     }
 
     // Creates a library node record with `id` drawn from `idCounters[type]`
-    // — the SAME per-type counter addCause/addOutcome/addPreventativeControl/
+    // — the SAME per-type counter addThreat/addConsequence/addPreventativeControl/
     // addMitigativeControl always used for their placement ids before this
     // proposal (now repurposed to count nodes instead). Does not create a
     // placement or emit a change — used internally by addNode (below) and
@@ -85,7 +103,7 @@
 
     // Public standalone creation (ask 2/3): a library node with zero
     // placements, reachable from the Node Library manager directly, not
-    // just as a side effect of "Add Cause"/etc. Name-required validation
+    // just as a side effect of "Add Threat"/etc. Name-required validation
     // happens at the UI layer, same "defensive floor, not the primary
     // mechanism" pattern addPage already uses for page name.
     addNode(type, opts = {}) {
@@ -94,16 +112,17 @@
       return node;
     }
 
-    // Searches all four library arrays — used whenever the caller doesn't
+    // Searches every library array — used whenever the caller doesn't
     // already know a node's type (e.g. resolving a placement's own node).
+    // Driven off CONTROL_TYPES rather than a hand-written chain, so
+    // adding a type (escalation factors, proposals/08) cannot leave this
+    // silently returning null for it.
     getNode(nodeId) {
-      return (
-        this.library.cause.find((n) => n.id === nodeId)
-        || this.library.outcome.find((n) => n.id === nodeId)
-        || this.library.preventativeBarrier.find((n) => n.id === nodeId)
-        || this.library.mitigativeBarrier.find((n) => n.id === nodeId)
-        || null
-      );
+      for (const type of CONTROL_TYPES) {
+        const found = (this.library[type] || []).find((n) => n.id === nodeId);
+        if (found) return found;
+      }
+      return null;
     }
 
     // Narrower variant when the type is already known — mirrors getPage's
@@ -119,13 +138,11 @@
     // have no custom identifier set).
     getNodeByIdentifier(identifier) {
       if (!identifier) return null;
-      return (
-        this.library.cause.find((n) => n.identifier === identifier)
-        || this.library.outcome.find((n) => n.identifier === identifier)
-        || this.library.preventativeBarrier.find((n) => n.identifier === identifier)
-        || this.library.mitigativeBarrier.find((n) => n.identifier === identifier)
-        || null
-      );
+      for (const type of CONTROL_TYPES) {
+        const found = (this.library[type] || []).find((n) => n.identifier === identifier);
+        if (found) return found;
+      }
+      return null;
     }
 
     // The node analogue of renamePage/renameElement — also doubles as the
@@ -150,6 +167,7 @@
       if (opts.severityClassId !== undefined) node.severityClassId = opts.severityClassId;
       if (opts.frequency !== undefined) node.frequency = opts.frequency;
       if (opts.protection !== undefined) node.protection = opts.protection;
+      if (opts.degradation !== undefined) node.degradation = opts.degradation;
       if (opts.barrierType !== undefined) node.barrierType = opts.barrierType;
       if (opts.owner !== undefined) node.owner = opts.owner;
       if (opts.effectiveness !== undefined) node.effectiveness = opts.effectiveness;
@@ -162,7 +180,7 @@
     placementsForNode(nodeId) {
       const { model } = this;
       return [
-        ...model.causes, ...model.outcomes, ...model.preventativeBarriers, ...model.mitigativeBarriers,
+        ...model.threats, ...model.consequences, ...model.preventativeBarriers, ...model.mitigativeBarriers,
       ].filter((p) => p.nodeId === nodeId);
     }
 
@@ -185,15 +203,15 @@
     // 'internal' | 'custom' — see "Display identifiers" in
     // node_library_proposal.md. Switching internal -> custom backfills
     // every library node (all four types) whose identifier is blank with
-    // its own current id, so the toggle causes no visible change to what's
+    // its own current id, so the toggle threats no visible change to what's
     // rendered at the moment it's flipped — from that point on `identifier`
     // is a real, independently-editable value, not a fallback. Nodes that
     // already had a custom identifier keep it untouched. Switching the
     // other direction changes only what's displayed; no data is cleared.
     //
     // Design review finding 02: a node's OWN id can already be some OTHER
-    // node's hand-set custom identifier (e.g. node C_3 was given the
-    // identifier "C_3" by hand while it was still internal-mode) — the
+    // node's hand-set custom identifier (e.g. node T_3 was given the
+    // identifier "T_3" by hand while it was still internal-mode) — the
     // backfill has to skip a node whose id collides with an
     // already-in-use identifier, or two nodes end up rendering the same
     // visible label. addNode/_createNode/renameNode all guard this

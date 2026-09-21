@@ -1,12 +1,18 @@
 (function (Bowtie) {
   class ToolbarController {
-    constructor(model, { addCauseBtn, addOutcomeBtn, nameEl }) {
+    // `onRename` is what the toolbar's title button does -- main.js wires
+    // it to Project Settings › General with the Name field focused
+    // (ui_fitness_proposal.md S1), so there is exactly one place the
+    // analysis is renamed rather than a separate Rename dialog too.
+    constructor(model, {
+      addThreatBtn, addConsequenceBtn, nameEl, onRename,
+    }) {
       this.model = model;
-      addCauseBtn.addEventListener('click', () => this._openCreateOrChoose('cause', (opts) => this.model.addCause(opts)));
-      addOutcomeBtn.addEventListener('click', () => this._openCreateOrChoose('outcome', (opts) => this.model.addOutcome(opts)));
+      addThreatBtn.addEventListener('click', () => this._openCreateOrChoose('threat', (opts) => this.model.addThreat(opts)));
+      addConsequenceBtn.addEventListener('click', () => this._openCreateOrChoose('consequence', (opts) => this.model.addConsequence(opts)));
 
       this.nameEl = nameEl;
-      nameEl.addEventListener('click', () => this._openRenameModal());
+      nameEl.addEventListener('click', () => onRename());
       model.onChange(() => this._renderName());
       this._renderName();
     }
@@ -15,8 +21,8 @@
       this.nameEl.textContent = this.model.name;
     }
 
-    // node_library_proposal.md ask 3: the toolbar's "Add Cause"/"Add
-    // Outcome" buttons go through the same shared create-or-choose modal
+    // node_library_proposal.md ask 3: the toolbar's "Add Threat"/"Add
+    // Consequence" buttons go through the same shared create-or-choose modal
     // as every other creation entry point.
     _openCreateOrChoose(type, addFn) {
       Bowtie.openCreateOrChooseNodeModal({
@@ -24,33 +30,6 @@
         type,
         onCreate: (fields) => addFn(fields),
         onChooseExisting: (node) => addFn({ nodeId: node.id }),
-      });
-    }
-
-    _openRenameModal() {
-      const body = document.createElement('div');
-      const wrap = document.createElement('label');
-      wrap.className = 'modal-field';
-      const span = document.createElement('span');
-      span.textContent = 'Analysis title';
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.value = this.model.name;
-      wrap.appendChild(span);
-      wrap.appendChild(input);
-      body.appendChild(wrap);
-
-      Bowtie.ModalView.openModal({
-        title: 'Rename Analysis',
-        bodyEl: body,
-        actions: [
-          { label: 'Cancel' },
-          {
-            label: 'Save',
-            primary: true,
-            onClick: () => this.model.setName(input.value.trim() || 'Untitled Bowtie'),
-          },
-        ],
       });
     }
   }

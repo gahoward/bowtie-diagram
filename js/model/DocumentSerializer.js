@@ -27,6 +27,10 @@
           r: page.topLevelEvent.r,
         },
         hazard: { id: page.hazard.id, name: page.hazard.name, description: page.hazard.description },
+        // proposals/22: absent on an ordinary page rather than written as
+        // null, so a document that uses no cross-page links looks exactly
+        // as it did at v14.
+        ...(page.derivedFrom ? { derivedFrom: { ...page.derivedFrom } } : {}),
       };
     },
 
@@ -37,7 +41,19 @@
         description: data.description || '',
         topLevelEvent: new Bowtie.TopLevelEvent(data.topLevelEvent),
         hazard: new Bowtie.Hazard(data.hazard),
+        derivedFrom: this.derivedFromJSON(data.derivedFrom),
       };
+    },
+
+    // Both ids must be strings for the link to mean anything; anything
+    // else reads as "not derived" rather than throwing here, because
+    // `validate` is where a malformed document gets refused with a
+    // message naming what is wrong.
+    derivedFromJSON(raw) {
+      if (!raw || typeof raw !== 'object') return null;
+      const { consequenceId, pageId } = raw;
+      if (typeof consequenceId !== 'string' || typeof pageId !== 'string') return null;
+      return { consequenceId, pageId };
     },
 
     // --- Per-page serialization --------------------------------------------
@@ -57,12 +73,16 @@
     getPageJSON(model, pageId) {
       const page = model.getPage(pageId);
       if (!page) throw new Error(`Unknown page id: ${pageId}`);
+      // ...minus `derivedFrom`, which is document-scoped -- see
+      // loadPageFromJSON below for what restoring a stale one would do.
+      const { derivedFrom, ...header } = this.pageHeaderToJSON(page);
+      void derivedFrom;
       return {
-        ...this.pageHeaderToJSON(page),
-        causes: model.causesForPage(pageId).map((c) => ({
+        ...header,
+        threats: model.threatsForPage(pageId).map((c) => ({
           id: c.id, nodeId: c.nodeId, x: c.x, y: c.y, w: c.w, h: c.h, pageId: c.pageId,
         })),
-        outcomes: model.outcomesForPage(pageId).map((o) => ({
+        consequences: model.consequencesForPage(pageId).map((o) => ({
           id: o.id, nodeId: o.nodeId, x: o.x, y: o.y, w: o.w, h: o.h, pageId: o.pageId,
         })),
         preventativeBarriers: model.preventativeBarriersForPage(pageId).map((p) => ({
@@ -70,6 +90,15 @@
         })),
         mitigativeBarriers: model.mitigativeBarriersForPage(pageId).map((m) => ({
           id: m.id, nodeId: m.nodeId, x: m.x, y: m.y, w: m.w, h: m.h, pageId: m.pageId,
+        })),
+        // An escalation factor also carries the barrier it is anchored to
+        // -- without `barrierId` it would load back as a box floating
+        // under nothing (proposals/08).
+        escalationFactors: model.escalationFactorsForPage(pageId).map((f) => ({
+          id: f.id, nodeId: f.nodeId, x: f.x, y: f.y, w: f.w, h: f.h, pageId: f.pageId, barrierId: f.barrierId,
+        })),
+        escalationBarriers: model.escalationBarriersForPage(pageId).map((b) => ({
+          id: b.id, nodeId: b.nodeId, x: b.x, y: b.y, w: b.w, h: b.h, pageId: b.pageId,
         })),
         lines: model.linesForPage(pageId).map((l) => ({
           id: l.id, originType: l.originType, originId: l.originId, stops: l.stops.slice(), pageId: l.pageId,
@@ -81,11 +110,23 @@
     loadPageFromJSON(model, pageId, data) {
       const idx = model.pages.findIndex((p) => p.id === pageId);
       if (idx === -1) throw new Error(`Unknown page id: ${pageId}`);
+      // `derivedFrom` is DOCUMENT-scoped state that happens to live on a
+      // page record (proposals/22): a link names two pages, and every
+      // method that writes one is in UndoController's document tier. A
+      // page-scoped restore must therefore leave it exactly as it is.
+      //
+      // This is not tidiness. Restoring a stale link here is the one way
+      // a cycle could reach the model without passing either defence:
+      // unlink A->B, link B->A (legal, no cycle yet), then undo a
+      // page-scoped edit on A and watch A->B come back on top of B->A.
+      // Neither `linkPageToConsequence` nor `validate` ever sees it.
+      const liveLink = model.pages[idx].derivedFrom;
       model.pages[idx] = this.pageHeaderFromJSON(data);
-      model.causes = model.causes.filter((c) => c.pageId !== pageId)
-        .concat((data.causes || []).map((c) => new Bowtie.Placement({ ...c, type: 'cause' })));
-      model.outcomes = model.outcomes.filter((o) => o.pageId !== pageId)
-        .concat((data.outcomes || []).map((o) => new Bowtie.Placement({ ...o, type: 'outcome' })));
+      model.pages[idx].derivedFrom = liveLink;
+      model.threats = model.threats.filter((c) => c.pageId !== pageId)
+        .concat((data.threats || []).map((c) => new Bowtie.Placement({ ...c, type: 'threat' })));
+      model.consequences = model.consequences.filter((o) => o.pageId !== pageId)
+        .concat((data.consequences || []).map((o) => new Bowtie.Placement({ ...o, type: 'consequence' })));
       model.preventativeBarriers = model.preventativeBarriers.filter((p) => p.pageId !== pageId)
         .concat((data.preventativeBarriers || []).map(
           (p) => new Bowtie.Placement({ ...p, type: 'preventativeBarrier' }),
@@ -94,8 +135,42 @@
         .concat((data.mitigativeBarriers || []).map(
           (m) => new Bowtie.Placement({ ...m, type: 'mitigativeBarrier' }),
         ));
+      model.escalationFactors = model.escalationFactors.filter((f) => f.pageId !== pageId)
+        .concat((data.escalationFactors || []).map(
+          (f) => new Bowtie.Placement({ ...f, type: 'escalationFactor' }),
+        ));
+      model.escalationBarriers = model.escalationBarriers.filter((b) => b.pageId !== pageId)
+        .concat((data.escalationBarriers || []).map(
+          (b) => new Bowtie.Placement({ ...b, type: 'escalationBarrier' }),
+        ));
       model.lines = model.lines.filter((l) => l.pageId !== pageId)
         .concat((data.lines || []).map((l) => new Bowtie.Line(l)));
+      // Every placement collection was just replaced (proposals/16).
+      model.rebuildPlacementIndex();
+    },
+
+    // Every field optional and defaulted (proposals/20), so a v12
+    // document -- or a hand-built fixture, or a half-written one --
+    // reads as "nothing stated" rather than throwing. Unknown keys are
+    // dropped rather than carried: the block is a fixed set of
+    // statements, not a bag.
+    documentMetadataFromJSON(raw) {
+      const empty = Bowtie.BowtieModel.emptyDocumentMetadata();
+      const src = raw && typeof raw === 'object' ? raw : {};
+      const out = {};
+      Object.keys(empty).forEach((key) => {
+        if (key === 'history') return;
+        out[key] = typeof src[key] === 'string' ? src[key] : empty[key];
+      });
+      out.history = Array.isArray(src.history)
+        ? src.history.map((e) => ({
+          revision: typeof (e || {}).revision === 'string' ? e.revision : '',
+          date: typeof (e || {}).date === 'string' ? e.date : '',
+          author: typeof (e || {}).author === 'string' ? e.author : '',
+          summary: typeof (e || {}).summary === 'string' ? e.summary : '',
+        }))
+        : [];
+      return out;
     },
 
     // --- Whole-document serialization ---------------------------------
@@ -110,24 +185,35 @@
         dangerousFraction: model.dangerousFraction,
         proofTestIntervalH: model.proofTestIntervalH,
         identifierDisplayMode: model.identifierDisplayMode,
+        // proposals/20. Copied rather than referenced, like idCounters
+        // and retiredIds below -- a serialized document must not alias
+        // the live model's arrays.
+        document: {
+          ...model.document,
+          history: model.document.history.map((e) => ({ ...e })),
+        },
         idCounters: { ...model.idCounters },
         retiredIds: {
-          cause: model.retiredIds.cause.map((e) => ({ ...e })),
-          outcome: model.retiredIds.outcome.map((e) => ({ ...e })),
+          threat: model.retiredIds.threat.map((e) => ({ ...e })),
+          consequence: model.retiredIds.consequence.map((e) => ({ ...e })),
           preventativeBarrier: model.retiredIds.preventativeBarrier.map((e) => ({ ...e })),
           mitigativeBarrier: model.retiredIds.mitigativeBarrier.map((e) => ({ ...e })),
+          escalationFactor: model.retiredIds.escalationFactor.map((e) => ({ ...e })),
+          escalationBarrier: model.retiredIds.escalationBarrier.map((e) => ({ ...e })),
         },
         library: {
-          cause: model.library.cause.map((n) => ({ ...n })),
-          outcome: model.library.outcome.map((n) => ({ ...n })),
+          threat: model.library.threat.map((n) => ({ ...n })),
+          consequence: model.library.consequence.map((n) => ({ ...n })),
           preventativeBarrier: model.library.preventativeBarrier.map((n) => ({ ...n })),
           mitigativeBarrier: model.library.mitigativeBarrier.map((n) => ({ ...n })),
+          escalationFactor: model.library.escalationFactor.map((n) => ({ ...n })),
+          escalationBarrier: model.library.escalationBarrier.map((n) => ({ ...n })),
         },
         pages: model.pages.map((p) => this.pageHeaderToJSON(p)),
-        causes: model.causes.map((c) => ({
+        threats: model.threats.map((c) => ({
           id: c.id, nodeId: c.nodeId, x: c.x, y: c.y, w: c.w, h: c.h, pageId: c.pageId,
         })),
-        outcomes: model.outcomes.map((o) => ({
+        consequences: model.consequences.map((o) => ({
           id: o.id, nodeId: o.nodeId, x: o.x, y: o.y, w: o.w, h: o.h, pageId: o.pageId,
         })),
         preventativeBarriers: model.preventativeBarriers.map((p) => ({
@@ -136,13 +222,19 @@
         mitigativeBarriers: model.mitigativeBarriers.map((m) => ({
           id: m.id, nodeId: m.nodeId, x: m.x, y: m.y, w: m.w, h: m.h, pageId: m.pageId,
         })),
+        escalationFactors: model.escalationFactors.map((f) => ({
+          id: f.id, nodeId: f.nodeId, x: f.x, y: f.y, w: f.w, h: f.h, pageId: f.pageId, barrierId: f.barrierId,
+        })),
+        escalationBarriers: model.escalationBarriers.map((b) => ({
+          id: b.id, nodeId: b.nodeId, x: b.x, y: b.y, w: b.w, h: b.h, pageId: b.pageId,
+        })),
         lines: model.lines.map((l) => ({
           id: l.id, originType: l.originType, originId: l.originId, stops: l.stops.slice(), pageId: l.pageId,
         })),
       };
     },
 
-    // Loads a schema-v9 export into a brand-new BowtieModel. There is no
+    // Loads a current-schema export into a brand-new BowtieModel. There is no
     // migration path for older schema versions — ImportExportController
     // rejects a version mismatch before this is ever called, so this only
     // ever needs to read the current shape.
@@ -164,11 +256,16 @@
       model.idCounters = { ...model.idCounters, ...(data.idCounters || {}) };
       model.name = data.name || 'Untitled Bowtie';
       model.mode = data.mode || 'simple';
-      model.riskMatrix = data.riskMatrix || null;
+      // withRiskClassRanks (not a full re-validation -- see validate()'s
+      // own note below) back-fills `rank` on a matrix embedded before
+      // that field existed, so ranking code never has to fall back to
+      // array order.
+      model.riskMatrix = Bowtie.withRiskClassRanks(data.riskMatrix || null);
       model.tleAggregation = data.tleAggregation === 'sum' ? 'sum' : 'max';
       model.dangerousFraction = data.dangerousFraction || '1';
       model.proofTestIntervalH = data.proofTestIntervalH || String(Bowtie.HOURS_PER_YEAR);
       model.identifierDisplayMode = data.identifierDisplayMode || 'internal';
+      model.document = this.documentMetadataFromJSON(data.document);
       if (data.pages && data.pages.length > 0) {
         model.pages = data.pages.map((p) => this.pageHeaderFromJSON(p));
       } else if (data.topLevelEvent && data.hazard) {
@@ -183,27 +280,42 @@
           topLevelEvent: data.topLevelEvent, hazard: data.hazard,
         })];
       }
-      model.causes = (data.causes || []).map((c) => new Bowtie.Placement({ ...c, type: 'cause' }));
-      model.outcomes = (data.outcomes || []).map((o) => new Bowtie.Placement({ ...o, type: 'outcome' }));
+      model.threats = (data.threats || []).map((c) => new Bowtie.Placement({ ...c, type: 'threat' }));
+      model.consequences = (data.consequences || []).map((o) => new Bowtie.Placement({ ...o, type: 'consequence' }));
       model.preventativeBarriers = (data.preventativeBarriers || []).map(
         (p) => new Bowtie.Placement({ ...p, type: 'preventativeBarrier' }),
       );
       model.mitigativeBarriers = (data.mitigativeBarriers || []).map(
         (m) => new Bowtie.Placement({ ...m, type: 'mitigativeBarrier' }),
       );
+      model.escalationFactors = (data.escalationFactors || []).map(
+        (f) => new Bowtie.Placement({ ...f, type: 'escalationFactor' }),
+      );
+      model.escalationBarriers = (data.escalationBarriers || []).map(
+        (b) => new Bowtie.Placement({ ...b, type: 'escalationBarrier' }),
+      );
       model.lines = (data.lines || []).map((l) => new Bowtie.Line(l));
       model.library = {
-        cause: ((data.library && data.library.cause) || []).map((n) => new Bowtie.Node(n)),
-        outcome: ((data.library && data.library.outcome) || []).map((n) => new Bowtie.Node(n)),
+        threat: ((data.library && data.library.threat) || []).map((n) => new Bowtie.Node(n)),
+        consequence: ((data.library && data.library.consequence) || []).map((n) => new Bowtie.Node(n)),
         preventativeBarrier: ((data.library && data.library.preventativeBarrier) || []).map((n) => new Bowtie.Node(n)),
         mitigativeBarrier: ((data.library && data.library.mitigativeBarrier) || []).map((n) => new Bowtie.Node(n)),
+        escalationFactor: ((data.library && data.library.escalationFactor) || []).map((n) => new Bowtie.Node(n)),
+        escalationBarrier: ((data.library && data.library.escalationBarrier) || []).map((n) => new Bowtie.Node(n)),
       };
       model.retiredIds = {
-        cause: (data.retiredIds && data.retiredIds.cause) || [],
-        outcome: (data.retiredIds && data.retiredIds.outcome) || [],
+        threat: (data.retiredIds && data.retiredIds.threat) || [],
+        consequence: (data.retiredIds && data.retiredIds.consequence) || [],
         preventativeBarrier: (data.retiredIds && data.retiredIds.preventativeBarrier) || [],
         mitigativeBarrier: (data.retiredIds && data.retiredIds.mitigativeBarrier) || [],
+        escalationFactor: (data.retiredIds && data.retiredIds.escalationFactor) || [],
+        escalationBarrier: (data.retiredIds && data.retiredIds.escalationBarrier) || [],
       };
+      // Collections were assigned directly onto the fresh model above,
+      // bypassing the add path that maintains the index (proposals/16).
+      // A missing entry only costs findById a scan, but a caller handed
+      // this model directly -- tests do -- should get the fast one too.
+      model.rebuildPlacementIndex();
       return model;
     },
 
@@ -240,23 +352,84 @@
       };
 
       const placementChecks = [
-        checkPlacements(model.causes, 'cause', 'Cause'),
-        checkPlacements(model.outcomes, 'outcome', 'Outcome'),
+        checkPlacements(model.threats, 'threat', 'Threat'),
+        checkPlacements(model.consequences, 'consequence', 'Consequence'),
         checkPlacements(model.preventativeBarriers, 'preventativeBarrier', 'Preventative barrier'),
         checkPlacements(model.mitigativeBarriers, 'mitigativeBarrier', 'Mitigative barrier'),
+        checkPlacements(model.escalationFactors, 'escalationFactor', 'Escalation factor'),
+        checkPlacements(model.escalationBarriers, 'escalationBarrier', 'Escalation barrier'),
       ].find((r) => r !== null);
       if (placementChecks) return placementChecks;
+
+      // An escalation factor is anchored to a barrier placement on its own
+      // page (proposals/08). Without this check a file whose barrier was
+      // edited away would load a factor hanging under nothing -- it would
+      // render at a stale position, and deleting "its" barrier would never
+      // clean it up.
+      for (const factor of model.escalationFactors) {
+        const barrier = [...model.preventativeBarriers, ...model.mitigativeBarriers]
+          .find((b) => b.id === factor.barrierId && b.pageId === factor.pageId);
+        if (!barrier) {
+          return fail(
+            `Escalation factor ${factor.id} isn't attached to a barrier on its own page (${factor.barrierId}).`,
+          );
+        }
+      }
+
+      // A cross-page link (proposals/22) is the one reference in this
+      // document that can point at another page, so it gets a real graph
+      // check rather than only a reference check. A cycle here is not a
+      // wrong figure: once the arithmetic reads these links, it is a
+      // recursion with no base case. A file can carry one even though no
+      // UI will create one -- hand-edited, or merged by someone's
+      // version control -- so it is refused at the door.
+      for (const page of model.pages) {
+        if (!page.derivedFrom) continue;
+        const { consequenceId, pageId } = page.derivedFrom;
+        const source = model.getPage(pageId);
+        if (!source) {
+          return fail(`Page ${page.id} is derived from a page that doesn't exist (${pageId}).`);
+        }
+        const consequence = model.consequences.find((c) => c.id === consequenceId && c.pageId === pageId);
+        if (!consequence) {
+          return fail(
+            `Page ${page.id} is derived from a consequence that isn't on page ${pageId} (${consequenceId}).`,
+          );
+        }
+        if (pageId === page.id) {
+          return fail(`Page ${page.id} is derived from a consequence on itself.`);
+        }
+        if (model._pageReaches(pageId, page.id)) {
+          return fail(`Pages ${page.id} and ${pageId} are derived from each other, directly or through a chain.`);
+        }
+      }
 
       for (const line of model.lines) {
         if (!model.getPage(line.pageId)) {
           return fail(`Line ${line.id} references a page that doesn't exist (${line.pageId}).`);
         }
-        const originCollection = line.originType === 'cause' ? model.causes : model.outcomes;
+        // Three kinds of line now: a threat's and a consequence's run to
+        // the TLE through barriers, an escalation factor's runs to the
+        // barrier it degrades through escalation barriers.
+        const ORIGIN_COLLECTIONS = {
+          threat: model.threats,
+          consequence: model.consequences,
+          escalationFactor: model.escalationFactors,
+        };
+        const STOP_COLLECTIONS = {
+          threat: model.preventativeBarriers,
+          consequence: model.mitigativeBarriers,
+          escalationFactor: model.escalationBarriers,
+        };
+        const originCollection = ORIGIN_COLLECTIONS[line.originType];
+        if (!originCollection) {
+          return fail(`Line ${line.id} has an unknown originType (${line.originType}).`);
+        }
         const origin = originCollection.find((p) => p.id === line.originId && p.pageId === line.pageId);
         if (!origin) {
           return fail(`Line ${line.id} doesn't connect to a live ${line.originType} on its own page.`);
         }
-        const barrierCollection = line.originType === 'cause' ? model.preventativeBarriers : model.mitigativeBarriers;
+        const barrierCollection = STOP_COLLECTIONS[line.originType];
         for (const stopId of line.stops) {
           const stop = barrierCollection.find((b) => b.id === stopId && b.pageId === line.pageId);
           if (!stop) {
@@ -279,10 +452,12 @@
       if (!result.ok) throw new Error(result.error);
       model.name = fresh.name;
       model.pages = fresh.pages;
-      model.causes = fresh.causes;
-      model.outcomes = fresh.outcomes;
+      model.threats = fresh.threats;
+      model.consequences = fresh.consequences;
       model.preventativeBarriers = fresh.preventativeBarriers;
       model.mitigativeBarriers = fresh.mitigativeBarriers;
+      model.escalationFactors = fresh.escalationFactors;
+      model.escalationBarriers = fresh.escalationBarriers;
       model.lines = fresh.lines;
       model.library = fresh.library;
       model.identifierDisplayMode = fresh.identifierDisplayMode;
@@ -291,8 +466,12 @@
       model.tleAggregation = fresh.tleAggregation;
       model.dangerousFraction = fresh.dangerousFraction;
       model.proofTestIntervalH = fresh.proofTestIntervalH;
+      model.document = fresh.document;
       model.idCounters = fresh.idCounters;
       model.retiredIds = fresh.retiredIds;
+      // Assigned wholesale above, so the index this model was carrying
+      // describes the document it used to hold (proposals/16).
+      model.rebuildPlacementIndex();
     },
   };
 

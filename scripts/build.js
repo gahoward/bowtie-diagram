@@ -50,17 +50,28 @@ function buildSingleFile() {
   const css = fs.readFileSync(path.join(ROOT, cssHref), 'utf8');
   const minifiedCss = esbuild.transformSync(css, { minify: true, loader: 'css' }).code;
 
+  // Every replacement below passes a FUNCTION rather than a string.
+  // String.replace treats `$&`, `$'`, `` $` `` and `$1` in a string
+  // replacement as substitution patterns -- and minified output really
+  // does contain them: esbuild names a variable `$` when the identifier
+  // frequencies work out that way, so `($=c(h,y,g)),$&&I.appendChild($)`
+  // is ordinary minified code that a string replacement silently
+  // rewrites into the matched text plus the rest of the file. That
+  // produced a dist bundle truncated mid-module, with the tail of
+  // index.html spliced into the middle of a script, and a page that died
+  // on "Unexpected token '<'". A function replacement is inserted
+  // verbatim.
   let out = html;
   out = out.replace(
     `<link rel="stylesheet" href="${cssHref}">`,
-    `<style>${minifiedCss}</style>`,
+    () => `<style>${minifiedCss}</style>`,
   );
   // Replace every individual script tag; leave exactly one <script> with
   // the full concatenated+minified bundle where the LAST one used to be,
   // so relative document position (end of body) is preserved.
   scriptSrcs.forEach((src, i) => {
     const tag = `<script src="${src}"></script>`;
-    out = out.replace(tag, i === scriptSrcs.length - 1 ? `<script>${minifiedJs}</script>` : '');
+    out = out.replace(tag, () => (i === scriptSrcs.length - 1 ? `<script>${minifiedJs}</script>` : ''));
   });
 
   fs.mkdirSync(DIST, { recursive: true });

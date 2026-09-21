@@ -11,7 +11,7 @@ on close, and the Escape-key listener doesn't leak past a non-Escape close.
 
 
 def _open_node_library(page):
-    page.click("#menu-trigger-settings")
+    page.click("#menu-trigger-add")
     page.click("#btn-manage-ids")
     page.wait_for_timeout(100)
 
@@ -23,7 +23,7 @@ def test_app_is_inert_while_a_modal_is_open_and_not_after_close(page):
     _open_node_library(page)
     assert app.evaluate("(el) => el.inert") is True
 
-    page.get_by_role("button", name="Close", exact=True).click()
+    page.get_by_role("button", name="Done", exact=True).click()
     page.wait_for_timeout(80)
     assert app.evaluate("(el) => el.inert") is False
 
@@ -34,7 +34,7 @@ def test_opening_a_modal_focuses_something_inside_the_dialog(page):
         "() => document.activeElement.closest('.modal-dialog') !== null"
     )
     assert focused_in_dialog
-    page.get_by_role("button", name="Close", exact=True).click()
+    page.get_by_role("button", name="Done", exact=True).click()
 
 
 def test_closing_a_modal_restores_focus_to_its_trigger(page):
@@ -44,10 +44,10 @@ def test_closing_a_modal_restores_focus_to_its_trigger(page):
     # (a dropdown item's own post-click hide is a separate concern).
     page.evaluate("""() => {
       const m = window.__lastModel;
-      m.addCause({x: 150, y: 200});
-      const cause = m.causes[0];
-      m.addPreventativeControl(cause.id);
-      const line = m._lineFor(cause.id);
+      m.addThreat({x: 150, y: 200});
+      const threat = m.threats[0];
+      m.addPreventativeControl(threat.id);
+      const line = m._lineFor(threat.id);
       m.connectLineDirectlyToTle(line.id, null);
     }""")
     page.wait_for_timeout(80)
@@ -55,7 +55,6 @@ def test_closing_a_modal_restores_focus_to_its_trigger(page):
     trigger = page.locator("#btn-warnings")
     trigger.focus()
     trigger.click()
-    page.wait_for_timeout(100)
 
     page.get_by_role("button", name="Close", exact=True).click()
     page.wait_for_timeout(80)
@@ -69,7 +68,7 @@ def test_escape_listener_does_not_leak_after_closing_via_button_click(page):
     modal via its Close button, then pressing Escape, must not reopen or
     otherwise affect anything -- there's nothing listening anymore."""
     _open_node_library(page)
-    page.get_by_role("button", name="Close", exact=True).click()
+    page.get_by_role("button", name="Done", exact=True).click()
     page.wait_for_timeout(80)
     assert page.locator(".modal-overlay").count() == 0
 

@@ -1,12 +1,12 @@
 (function (Bowtie) {
   // Design review finding 07: the two largest mirrored pairs in this file
-  // -- _gapInsertItemsForCauseLine/-OutcomeLine (originally 77/84 lines,
+  // -- _gapInsertItemsForThreatLine/-ConsequenceLine (originally 77/84 lines,
   // 48 byte-identical) and _addPreventativeControlFrom/
   // _addMitigativeControlFrom -- differed only by barrier kind, which
   // model collection/method to use, argument order on the origin-vs-
   // barrier-first attach calls, and (gap-insert only) which physical
-  // x-direction is "toward the TLE" from the origin, since a Cause sits
-  // left of the TLE and an Outcome sits right of it. This table writes
+  // x-direction is "toward the TLE" from the origin, since a Threat sits
+  // left of the TLE and an Consequence sits right of it. This table writes
   // that down once, mirroring LineTopology.js's own SIDE table for the
   // same asymmetry at the model layer -- each pair now collapses to one
   // shared method reading the difference out of here.
@@ -15,7 +15,7 @@
       barrierCollection: 'preventativeBarriers',
       addLabel: 'Add Preventative Barrier',
       attachLabel: 'Attach to Existing Preventative Barrier…',
-      // A Cause sits to the LEFT of the TLE, so its barrier chain grows
+      // A Threat sits to the LEFT of the TLE, so its barrier chain grows
       // toward increasing x -- physical left-to-right (x-increasing)
       // order already matches origin-to-TLE order, no reversal needed
       // to scan a line's stops in physical order.
@@ -29,7 +29,7 @@
       barrierCollection: 'mitigativeBarriers',
       addLabel: 'Add Mitigative Barrier',
       attachLabel: 'Attach to Existing Mitigative Barrier…',
-      // An Outcome sits to the RIGHT of the TLE, so its barrier chain
+      // An Consequence sits to the RIGHT of the TLE, so its barrier chain
       // grows toward DEcreasing x -- physical left-to-right order runs
       // origin-to-TLE BACKWARDS, so stops (nearest-origin-first, same as
       // PB) must be reversed to scan them in physical x order.
@@ -62,11 +62,20 @@
     // (see node_library_proposal.md), but nothing in the menu said so.
     // Defaults to a no-op so this stays constructible without it (tests
     // that build a ContextMenuController directly, if any ever do).
-    constructor(model, svgRoot, triggerAutoArrange, getDisplayUnit = () => 'hour', openNodeLibraryFor = () => {}) {
+    // `escalation` is the one thing this menu does that spans pages
+    // (proposals/22): `{ model, goToPage }`, holding the REAL model
+    // rather than the page-scoped facade, because linking names two
+    // pages and escalating creates one. Absent in a test harness that
+    // does not wire it, in which case the items simply are not offered.
+    constructor(
+      model, svgRoot, triggerAutoArrange, getDisplayUnit = () => 'hour',
+      openNodeLibraryFor = () => {}, escalation = null,
+    ) {
       this.model = model;
       this.svgRoot = svgRoot;
       this.triggerAutoArrange = triggerAutoArrange;
       this.openNodeLibraryFor = openNodeLibraryFor;
+      this.escalation = escalation;
       this.view = new Bowtie.ContextMenuView();
       this.flows = new Bowtie.ContextMenuModalFlows(model, triggerAutoArrange, getDisplayUnit);
 
@@ -91,58 +100,72 @@
       }
       // Empty canvas — nothing under the cursor to target, so offer the two
       // things that always make sense regardless of what's currently on the
-      // diagram: starting a new Cause or Outcome, placed right where the
+      // diagram: starting a new Threat or Consequence, placed right where the
       // user clicked (same "add it where you clicked" convention as the
       // line-gap and TLE menus below). `e.target` is always inside
       // `svgRoot` here, since that's what this listener is attached to.
       e.preventDefault();
-      this.view.render(e.clientX, e.clientY, this._buildAddCauseOutcomeItems(this._toSvgPoint(e)));
+      this.view.render(e.clientX, e.clientY, this._buildAddThreatConsequenceItems(this._toSvgPoint(e)));
     }
 
     // Shared by the empty-canvas menu and the TopLevelEvent's own node menu
     // — both are "nothing specific to react to, just offer to start a new
-    // Cause/Outcome here" (feature request: a context menu reachable from
-    // anywhere on the diagram or the TLE, not just an existing Cause/Outcome
-    // node, to Add Cause/Add Outcome).
+    // Threat/Consequence here" (feature request: a context menu reachable from
+    // anywhere on the diagram or the TLE, not just an existing Threat/Consequence
+    // node, to Add Threat/Add Consequence).
     //
     // Both items are offered regardless of which side of the TLE was
-    // right-clicked, so a click on the Outcome side still offers "Add
-    // Cause" (and vice versa). Placing it at that exact wrong-side point
-    // would put a Cause to the right of the TLE / an Outcome to its left —
+    // right-clicked, so a click on the Consequence side still offers "Add
+    // Threat" (and vice versa). Placing it at that exact wrong-side point
+    // would put a Threat to the right of the TLE / an Consequence to its left —
     // visually the wrong side (wishlist: this must self-correct, the same
-    // way it would if the user had used the toolbar's Add Cause/Add Outcome
+    // way it would if the user had used the toolbar's Add Threat/Add Consequence
     // button instead). Only honor the click point when it's already on the
     // correct side; otherwise fall back to the toolbar's own placement
-    // (no opts — BowtieModel.addCause/addOutcome's fixed default x, auto y).
-    _buildAddCauseOutcomeItems(point) {
+    // (no opts — BowtieModel.addThreat/addConsequence's fixed default x, auto y).
+    _buildAddThreatConsequenceItems(point) {
       const tleX = this.model.topLevelEvent.x;
       return [
         {
-          label: 'Add Cause',
-          action: () => this._openCreateOrChooseLeaf('cause', point.x <= tleX ? point : {}),
+          label: 'Add Threat',
+          action: () => this._openCreateOrChooseLeaf('threat', point.x <= tleX ? point : {}),
         },
         {
-          label: 'Add Outcome',
-          action: () => this._openCreateOrChooseLeaf('outcome', point.x >= tleX ? point : {}),
+          label: 'Add Consequence',
+          action: () => this._openCreateOrChooseLeaf('consequence', point.x >= tleX ? point : {}),
         },
       ];
     }
 
-    // Shared by the empty-canvas/TLE menu's "Add Cause"/"Add Outcome" items:
+    // Shared by the empty-canvas/TLE menu's "Add Threat"/"Add Consequence" items:
     // the create-or-choose modal (node_library_proposal.md ask 3), placed
     // at `placementOpts` (the click point when it's already on the correct
     // side of the TLE, or {} to fall back to the model's own default
-    // placement — see _buildAddCauseOutcomeItems above).
+    // placement — see _buildAddThreatConsequenceItems above).
     _openCreateOrChooseLeaf(kind, placementOpts) {
-      const addFn = kind === 'cause'
-        ? (opts) => this.model.addCause(opts)
-        : (opts) => this.model.addOutcome(opts);
+      const addFn = kind === 'threat'
+        ? (opts) => this.model.addThreat(opts)
+        : (opts) => this.model.addConsequence(opts);
       Bowtie.openCreateOrChooseNodeModal({
         model: this.model,
         type: kind,
         onCreate: (fields) => addFn({ ...placementOpts, ...fields }),
         onChooseExisting: (node) => addFn({ ...placementOpts, nodeId: node.id }),
       });
+    }
+
+    // The keyboard route into the same menu a right-click gives
+    // (proposals/13): Shift+F10 or the ContextMenu key on a focused node.
+    // Reuses _buildNodeItems unchanged -- the menu's contents must not
+    // depend on how it was opened -- and anchors at the node's own
+    // on-screen box rather than a pointer position.
+    openForElement(el, anchorRect, returnFocusTo = null) {
+      const items = this._buildNodeItems(el, { x: el.x, y: el.y });
+      if (items.length === 0) return null;
+      this.view.render(
+        anchorRect.left + anchorRect.width / 2, anchorRect.bottom, items, returnFocusTo,
+      );
+      return this.view.menuEl;
     }
 
     _onDoubleClick(e) {
@@ -155,9 +178,9 @@
     _buildNodeItems(el, point) {
       const items = [];
       if (el.type === 'topLevelEvent') {
-        items.push(...this._buildAddCauseOutcomeItems(point));
+        items.push(...this._buildAddThreatConsequenceItems(point));
       }
-      if (el.type === 'cause') {
+      if (el.type === 'threat') {
         items.push({
           label: 'Add Preventative Barrier',
           action: () => this._openCreateOrChooseBarrier('preventativeBarrier', el),
@@ -166,7 +189,7 @@
           items.push({
             label: 'Attach to Existing Preventative Barrier…',
             action: () => this.flows.openAttachModal(
-              'Attach Cause to Preventative Barrier',
+              'Attach Threat to Preventative Barrier',
               this.model.preventativeBarriers,
               (pb) => this.flows.attachWithInheritPrompt(
                 pb.id,
@@ -177,7 +200,7 @@
           });
         }
       }
-      if (el.type === 'outcome') {
+      if (el.type === 'consequence') {
         items.push({
           label: 'Add Mitigative Barrier',
           action: () => this._openCreateOrChooseBarrier('mitigativeBarrier', el),
@@ -186,12 +209,33 @@
           items.push({
             label: 'Attach to Existing Mitigative Barrier…',
             action: () => this.flows.openAttachModal(
-              'Attach Outcome to Mitigative Barrier',
+              'Attach Consequence to Mitigative Barrier',
               this.model.mitigativeBarriers,
               (mb) => this.flows.attachWithInheritPrompt(
                 mb.id,
                 this.model._lineFor(el.id).id,
                 (inherit) => this.model.attachOutputToMitigativeControl(mb.id, el.id, inherit),
+              ),
+            ),
+          });
+        }
+      }
+      if (el.type === 'consequence' && this.escalation) {
+        items.push(...this._escalationItems(el));
+      }
+      if (el.type === 'escalationFactor') {
+        items.push({
+          label: 'Add Escalation Barrier',
+          action: () => this._openCreateOrChooseEscalation('escalationBarrier', el),
+        });
+        if (this.model.escalationBarriers.length > 0) {
+          items.push({
+            label: 'Attach to Existing Escalation Barrier…',
+            action: () => this.flows.openAttachModal(
+              'Attach Escalation Factor to Escalation Barrier',
+              this.model.escalationBarriers,
+              (eb) => this.flows.safeAttach(
+                () => this.model.attachExistingEscalationBarrier(el.id, eb.id),
               ),
             ),
           });
@@ -211,24 +255,36 @@
         items.push({ label: 'Add Mitigative Barrier', action: () => this._addMitigativeControlFrom(el) });
         items.push(...this._buildShuntItems(el.id));
       }
+      // Escalation factors hang off either kind of barrier (proposals/08)
+      // -- "what could stop this barrier working?" is the same question on
+      // both sides of the diagram.
+      if (el.type === 'preventativeBarrier' || el.type === 'mitigativeBarrier') {
+        items.push({
+          label: 'Add Escalation Factor…',
+          action: () => this._openCreateOrChooseEscalation('escalationFactor', el),
+        });
+      }
+      // Three groups, separated: create/rearrange (above), inspect, destroy.
+      if (items.length > 0) items.push({ separator: true });
       items.push({ label: 'Properties', action: () => this.flows.rename(el) });
       if (el.type !== 'topLevelEvent' && el.type !== 'hazard') {
+        items.push({ separator: true });
         // "Remove from Page" (node_library_proposal.md, decided): this only
         // ever called deleteElement and always will — the label just stops
         // implying it destroys the node, which may still be placed on other
         // pages, or sit in the library with no placement at all.
-        items.push({ label: 'Remove from Page', action: () => this.model.deleteElement(el.id) });
+        items.push({ label: 'Remove from Page', danger: true, action: () => this.model.deleteElement(el.id) });
         // The actual delete-the-node action lives in Node Library (it can
         // affect every page the node is placed on, so it needs the
         // cross-page confirmation that modal already shows) — this just
-        // opens straight to it, pre-expanded to this exact node, rather
-        // than leaving "how do I really delete this" undiscoverable.
-        items.push({ label: 'Delete from Library…', action: () => this.openNodeLibraryFor(el.nodeId) });
+        // opens straight to it, on this exact node's row, rather than
+        // leaving "how do I really delete this" undiscoverable.
+        items.push({ label: 'Delete from Library…', danger: true, action: () => this.openNodeLibraryFor(el.nodeId) });
       }
       return items;
     }
 
-    // Shared by the Cause/Outcome node menu's own "Add ... Barrier" item:
+    // Shared by the Threat/Consequence node menu's own "Add ... Barrier" item:
     // the create-or-choose modal (node_library_proposal.md ask 3), created
     // against `anchorEl`'s own chain the exact same way
     // addPreventativeControl/addMitigativeControl always have.
@@ -236,6 +292,21 @@
       const addFn = kind === 'preventativeBarrier'
         ? (opts) => this.model.addPreventativeControl(anchorEl.id, opts)
         : (opts) => this.model.addMitigativeControl(anchorEl.id, opts);
+      Bowtie.openCreateOrChooseNodeModal({
+        model: this.model,
+        type: kind,
+        onCreate: (fields) => addFn(fields),
+        onChooseExisting: (node) => addFn({ nodeId: node.id }),
+      });
+    }
+
+    // The escalation counterpart of _openCreateOrChooseBarrier: a factor
+    // is created on (or chosen for) the barrier it degrades, a control on
+    // the factor it answers.
+    _openCreateOrChooseEscalation(kind, anchorEl) {
+      const addFn = kind === 'escalationFactor'
+        ? (opts) => this.model.addEscalationFactor(anchorEl.id, opts)
+        : (opts) => this.model.addEscalationBarrier(anchorEl.id, opts);
       Bowtie.openCreateOrChooseNodeModal({
         model: this.model,
         type: kind,
@@ -257,6 +328,62 @@
     // does, and offered as a "which path(s)?" picker (mirroring
     // _addPreventativeControlFrom's own multi-line modal) when more than
     // one does.
+    // "This consequence is the top event of another analysis"
+    // (proposals/22). Standard practice escalates -- loss of containment
+    // is a consequence of the pipework bowtie and the top event of the
+    // pool-fire one -- and until now the document could hold both
+    // diagrams with no way to say they were the same event.
+    //
+    // Two items, because both directions happen: the page usually does
+    // not exist yet, and sometimes it already does.
+    _escalationItems(el) {
+      const { model, goToPage } = this.escalation;
+      const items = [{ separator: true }];
+      const derived = model.pages.filter((p) => p.derivedFrom && p.derivedFrom.consequenceId === el.id);
+      if (derived.length > 0) {
+        // Already escalated: the useful action is going there, not
+        // making a second page about the same event.
+        derived.forEach((page) => {
+          items.push({ label: `Go to "${page.name}"`, action: () => goToPage(page.id) });
+        });
+        return items;
+      }
+      const node = this.model.getNode(el.nodeId);
+      items.push({
+        label: 'Escalate to a New Page…',
+        action: () => this.flows.promptForName({
+          title: 'Escalate to a New Page',
+          label: 'Page name',
+          // Defaults to the consequence's own name, because they are the
+          // same event and retyping it invites the two to drift apart.
+          value: node.name || this.model.displayIdentifierFor(node),
+          confirmLabel: 'Create Page',
+          hint: 'The new page\u2019s top event is this consequence. Its figures stay its own for now.',
+          onConfirm: (name) => {
+            const page = model.escalateConsequenceToNewPage(el.id, { name });
+            goToPage(page.id);
+          },
+        }),
+      });
+      const candidates = model.pages.filter(
+        (p) => p.id !== el.pageId && !p.derivedFrom && !model._pageReaches(el.pageId, p.id),
+      );
+      if (candidates.length > 0) {
+        items.push({
+          label: 'Link to an Existing Page…',
+          action: () => this.flows.openAttachModal(
+            'Link Consequence to a Page',
+            // The picker takes placement-shaped rows; a page header is
+            // close enough in shape, and `nodeId` is what the list reads
+            // for its label.
+            candidates.map((p) => ({ id: p.id, label: p.name, sublabel: p.topLevelEvent.name || '' })),
+            (page) => this.flows.safeAttach(() => model.linkPageToConsequence(page.id, el.id)),
+          ),
+        });
+      }
+      return items;
+    }
+
     _buildShuntItems(id) {
       const lines = this.model.linesThrough(id);
       const items = [];
@@ -321,16 +448,16 @@
       const lineId = lineEl.getAttribute('data-line-id');
       if (!lineId) return [];
       const point = this._toSvgPoint(e);
-      if (role === 'cause-line' || role === 'cause-direct') {
+      if (role === 'threat-line' || role === 'threat-direct') {
         return this._gapInsertItems('preventativeBarrier', lineId, point);
       }
-      if (role === 'outcome-line' || role === 'outcome-direct') {
+      if (role === 'consequence-line' || role === 'consequence-direct') {
         return this._gapInsertItems('mitigativeBarrier', lineId, point);
       }
       return [];
     }
 
-    // The display id/name for a Line's own origin (a Cause/Outcome
+    // The display id/name for a Line's own origin (a Threat/Consequence
     // placement) -- resolved through its shared library node, same as
     // everywhere else a node's label renders.
     _labelForOrigin(originId) {
@@ -357,8 +484,8 @@
     // instead of the cursor). One shared implementation behind
     // _buildLineItems' two call sites -- see the SIDE table above (design
     // review finding 07); `SIDE.originLeftOfTle` says whether the origin-
-    // first stops array already runs left-to-right (Cause) or needs
-    // reversing first to scan it in physical order (Outcome, whose chain
+    // first stops array already runs left-to-right (Threat) or needs
+    // reversing first to scan it in physical order (Consequence, whose chain
     // grows toward decreasing x).
     _gapInsertItems(kind, lineId, point) {
       const { model } = this;
@@ -425,10 +552,10 @@
       // dropped from THIS line. Meaningless when the click already sits
       // in the gap right next to the TLE itself, nothing left to drop.
       // Which shape that check (and the "keep through" stop) takes
-      // depends on SIDE.originLeftOfTle: for a Cause, physical order
+      // depends on SIDE.originLeftOfTle: for a Threat, physical order
       // already IS origin-to-TLE order, so "nothing toward the TLE" is
       // simply "before not found" (past the last, TLE-most, stop), and
-      // the stop to keep is `before`'s predecessor. For an Outcome,
+      // the stop to keep is `before`'s predecessor. For an Consequence,
       // `orderedByX` was reversed to get physical order, so it now runs
       // TLE-to-origin -- "nothing toward the TLE" is instead "before
       // found, and it's the very first (TLE-most) entry," and `before`

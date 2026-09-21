@@ -1,26 +1,51 @@
 (function (Bowtie) {
-  // First-load gate: nothing is usable until the user picks New (name the
-  // bowtie/TLE/Hazard) or Import (load an existing .json export). The modal
-  // is non-dismissible — there is no third way past it.
+  function presets() {
+    return (window.Bowtie && Bowtie.RISK_MATRIX_PRESETS) || {};
+  }
+
+  // First-load gate (landing_page_proposal.md): nothing is usable until
+  // the user starts a new bowtie, opens an existing .json export, or loads
+  // the demo. The modal is non-dismissible — there is no other way past
+  // it. Three steps: the start screen, then for a new bowtie the two
+  // wizard steps (names, then risk mode). Everything typed is kept in
+  // `_draft` on this controller, so Back never loses it.
+  //
+  // The screens' markup lives in WelcomeView.js (proposals/15 part 2).
+  // What stays here is the modal itself, `_draft`, the demo variant, the
+  // Ctrl+Alt+D shortcut, and every model call -- including `_create`,
+  // which is the only place this flow writes to the model at all.
   class WelcomeController {
-    // `importExport` (an ImportExportController instance) is what "Load
-    // Demo" and Ctrl+Alt+D route through — `importExport.loadDocument`
+    // `importExport` (an ImportExportController instance) is what "Explore
+    // the demo" and Ctrl+Alt+D route through — `importExport.loadDocument`
     // runs the exact same shape/version validation a real import gets (see
-    // ImportExportController.js), so a stale Bowtie.DEMO_DATA fails the
-    // same friendly way a stale real export would, rather than silently
-    // handing the model something it wasn't written to expect.
-    constructor(model, importFileInput, importExport, onDone) {
+    // ImportExportController.js), so a stale Bowtie.DEMO_DATA_VARIANTS
+    // entry fails the same friendly way a stale real export would, rather
+    // than silently handing the model something it wasn't written to
+    // expect.
+    constructor(model, importFileInput, importExport, onDone, { recovery, recent } = {}) {
       this.model = model;
       this.importFileInput = importFileInput;
       this.importExport = importExport;
       this.onDone = onDone;
+      // Both optional (proposals/04): a snapshot of unsaved work from a
+      // previous visit, and the files opened or saved natively before
+      // now. Either can be absent -- no snapshot stored, no File System
+      // Access API -- and the start screen simply shows one fewer thing.
+      this.recovery = recovery || null;
+      this.recent = recent || null;
       this._dismissed = false;
-      // Which demo variant "Load Demo"/Ctrl+Alt+D loads -- one per document
-      // mode (quantitative_mode_proposal.md "Modes"), all built from the
-      // same underlying diagram (scripts/migrate-demo-to-v8.js) so picking
-      // a different variant is purely about which risk fields are filled
-      // in, not a different example.
+      // Which demo variant "Explore the demo"/Ctrl+Alt+D loads -- one per
+      // document mode (quantitative_mode_proposal.md "Modes"), all built
+      // from the same underlying diagram, so the choice is purely about
+      // which risk fields are filled in. Independent of the wizard's own
+      // mode pick below: the chooser explains the modes, it isn't a setting.
       this._demoVariant = 'simple';
+      const presetIds = Object.keys(presets());
+      this._draft = {
+        title: '', tle: '', hazard: '',
+        pageName: '', pageDescription: '', identifierMode: 'internal', moreOpen: false,
+        mode: 'simple', matrixId: presetIds[0] || null,
+      };
 
       model.onChange(() => this._dismissOnFirstChange());
 
@@ -40,7 +65,12 @@
       this.modal = Bowtie.ModalView.openModal({
         title: '', bodyEl: document.createElement('div'), actions: [], dismissible: false,
       });
-      this._showChoiceStep();
+      // The canvas's dot-grid idiom behind the dialog (styles.css), so the
+      // screen reads as "an editor before you've started" rather than an
+      // alert on a grey void -- #app itself stays hidden until this
+      // completes, see main.js.
+      this.modal.overlay.classList.add('welcome-overlay');
+      this._showStartStep();
     }
 
     _loadDemo() {
@@ -55,221 +85,132 @@
       if (this.onDone) this.onDone();
     }
 
-    // Three side-by-side ways to start, left to right: build a new diagram
-    // from the wizard, browse for a .json export, or drag one in directly.
-    // The upload button and the dropzone both hand off to the SAME hidden
-    // `<input type=file>` that ImportExportController already listens on
-    // (via a synthesized `change` event for the drop case) — so the
-    // existing validation/import path runs unchanged either way, with
-    // nothing duplicated here.
-    _showChoiceStep() {
-      // Wider than the default modal width — a three-column choice layout
-      // needs more room than the single-column forms every other modal
-      // uses; the setup step below removes this again.
-      this.modal.dialog.classList.add('welcome-dialog');
-
-      const body = document.createElement('div');
-      body.className = 'welcome-body';
-
-      const row = document.createElement('div');
-      row.className = 'welcome-choice-row';
-
-      const wizardCol = document.createElement('div');
-      wizardCol.className = 'welcome-choice-col';
-      const wizardBtn = document.createElement('button');
-      wizardBtn.type = 'button';
-      wizardBtn.className = 'welcome-choice-btn welcome-choice-btn-primary';
-      wizardBtn.textContent = 'New Bowtie Wizard';
-      wizardBtn.addEventListener('click', () => this._showSetupStep());
-      const wizardHint = document.createElement('p');
-      wizardHint.className = 'welcome-choice-hint';
-      wizardHint.textContent = 'Start from scratch and name your Top-Level Event and Hazard.';
-
-      // Stacked below the wizard button in the SAME column, not a fourth
-      // column — `.welcome-choice-row`'s `align-items: stretch` and each
-      // column's own `justify-content: center` make the other two columns
-      // grow and re-center automatically once this column gets taller.
-      const demoBtn = document.createElement('button');
-      demoBtn.type = 'button';
-      demoBtn.className = 'welcome-choice-btn welcome-choice-btn-demo';
-      demoBtn.textContent = 'Load Demo';
-      demoBtn.addEventListener('click', () => this._loadDemo());
-      const demoHint = document.createElement('p');
-      demoHint.className = 'welcome-choice-hint';
-      demoHint.textContent = 'See a worked example — shared barriers, multiple causes and outcomes. (Ctrl+Alt+D)';
-
-      // Which document mode the demo loads in (quantitative_mode_
-      // proposal.md "Modes") -- same underlying diagram either way, only
-      // the risk fields differ. Defaults to Simple (today's only variant).
-      const demoVariantSelect = document.createElement('select');
-      demoVariantSelect.className = 'welcome-demo-variant-select';
-      [
-        { value: 'simple', text: 'Simple' },
-        { value: 'qualitative', text: 'Qualitative' },
-        { value: 'quantitative', text: 'Quantitative' },
-      ].forEach((opt) => {
-        const option = document.createElement('option');
-        option.value = opt.value;
-        option.textContent = opt.text;
-        demoVariantSelect.appendChild(option);
-      });
-      demoVariantSelect.value = this._demoVariant;
-      demoVariantSelect.addEventListener('change', () => { this._demoVariant = demoVariantSelect.value; });
-
-      wizardCol.append(wizardBtn, wizardHint, demoBtn, demoVariantSelect, demoHint);
-
-      const uploadCol = document.createElement('div');
-      uploadCol.className = 'welcome-choice-col';
-      const uploadBtn = document.createElement('button');
-      uploadBtn.type = 'button';
-      uploadBtn.className = 'welcome-choice-btn';
-      uploadBtn.textContent = 'Upload a .json file';
-      uploadBtn.addEventListener('click', () => this.importFileInput.click());
-      const uploadHint = document.createElement('p');
-      uploadHint.className = 'welcome-choice-hint';
-      uploadHint.textContent = 'Browse for a previously-exported diagram.';
-      uploadCol.append(uploadBtn, uploadHint);
-
-      const dropCol = document.createElement('div');
-      dropCol.className = 'welcome-choice-col welcome-dropzone';
-      dropCol.textContent = 'Drag and drop a .json file here';
-      dropCol.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        dropCol.classList.add('drag-over');
-      });
-      dropCol.addEventListener('dragleave', () => dropCol.classList.remove('drag-over'));
-      dropCol.addEventListener('drop', (e) => {
-        e.preventDefault();
-        dropCol.classList.remove('drag-over');
-        const file = e.dataTransfer.files[0];
-        if (!file) return;
-        const dataTransfer = new DataTransfer();
-        dataTransfer.items.add(file);
-        this.importFileInput.files = dataTransfer.files;
-        this.importFileInput.dispatchEvent(new Event('change', { bubbles: true }));
-      });
-      // A drop zone that only responds to drag-and-drop is an easy-to-miss
-      // dead click otherwise — clicking it falls back to the same browse
-      // dialog as the upload button.
-      dropCol.addEventListener('click', () => this.importFileInput.click());
-
-      row.append(wizardCol, uploadCol, dropCol);
-      body.appendChild(row);
-
-      this.modal.setTitle('Bowtie Diagram Editor');
-      this.modal.setBody(body);
-      this.modal.setActions([]);
+    _setDialogWidth(kind) {
+      const { dialog } = this.modal;
+      dialog.classList.toggle('welcome-dialog', kind === 'start');
+      dialog.classList.toggle('welcome-dialog-wizard', kind === 'wizard');
     }
 
-    _showSetupStep() {
-      this.modal.dialog.classList.remove('welcome-dialog');
+    // Hands a dropped file to the SAME hidden <input type=file> that
+    // ImportExportController already listens on (via a synthesized
+    // `change` event) — so the existing validation/import path runs
+    // unchanged, with nothing duplicated here.
+    _importDroppedFile(file) {
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+      this.importFileInput.files = dataTransfer.files;
+      this.importFileInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
 
-      const body = document.createElement('div');
-      body.className = 'welcome-body';
+    // --- Step 0: start screen ----------------------------------------------
 
-      const makeField = (labelText, defaultValue) => {
-        const wrap = document.createElement('label');
-        wrap.className = 'modal-field';
-        const span = document.createElement('span');
-        span.textContent = labelText;
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.value = defaultValue;
-        wrap.appendChild(span);
-        wrap.appendChild(input);
-        body.appendChild(wrap);
-        return input;
-      };
-
-      // The document/analysis title, the page's own name, and the TLE's
-      // own name are genuinely different things (the project or system
-      // under study; a single failure of interest within it; the failure
-      // itself) — all three stay, none collapsed into another. The page
-      // this wizard configures already exists (BowtieModel's constructor
-      // creates a document's first page up front, the same way it already
-      // pre-creates a first TLE/Hazard for this same step to rename), so
-      // "Create" here renames/describes it rather than adding a second one.
-      const firstPage = this.model.pages[0];
-      const nameInput = makeField('Analysis title', this.model.name);
-      const pageNameInput = makeField('Page name', firstPage.name);
-      const pageDescInput = makeField('Page description (optional)', firstPage.description);
-      const tleInput = makeField('Top-level event name', this.model.topLevelEvent.name);
-      const hazardInput = makeField('Hazard name', this.model.hazard.name);
-
-      // node_library_proposal.md "Display identifiers": the first
-      // non-text-field control the wizard has -- a two-option radio group,
-      // set once here (there's nothing to backfill yet, no nodes exist),
-      // changeable later via the Settings dropdown.
-      const identifierField = document.createElement('div');
-      identifierField.className = 'modal-field';
-      const identifierLabel = document.createElement('span');
-      identifierLabel.textContent = 'Show identifiers as';
-      identifierField.appendChild(identifierLabel);
-      const identifierOptions = [
-        { value: 'internal', text: 'Internal IDs (C_1, PB_1, …)' },
-        { value: 'custom', text: 'Custom Labels' },
-      ];
-      const identifierInputs = identifierOptions.map((opt) => {
-        const optionRow = document.createElement('label');
-        optionRow.className = 'modal-checkbox-row';
-        const radio = document.createElement('input');
-        radio.type = 'radio';
-        radio.name = 'identifier-display-mode';
-        radio.value = opt.value;
-        radio.checked = opt.value === 'internal';
-        const optionSpan = document.createElement('span');
-        optionSpan.textContent = opt.text;
-        optionRow.appendChild(radio);
-        optionRow.appendChild(optionSpan);
-        identifierField.appendChild(optionRow);
-        return radio;
+    _showStartStep() {
+      this._setDialogWidth('start');
+      const screen = Bowtie.WelcomeView.startScreen({
+        recoveryMeta: this.recovery && this.recovery.peek(),
+        demoVariant: this._demoVariant,
+        schemaVersion: Bowtie.BowtieModel.SCHEMA_VERSION,
+      }, {
+        onStartNew: () => this._showNamesStep(),
+        onPickDemoVariant: (id) => { this._demoVariant = id; },
+        onLoadDemo: () => this._loadDemo(),
+        onBrowse: () => this.importFileInput.click(),
+        onDropFile: (file) => this._importDroppedFile(file),
+        onRecover: () => this.recovery.restore(this.importExport),
+        onDiscardRecovery: () => this.recovery.clear(),
       });
-      const identifierHint = document.createElement('p');
-      identifierHint.className = 'welcome-choice-hint';
-      identifierHint.textContent = "You'll set an identifier for each Cause, Outcome, and Barrier yourself as you "
-        + 'create them — nothing is generated for you.';
-      identifierHint.hidden = true;
-      identifierField.appendChild(identifierHint);
-      identifierInputs.forEach((radio) => radio.addEventListener('change', () => {
-        identifierHint.hidden = radio.value !== 'custom' || !radio.checked;
-      }));
-      body.appendChild(identifierField);
 
-      this.modal.setTitle('New Bowtie');
-      this.modal.setBody(body);
+      this.modal.setTitle('Bowtie Diagram Editor');
+      this.modal.setBody(screen.el);
+      this.modal.setActions([]);
+      this._fillRecentList(screen);
+    }
+
+    _fillRecentList(screen) {
+      if (!this.recent) return;
+      this.recent.list().then((entries) => screen.setRecent(entries, async (entry) => {
+        const text = await this.recent.read(entry);
+        // Permission refused, or the file has moved since -- the entry
+        // drops itself in that case, and the row follows.
+        if (text == null) return false;
+        this.importExport.importText(text);
+        return true;
+      }));
+    }
+
+    // --- Step 1: names --------------------------------------------------------
+
+    _showNamesStep() {
+      this._setDialogWidth('wizard');
+      const step = Bowtie.WelcomeView.namesStep(this._draft, {
+        onFieldInput: (key, value) => { this._draft[key] = value; },
+        onMoreToggle: (open) => { this._draft.moreOpen = open; },
+        onPickIdentifierMode: (mode) => { this._draft.identifierMode = mode; },
+        onComplete: (complete) => this._setNextEnabled(complete),
+        onSubmit: () => this._showModeStep(),
+      });
+
+      this.modal.setTitle('New bowtie');
+      this.modal.setBody(step.el);
       this.modal.setActions([
-        { label: 'Back', onClick: () => { this._showChoiceStep(); return false; } },
-        {
-          label: 'Create',
-          primary: true,
-          onClick: () => {
-            this.model.setName(nameInput.value.trim());
-            this.model.renamePage(firstPage.id, {
-              name: pageNameInput.value.trim(),
-              description: pageDescInput.value,
-            });
-            this.model.renameElement(this.model.topLevelEvent.id, tleInput.value.trim());
-            this.model.renameElement(this.model.hazard.id, hazardInput.value.trim());
-            const identifierChoice = identifierInputs.find((r) => r.checked);
-            if (identifierChoice) this.model.setIdentifierDisplayMode(identifierChoice.value);
-            // model.onChange (registered in the constructor) handles dismissal
-          },
-        },
+        { label: 'Back', onClick: () => { this._showStartStep(); return false; } },
+        { label: 'Next', primary: true, onClick: () => { this._showModeStep(); return false; } },
       ]);
 
-      // Analysis title, Page name, TLE name, and Hazard name are all
-      // genuinely required — Create stays disabled until every one of
-      // them is non-empty after trimming. Page description may stay
-      // blank. Replaces the old silent "falls back to a default name"
-      // behaviour for the three pre-existing fields too, not just the two
-      // new ones — a deliberate behaviour change.
-      const createBtn = this.modal.dialog.querySelector('.modal-btn-primary');
-      const requiredInputs = [nameInput, pageNameInput, tleInput, hazardInput];
-      const updateCreateDisabled = () => {
-        createBtn.disabled = requiredInputs.some((input) => input.value.trim() === '');
-      };
-      requiredInputs.forEach((input) => input.addEventListener('input', updateCreateDisabled));
-      updateCreateDisabled();
+      // setActions built the button, so this runs after it: the step
+      // reports completeness, and which control that gates is the
+      // modal's owner's business.
+      this._setNextEnabled(step.isComplete());
+      step.focusFirst();
+    }
+
+    _setNextEnabled(enabled) {
+      const nextBtn = this.modal.dialog.querySelector('.modal-btn-primary');
+      if (nextBtn) nextBtn.disabled = !enabled;
+    }
+
+    // --- Step 2: risk mode ----------------------------------------------------
+
+    _showModeStep() {
+      this._setDialogWidth('wizard');
+      const step = Bowtie.WelcomeView.modeStep(this._draft, presets(), {
+        onSelectMode: (mode) => { this._draft.mode = mode; },
+        onSelectMatrix: (id) => { this._draft.matrixId = id; },
+      });
+
+      this.modal.setTitle('New bowtie');
+      this.modal.setBody(step.el);
+      this.modal.setActions([
+        { label: 'Back', onClick: () => { this._showNamesStep(); return false; } },
+        { label: 'Create', primary: true, onClick: () => this._create() },
+      ]);
+    }
+
+    // Every call below is an existing model method. The first one
+    // (`setName`) fires model.onChange, which dismisses this modal and
+    // runs main.js's completion callback; the rest run with the modal
+    // already gone, and the callback's deferred `undo.reset()` wipes the
+    // lot from the undo stack, so none of this is undo-able back to a
+    // blank document.
+    _create() {
+      const d = this._draft;
+      const firstPage = this.model.pages[0];
+      this.model.setName(d.title.trim());
+      this.model.renamePage(firstPage.id, {
+        name: d.pageName.trim() || d.tle.trim(),
+        description: d.pageDescription,
+      });
+      this.model.renameElement(this.model.topLevelEvent.id, d.tle.trim());
+      this.model.renameElement(this.model.hazard.id, d.hazard.trim());
+      this.model.setIdentifierDisplayMode(d.identifierMode);
+      if (d.mode !== 'simple') {
+        this.model.setMode(d.mode);
+        const preset = presets()[d.matrixId];
+        // Embedded as a full, independent copy, exactly as Project
+        // Settings does: exports stay self-contained even if the bundled
+        // preset is later edited.
+        if (preset) this.model.setRiskMatrix(JSON.parse(JSON.stringify(preset)));
+      }
     }
   }
 

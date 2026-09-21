@@ -20,7 +20,7 @@
     // Opens the shared Properties modal (PropertiesModal.js) for any node
     // type -- Identity (name/description/identifier), Risk Analysis
     // (qualitative/quantitative fields, library nodes only), and read-only
-    // Computed values (Outcome risk class/likelihood, TLE computed
+    // Computed values (Consequence risk class/likelihood, TLE computed
     // likelihood). Reached from both double-click and the context menu's
     // "Properties" item.
     rename(el) {
@@ -162,7 +162,7 @@
 
     // Generic searchable-by-id/name candidate picker -- shared by every
     // "attach to existing barrier" item, whichever menu it was offered from
-    // (a Cause/Outcome node's own menu, or a right-clicked line segment).
+    // (a Threat/Consequence node's own menu, or a right-clicked line segment).
     openAttachModal(title, candidates, onPick) {
       const body = document.createElement('div');
 
@@ -181,14 +181,19 @@
       list.className = 'attach-list';
       body.appendChild(list);
 
-      // `candidates` are always PLACEMENTS (attachExistingBarrier/
-      // attachInputToPreventativeControl/attachOutputToMitigativeControl
-      // all operate on placement ids) -- displayed id/name resolve through
-      // each one's shared library node instead, same as everywhere else a
-      // barrier renders (node_library_proposal.md "Two id spaces").
+      // `candidates` are PLACEMENTS for every barrier-attach caller
+      // (attachExistingBarrier/attachInputToPreventativeControl/
+      // attachOutputToMitigativeControl all operate on placement ids), so
+      // displayed id/name resolve through each one's shared library node,
+      // same as everywhere else a barrier renders
+      // (node_library_proposal.md "Two id spaces"). A caller whose rows
+      // are not placements -- the page picker behind "Link to an Existing
+      // Page…" (proposals/22) -- supplies `label`/`sublabel` itself
+      // rather than being forced into a node it does not have.
       const rows = candidates.map((c) => {
-        const node = this.model.getNode(c.nodeId);
-        const displayId = this.model.displayIdentifierFor(node);
+        const node = c.label === undefined ? this.model.getNode(c.nodeId) : null;
+        const displayId = node ? this.model.displayIdentifierFor(node) : c.label;
+        const rowName = node ? node.name : (c.sublabel || '');
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'attach-list-item';
@@ -199,7 +204,7 @@
 
         const nameSpan = document.createElement('span');
         nameSpan.className = 'attach-list-name';
-        nameSpan.textContent = node.name;
+        nameSpan.textContent = rowName;
 
         btn.appendChild(idSpan);
         btn.appendChild(nameSpan);
@@ -208,7 +213,7 @@
           modal.close();
         });
         list.appendChild(btn);
-        return { el: btn, haystack: `${displayId} ${node.name}`.toLowerCase() };
+        return { el: btn, haystack: `${displayId} ${rowName}`.toLowerCase() };
       });
 
       filterInput.addEventListener('input', () => {
@@ -222,6 +227,54 @@
         actions: [{ label: 'Cancel' }],
       });
       filterInput.focus();
+    }
+
+    // One text field and a confirm -- what "Escalate to a New Page…"
+    // needs (proposals/22) and nothing more. Deliberately not the
+    // Properties modal: this names a page that does not exist yet, and
+    // offering the whole identity/risk form for that would ask about
+    // fields the thing being created does not have.
+    // A callback rather than a promise on purpose: `openModal` has no
+    // close hook, so a promise would never settle when the user pressed
+    // Escape -- a dangling await that no test would ever catch.
+    promptForName({ title, label, value = '', confirmLabel, hint, onConfirm }) {
+      const body = document.createElement('div');
+      const wrap = document.createElement('label');
+      wrap.className = 'modal-field';
+      const span = document.createElement('span');
+      span.textContent = label;
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = value;
+      wrap.appendChild(span);
+      wrap.appendChild(input);
+      body.appendChild(wrap);
+      if (hint) {
+        const p = document.createElement('p');
+        p.className = 'modal-field-hint';
+        p.textContent = hint;
+        body.appendChild(p);
+      }
+
+      Bowtie.ModalView.openModal({
+        title,
+        bodyEl: body,
+        actions: [
+          { label: 'Cancel' },
+          {
+            label: confirmLabel,
+            primary: true,
+            onClick: () => {
+              const name = input.value.trim();
+              if (!name) return false; // a page with no name is not a page
+              onConfirm(name);
+              return true;
+            },
+          },
+        ],
+      });
+      input.focus();
+      input.select();
     }
   }
 

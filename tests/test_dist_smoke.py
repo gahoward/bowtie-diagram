@@ -15,6 +15,7 @@ without having built dist/ first should not see a failure here.
 import pathlib
 
 import pytest
+from conftest import complete_new_bowtie_wizard
 
 DIST_HTML = pathlib.Path(__file__).resolve().parent.parent / "dist" / "bowtie-diagram.html"
 
@@ -34,8 +35,7 @@ def dist_page(browser):
     page.errors = []
     page.on("pageerror", lambda exc: page.errors.append(str(exc)))
     page.goto(DIST_HTML.resolve().as_uri())
-    page.get_by_role("button", name="New Bowtie Wizard", exact=True).click()
-    page.get_by_role("button", name="Create", exact=True).click()
+    complete_new_bowtie_wizard(page)
     page.wait_for_timeout(150)
     yield page
     assert page.errors == [], f"uncaught page error(s) on the built dist file: {page.errors}"
@@ -55,10 +55,10 @@ def test_dist_file_has_no_external_references(dist_page):
 def test_create_chain_autoarrange_and_export_import_round_trip(dist_page):
     dist_page.evaluate("""() => {
       const m = window.__debugModel;
-      m.addCause({ name: 'Smoke Cause' });
-      m.addPreventativeControl(m.causes[0].id);
-      m.addOutcome({ name: 'Smoke Outcome' });
-      m.addMitigativeControl(m.outcomes[0].id);
+      m.addThreat({ name: 'Smoke Threat' });
+      m.addPreventativeControl(m.threats[0].id);
+      m.addConsequence({ name: 'Smoke Consequence' });
+      m.addMitigativeControl(m.consequences[0].id);
     }""")
     dist_page.click("#menu-trigger-view")
     dist_page.click("#btn-auto-arrange")
@@ -77,10 +77,10 @@ def test_create_chain_autoarrange_and_export_import_round_trip(dist_page):
     dist_page.wait_for_timeout(80)
     state = dist_page.evaluate("""() => {
       const m = window.__debugModel;
-      return { causes: m.causes.length, outcomes: m.outcomes.length, warnings: m.getWarnings().length };
+      return { threats: m.threats.length, consequences: m.consequences.length, warnings: m.getWarnings().length };
     }""")
-    assert state["causes"] == 1
-    assert state["outcomes"] == 1
+    assert state["threats"] == 1
+    assert state["consequences"] == 1
     assert state["warnings"] == 0
 
 
@@ -89,8 +89,8 @@ def test_load_demo_works_on_the_built_file(dist_page):
     dist_page.wait_for_timeout(150)
     state = dist_page.evaluate("""() => {
       const m = window.__debugModel;
-      return { causes: m.causes.length, outcomes: m.outcomes.length, warnings: m.getWarnings().length };
+      return { threats: m.threats.length, consequences: m.consequences.length, warnings: m.getWarnings().length };
     }""")
-    assert state["causes"] > 0
-    assert state["outcomes"] > 0
+    assert state["threats"] > 0
+    assert state["consequences"] > 0
     assert state["warnings"] == 0
