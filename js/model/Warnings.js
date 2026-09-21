@@ -94,6 +94,15 @@
           detail: 'No escalation barrier — nothing is controlling this factor.',
         });
       });
+      // No broken-cross-page-link warning here, deliberately
+      // (proposals/22 asked for one). A dangling `derivedFrom` cannot
+      // reach this code: `DocumentSerializer.validate` refuses the file
+      // outright, and the model clears a link when its consequence or
+      // its page is deleted. That is the same division the escalation
+      // checks above follow -- referential integrity refuses the
+      // document, orphanhood warns about it -- and a warning for a state
+      // that cannot exist would be dead code pretending to be a safety
+      // net.
       return warnings;
     }
   }

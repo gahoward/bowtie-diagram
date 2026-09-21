@@ -16,8 +16,15 @@
   class StatusStripController {
     constructor(model, container, {
       getDisplayUnit, openProjectSettings, openPreferences, getRecoveryState,
+      getActivePageId, goToPage,
     }) {
       this.model = model;
+      // proposals/22: which page is active, so the strip can say when
+      // that page's top event is really a consequence somewhere else.
+      // Optional, like getRecoveryState -- a caller without pages simply
+      // gets no segment.
+      this.getActivePageId = getActivePageId || (() => null);
+      this.goToPage = goToPage || (() => {});
       this.container = container;
       this.getDisplayUnit = getDisplayUnit;
       this.openProjectSettings = openProjectSettings;
@@ -29,6 +36,11 @@
       // One delegated listener rather than one per segment: render()
       // rebuilds the strip from scratch on every model change.
       container.addEventListener('click', (e) => {
+        const source = e.target.closest('[data-go-to-page]');
+        if (source) {
+          this.goToPage(source.dataset.goToPage);
+          return;
+        }
         const btn = e.target.closest('[data-open]');
         if (!btn) return;
         if (btn.dataset.open === 'preferences') this.openPreferences();
@@ -86,6 +98,22 @@
           'quantitative',
           'How multiple threats combine at the top event — click to change',
         ));
+      }
+
+      // Where this page's top event came from (proposals/22), when it
+      // came from anywhere: this strip is already the "frame of
+      // reference" surface, and "the top event of this analysis is a
+      // consequence of that one" is exactly that. A button, like every
+      // other segment -- but it goes to the source page rather than
+      // opening a setting, because that is the only thing anyone wants
+      // to do with it.
+      const derived = this.model.derivedSourceFor(this.getActivePageId());
+      if (derived) {
+        const btn = el('button', 'status-segment status-derived', `↑ ${derived.displayId} · ${derived.page.name}`);
+        btn.type = 'button';
+        btn.dataset.goToPage = derived.page.id;
+        btn.title = `This page's top event is ${derived.displayId} on "${derived.page.name}" — click to go there`;
+        strip.appendChild(btn);
       }
 
       // Last, and only when it applies: automatic recovery having

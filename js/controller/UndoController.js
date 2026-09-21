@@ -66,6 +66,11 @@
     // proposals/20. Document identity is document-wide by definition --
     // an approval is of the analysis, not of one page of it.
     'setDocumentMetadata', 'addDocumentRevision', 'removeDocumentRevision',
+    // proposals/22. A cross-page link spans two pages by definition, and
+    // escalating a consequence CREATES a page -- neither can be a
+    // page-scoped step, and undoing an escalation has to take the new
+    // page with it rather than leaving an empty one behind.
+    'linkPageToConsequence', 'unlinkPage', 'escalateConsequenceToNewPage',
   ];
 
   // addThreat/addConsequence/addPreventativeControl/addMitigativeControl/

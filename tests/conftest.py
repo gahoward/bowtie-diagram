@@ -72,6 +72,14 @@ window.Bowtie = new Proxy({}, {
       target[prop] = Wrapped;
       return true;
     }
+    if (prop === 'PageTabsController') {
+      const Orig = value;
+      class Wrapped extends Orig {
+        constructor(...a) { super(...a); window.__lastPageTabs = this; }
+      }
+      target[prop] = Wrapped;
+      return true;
+    }
     if (prop === 'BarrierCriticalityController') {
       const Orig = value;
       class Wrapped extends Orig {

@@ -27,6 +27,10 @@
           r: page.topLevelEvent.r,
         },
         hazard: { id: page.hazard.id, name: page.hazard.name, description: page.hazard.description },
+        // proposals/22: absent on an ordinary page rather than written as
+        // null, so a document that uses no cross-page links looks exactly
+        // as it did at v14.
+        ...(page.derivedFrom ? { derivedFrom: { ...page.derivedFrom } } : {}),
       };
     },
 
@@ -37,7 +41,19 @@
         description: data.description || '',
         topLevelEvent: new Bowtie.TopLevelEvent(data.topLevelEvent),
         hazard: new Bowtie.Hazard(data.hazard),
+        derivedFrom: this.derivedFromJSON(data.derivedFrom),
       };
+    },
+
+    // Both ids must be strings for the link to mean anything; anything
+    // else reads as "not derived" rather than throwing here, because
+    // `validate` is where a malformed document gets refused with a
+    // message naming what is wrong.
+    derivedFromJSON(raw) {
+      if (!raw || typeof raw !== 'object') return null;
+      const { consequenceId, pageId } = raw;
+      if (typeof consequenceId !== 'string' || typeof pageId !== 'string') return null;
+      return { consequenceId, pageId };
     },
 
     // --- Per-page serialization --------------------------------------------
@@ -341,6 +357,34 @@
           return fail(
             `Escalation factor ${factor.id} isn't attached to a barrier on its own page (${factor.barrierId}).`,
           );
+        }
+      }
+
+      // A cross-page link (proposals/22) is the one reference in this
+      // document that can point at another page, so it gets a real graph
+      // check rather than only a reference check. A cycle here is not a
+      // wrong figure: once the arithmetic reads these links, it is a
+      // recursion with no base case. A file can carry one even though no
+      // UI will create one -- hand-edited, or merged by someone's
+      // version control -- so it is refused at the door.
+      for (const page of model.pages) {
+        if (!page.derivedFrom) continue;
+        const { consequenceId, pageId } = page.derivedFrom;
+        const source = model.getPage(pageId);
+        if (!source) {
+          return fail(`Page ${page.id} is derived from a page that doesn't exist (${pageId}).`);
+        }
+        const consequence = model.consequences.find((c) => c.id === consequenceId && c.pageId === pageId);
+        if (!consequence) {
+          return fail(
+            `Page ${page.id} is derived from a consequence that isn't on page ${pageId} (${consequenceId}).`,
+          );
+        }
+        if (pageId === page.id) {
+          return fail(`Page ${page.id} is derived from a consequence on itself.`);
+        }
+        if (model._pageReaches(pageId, page.id)) {
+          return fail(`Pages ${page.id} and ${pageId} are derived from each other, directly or through a chain.`);
         }
       }
 

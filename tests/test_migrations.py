@@ -25,6 +25,7 @@ V10 = json.loads((FIXTURES / "schema-v10.json").read_text())
 V11 = json.loads((FIXTURES / "schema-v11.json").read_text())
 V12 = json.loads((FIXTURES / "schema-v12.json").read_text())
 V13 = json.loads((FIXTURES / "schema-v13.json").read_text())
+V14 = json.loads((FIXTURES / "schema-v14.json").read_text())
 
 
 def _steps_from(page, version):
@@ -60,9 +61,8 @@ def _names(page, collection):
 def test_the_chain_reaches_the_current_version_from_v10(page):
     """Written against SCHEMA_VERSION rather than a literal, so a bump
     that forgets its migration entry fails HERE -- which is the point of
-    the test -- instead of only failing this assertion's own arithmetic."""
+    the test -- rather than silently leaving a version with no path."""
     current = page.evaluate("() => Bowtie.BowtieModel.SCHEMA_VERSION")
-    assert current == 14
     for version in range(10, current):
         assert page.evaluate("(v) => Bowtie.Migrations.canMigrate(v)", version) is True, \
             f"v{version} must have a path to v{current}"
@@ -168,7 +168,7 @@ def test_the_upgraded_document_exports_at_the_current_version(page):
     assert _load(page, V10) is True
     page.get_by_role("button", name="OK", exact=True).click()
     exported = page.evaluate("() => window.__lastModel.toJSON()")
-    assert exported["version"] == 14
+    assert exported["version"] == page.evaluate("() => Bowtie.BowtieModel.SCHEMA_VERSION")
     assert "threats" in exported and "causes" not in exported
     assert [n["id"] for n in exported["library"]["threat"]] == ["T_1", "T_2", "T_3", "T_4", "T_5"]
 
@@ -343,3 +343,37 @@ def test_the_fixtures_are_frozen_at_their_own_versions(page):
     assert [n["id"] for n in V10["library"]["cause"]] == ["C_1", "C_2", "C_3", "C_4", "C_5"]
     assert V11["version"] == 11
     assert "threats" in V11 and "escalationFactors" not in V11
+
+
+def test_a_v14_file_gains_the_cross_page_link_field_and_moves_no_figure(page):
+    """v14 -> v15 (proposals/22) is the gentlest step in the chain: a page
+    MAY name a consequence on another page, and every existing page
+    simply does not. Nothing to fill in, and -- by design in this step --
+    no arithmetic reads the field yet, so a figure moving here would mean
+    the migration had touched something it should not have."""
+    before = page.evaluate("""(doc) => {
+      window.__lastImportExport.loadDocument(JSON.parse(JSON.stringify(doc)));
+      const m = window.__lastModel;
+      return {
+        tle: m.computeTleLikelihood(m.pages[0].id).likelihood,
+        pages: m.pages.length,
+      };
+    }""", V14)
+
+    result = page.evaluate("(doc) => Bowtie.Migrations.migrateDocument(doc)", V14)
+    assert result["ok"] is True
+    assert [line.split(":")[0] for line in result["applied"]] == _steps_from(page, 14)
+
+    after = page.evaluate("""(doc) => {
+      window.__lastImportExport.loadDocument(doc);
+      const m = window.__lastModel;
+      return {
+        tle: m.computeTleLikelihood(m.pages[0].id).likelihood,
+        pages: m.pages.length,
+        derived: m.pages.filter((p) => p.derivedFrom).length,
+      };
+    }""", result["doc"])
+
+    assert after["pages"] == before["pages"] > 0
+    assert after["derived"] == 0, "an upgraded page is an ordinary page, not a derived one"
+    assert after["tle"] == before["tle"], "upgrading must not move a single figure"

@@ -223,7 +223,21 @@
     _fixtureName(model, el, displayUnit) {
       if (el.type === 'hazard') return `Hazard, ${el.name}`;
       if (el.type !== 'topLevelEvent') return el.name || el.type;
-      return [`Top event, ${el.name}`, ...this._tleInfoLines(model, displayUnit)].join(', ');
+      const derived = this._derivedSource(model);
+      return [
+        `Top event, ${el.name}`,
+        ...this._tleInfoLines(model, displayUnit),
+        ...(derived ? [`derived from ${derived.displayId} on ${derived.page.name}`] : []),
+      ].join(', ');
+    }
+
+    // What this page's top event is derived from (proposals/22), or null.
+    // Guarded because CanvasView is also handed a bare model in a couple
+    // of tests, and a missing link is not worth a crash.
+    _derivedSource(model) {
+      return typeof model.derivedSourceForActivePage === 'function'
+        ? model.derivedSourceForActivePage()
+        : null;
     }
 
     _tleInfoLines(model, displayUnit) {
@@ -347,9 +361,23 @@
       // Qualitative mode has no arithmetic combination defined for threats
       // (each is a direct class pick, nothing to combine at the TLE).
       const tleLines = this._tleInfoLines(model, displayUnit);
+      // A derived page says so on the diagram itself, not only in the
+      // chrome (proposals/22): the printed sheet and the exported SVG go
+      // through this same renderer, and a page whose top event is
+      // somebody else's consequence should never be read without that.
+      // Deliberately a line of text rather than an edge: an arrow to
+      // another page is an arrow that leaves the canvas, and every
+      // attempt at drawing one reads badly.
+      const derivedSource = this._derivedSource(model);
+      if (derivedSource) tleLines.push(`↑ ${derivedSource.displayId} on "${derivedSource.page.name}"`);
       if (tleLines.length > 0) {
         const infoY = model.topLevelEvent.y + tleResult.bounds.r + 14;
-        nodeGroups.push(this._renderInfoText(model.topLevelEvent.x, infoY, tleLines, { emphasized: true }));
+        nodeGroups.push(this._renderInfoText(model.topLevelEvent.x, infoY, tleLines, {
+          emphasized: true,
+          title: derivedSource
+            ? `This page's top event is ${derivedSource.displayId} on "${derivedSource.page.name}"`
+            : null,
+        }));
         extend(model.topLevelEvent.x, infoY + tleLines.length * 15, 60, 10);
       }
 

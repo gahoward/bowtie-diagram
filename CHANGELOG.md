@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- **One analysis can now escalate into another** (`proposals/22`,
+  **schema v15**). Standard bowtie practice escalates: a consequence on
+  one page is the top event of another — "loss of containment" is a
+  consequence of the pipework analysis and the top event of the
+  pool-fire one. The document could already hold both diagrams and had
+  no way to say they were the same event. Right-click a consequence to
+  **Escalate to a New Page** (which creates it, names it and links it in
+  one undoable step) or **Link to an Existing Page**. A derived page
+  says where its top event came from, on the canvas and in the status
+  strip, and the strip's segment takes you there.
+  - **It changes no figure yet, in any mode.** This step records the
+    relationship. Carrying the source consequence's likelihood into the
+    derived page's top event is a separate change, held back on purpose:
+    a cross-page cycle would not produce a wrong number, it would hang
+    the tab, so the link and its defences ship first and get exercised
+    before anything computes through them.
+  - Cycles are refused when you make one and again when a file
+    containing one is opened — the second because a hand-edited or
+    badly merged file can carry a cycle the app would never create.
+  - Deleting a consequence, or a whole page, clears any link that named
+    it. The dependent page stays; it just stops being derived.
+
 - **A stale-element race in the test suite, and 95 sleeps that were
   hiding it** (`proposals/17`). Eleven places measured a node's bounding
   box and then clicked those coordinates. The canvas replaces its whole

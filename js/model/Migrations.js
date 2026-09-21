@@ -167,6 +167,20 @@
     return { ...doc };
   }
 
+  // v14 -> v15 (proposals/22): a page may record that its top event IS a
+  // consequence on another page. Additive in the gentlest possible way --
+  // `derivedFrom` arrives absent, meaning "an ordinary page", which is
+  // what every existing page is. No figure moves on upgrade, in this
+  // step or by design: the link records the relationship, and the
+  // arithmetic that will read it is a later change.
+  //
+  // The bump is still real. A v14 editor handed a v15 file drops the
+  // field, and hands back a document where the escalation hierarchy an
+  // analyst built has quietly ceased to exist.
+  function migrateV14ToV15(doc) {
+    return { ...doc };
+  }
+
   const MIGRATIONS = [
     {
       from: 10,
@@ -191,6 +205,12 @@
       to: 14,
       describe: 'Escalation factors can now degrade the barrier they are anchored to (existing figures unchanged until a degradation is stated)',
       migrate: migrateV13ToV14,
+    },
+    {
+      from: 14,
+      to: 15,
+      describe: 'A page can now record that its top event is a consequence on another page (nothing existing changed)',
+      migrate: migrateV14ToV15,
     },
   ];
 

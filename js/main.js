@@ -213,6 +213,12 @@
       // 04's "Delete from Library…" item needs it) -- same closure-over-a-
       // later-const pattern as `settings`/`projectSettings` above.
       (nodeId) => nodeLibrary.openForNode(nodeId),
+      // Escalating a consequence to its own page (proposals/22) is the
+      // one item in that menu that spans pages, so it gets the REAL
+      // model rather than the page-scoped facade -- and the page
+      // switcher, because creating a page the user cannot see would be
+      // a strange way to end the action.
+      { model, goToPage: (pageId) => pageTabs.select(pageId) },
     );
     const focus = new Bowtie.FocusController(pageScopedModel, svgRoot);
 
@@ -352,8 +358,13 @@
         openProjectSettings: (opts) => projectSettings.open(opts),
         openPreferences: () => preferences.open(),
         getRecoveryState: () => ({ disabled: recovery.disabled, reason: recovery.disabledReason }),
+        getActivePageId: () => pageTabs.getActivePageId(),
+        goToPage: (pageId) => pageTabs.select(pageId),
       },
     );
+    // The strip reads the ACTIVE page, which changes without the model
+    // changing -- so it needs the page switch as a render trigger too.
+    pageTabs.onChange(() => statusStrip.render());
 
     // --- Failure visibility (proposals/19) --------------------------------
     //

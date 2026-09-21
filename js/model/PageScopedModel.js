@@ -38,6 +38,12 @@
     // Document tab holds the real model directly, like every other
     // document-wide setting above.
     'setDocumentMetadata', 'addDocumentRevision', 'removeDocumentRevision',
+    // Cross-page links (proposals/22) -- a link names two pages, so it
+    // cannot be page-scoped by construction. ContextMenuController holds
+    // the real model for these, the same as page CRUD above. The
+    // read-only `derivedSourceFor` IS exposed on this facade; only the
+    // mutations are absent.
+    'linkPageToConsequence', 'unlinkPage', 'escalateConsequenceToNewPage',
     // Whole-document (re)load -- only ever called by ImportExportController
     // (a real import) or by UndoController itself (restoring a
     // document-level snapshot); never something a page-scoped canvas
@@ -188,6 +194,19 @@
 
     isEscalationFactorDegrading(escalationFactor) {
       return this.realModel.isEscalationFactorDegrading(escalationFactor);
+    }
+
+    // Cross-page links (proposals/22). Read-only here: CanvasView and the
+    // status strip ask what the ACTIVE page is derived from, which is
+    // page-scoped by construction. The mutating methods are deliberately
+    // absent -- they span two pages, so they belong to the controllers
+    // that hold the real model (see DOCUMENT_SCOPED below).
+    derivedSourceFor(pageId) {
+      return this.realModel.derivedSourceFor(pageId);
+    }
+
+    derivedSourceForActivePage() {
+      return this.realModel.derivedSourceFor(this.getActivePageId());
     }
 
     addThreat(opts = {}) {

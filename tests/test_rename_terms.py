@@ -66,7 +66,9 @@ def test_the_add_menu_and_node_library_say_threats_and_consequences(page):
 def test_the_exported_document_uses_the_new_keys(page):
     _add_one_of_each(page)
     doc = page.evaluate("() => window.__lastModel.toJSON()")
-    assert doc["version"] == 14
+    # The version is whatever the schema is at; this test is about the
+    # KEYS, and pinning a literal here only creates churn at every bump.
+    assert doc["version"] == page.evaluate("() => Bowtie.BowtieModel.SCHEMA_VERSION")
     assert "threats" in doc and "consequences" in doc
     assert "causes" not in doc and "outcomes" not in doc
     assert {"threat", "consequence"}.issubset(doc["library"])

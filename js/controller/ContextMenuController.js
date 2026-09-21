@@ -62,11 +62,20 @@
     // (see node_library_proposal.md), but nothing in the menu said so.
     // Defaults to a no-op so this stays constructible without it (tests
     // that build a ContextMenuController directly, if any ever do).
-    constructor(model, svgRoot, triggerAutoArrange, getDisplayUnit = () => 'hour', openNodeLibraryFor = () => {}) {
+    // `escalation` is the one thing this menu does that spans pages
+    // (proposals/22): `{ model, goToPage }`, holding the REAL model
+    // rather than the page-scoped facade, because linking names two
+    // pages and escalating creates one. Absent in a test harness that
+    // does not wire it, in which case the items simply are not offered.
+    constructor(
+      model, svgRoot, triggerAutoArrange, getDisplayUnit = () => 'hour',
+      openNodeLibraryFor = () => {}, escalation = null,
+    ) {
       this.model = model;
       this.svgRoot = svgRoot;
       this.triggerAutoArrange = triggerAutoArrange;
       this.openNodeLibraryFor = openNodeLibraryFor;
+      this.escalation = escalation;
       this.view = new Bowtie.ContextMenuView();
       this.flows = new Bowtie.ContextMenuModalFlows(model, triggerAutoArrange, getDisplayUnit);
 
@@ -211,6 +220,9 @@
           });
         }
       }
+      if (el.type === 'consequence' && this.escalation) {
+        items.push(...this._escalationItems(el));
+      }
       if (el.type === 'escalationFactor') {
         items.push({
           label: 'Add Escalation Barrier',
@@ -316,6 +328,62 @@
     // does, and offered as a "which path(s)?" picker (mirroring
     // _addPreventativeControlFrom's own multi-line modal) when more than
     // one does.
+    // "This consequence is the top event of another analysis"
+    // (proposals/22). Standard practice escalates -- loss of containment
+    // is a consequence of the pipework bowtie and the top event of the
+    // pool-fire one -- and until now the document could hold both
+    // diagrams with no way to say they were the same event.
+    //
+    // Two items, because both directions happen: the page usually does
+    // not exist yet, and sometimes it already does.
+    _escalationItems(el) {
+      const { model, goToPage } = this.escalation;
+      const items = [{ separator: true }];
+      const derived = model.pages.filter((p) => p.derivedFrom && p.derivedFrom.consequenceId === el.id);
+      if (derived.length > 0) {
+        // Already escalated: the useful action is going there, not
+        // making a second page about the same event.
+        derived.forEach((page) => {
+          items.push({ label: `Go to "${page.name}"`, action: () => goToPage(page.id) });
+        });
+        return items;
+      }
+      const node = this.model.getNode(el.nodeId);
+      items.push({
+        label: 'Escalate to a New Page…',
+        action: () => this.flows.promptForName({
+          title: 'Escalate to a New Page',
+          label: 'Page name',
+          // Defaults to the consequence's own name, because they are the
+          // same event and retyping it invites the two to drift apart.
+          value: node.name || this.model.displayIdentifierFor(node),
+          confirmLabel: 'Create Page',
+          hint: 'The new page\u2019s top event is this consequence. Its figures stay its own for now.',
+          onConfirm: (name) => {
+            const page = model.escalateConsequenceToNewPage(el.id, { name });
+            goToPage(page.id);
+          },
+        }),
+      });
+      const candidates = model.pages.filter(
+        (p) => p.id !== el.pageId && !p.derivedFrom && !model._pageReaches(el.pageId, p.id),
+      );
+      if (candidates.length > 0) {
+        items.push({
+          label: 'Link to an Existing Page…',
+          action: () => this.flows.openAttachModal(
+            'Link Consequence to a Page',
+            // The picker takes placement-shaped rows; a page header is
+            // close enough in shape, and `nodeId` is what the list reads
+            // for its label.
+            candidates.map((p) => ({ id: p.id, label: p.name, sublabel: p.topLevelEvent.name || '' })),
+            (page) => this.flows.safeAttach(() => model.linkPageToConsequence(page.id, el.id)),
+          ),
+        });
+      }
+      return items;
+    }
+
     _buildShuntItems(id) {
       const lines = this.model.linesThrough(id);
       const items = [];

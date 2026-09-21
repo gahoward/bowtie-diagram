@@ -44,7 +44,17 @@
   // always did and its migration only fills in the empty collections.
   // The bump still happens, because a v11 editor handed a v12 file would
   // silently drop every escalation factor in it.
-  const SCHEMA_VERSION = 14;
+  //
+  // v15 (proposals/22): a page's top event may name a consequence on
+  // another page -- the first inter-page reference in a model whose
+  // pages were otherwise independent. Additive, and in this step it
+  // changes no figure at all: it records that two diagrams are about
+  // the same event. It bumps for the usual reason, sharpened by what
+  // the link will carry next: a v14 editor handed a v15 file drops
+  // `derivedFrom` and re-exports a document in which the escalation
+  // hierarchy simply does not exist, which is exactly the sort of
+  // silent loss the rule in DESIGN_NOTES is about.
+  const SCHEMA_VERSION = 15;
 
   class BowtieModel {
     constructor() {
@@ -236,6 +246,12 @@
         description: opts.description || '',
         topLevelEvent,
         hazard,
+        // Which consequence on another page this page's top event IS
+        // (proposals/22), or null for an ordinary page. The one
+        // inter-page reference in the whole model -- see
+        // linkPageToConsequence below for what it does and does not
+        // mean.
+        derivedFrom: null,
       };
       this.pages.push(page);
       this._emitChange();
@@ -269,11 +285,123 @@
       this.escalationBarriers = this.escalationBarriers.filter((b) => b.pageId !== pageId);
       this.rebuildPlacementIndex();
       this.lines = this.lines.filter((l) => l.pageId !== pageId);
+      // A page that escalated FROM this one is now derived from nothing
+      // (proposals/22). Clearing the link rather than leaving it dangling
+      // is the same cascade rule deleting a barrier follows: the
+      // dependent keeps existing, it just stops pointing at a ghost.
+      this.pages.forEach((page) => {
+        if (page.derivedFrom && page.derivedFrom.pageId === pageId) page.derivedFrom = null;
+      });
       this._emitChange();
     }
 
     getPage(pageId) {
       return this.pages.find((p) => p.id === pageId) || null;
+    }
+
+    // --- Cross-page links (proposals/22) ---------------------------------
+    //
+    // Standard bowtie practice escalates: a consequence on one analysis is
+    // the top event of another. "Loss of containment" is a consequence of
+    // the pipework bowtie and the top event of the pool-fire one. Before
+    // this the document could hold both diagrams and had no way to say
+    // they were the same event.
+    //
+    // This step records the relationship and nothing else: no figure
+    // moves, in any mode. Propagating the source consequence's
+    // post-mitigation likelihood into the derived page's top event is a
+    // separate step, deliberately, because it is the part whose failure
+    // mode is a hung tab rather than a wrong number -- and it wants this
+    // link, and this link's cycle defence, already in place and tested
+    // underneath it.
+    //
+    // Direction is one-way and explicit. The derived page points at its
+    // source; nothing points back. That keeps the cross-page graph a DAG
+    // whose edges are all of this one kind.
+    linkPageToConsequence(pageId, consequenceId) {
+      const page = this.getPage(pageId);
+      if (!page) throw new Error(`Unknown page id: ${pageId}`);
+      const consequence = this.consequences.find((c) => c.id === this._resolvePlacementId(consequenceId));
+      if (!consequence) throw new Error(`Unknown consequence id: ${consequenceId}`);
+      if (consequence.pageId === pageId) {
+        throw new Error('A page cannot be derived from a consequence on itself');
+      }
+      // Refused at creation, not detected later: a half-formed cycle is
+      // worse than a rejected link, and the arithmetic that follows this
+      // step would recurse forever on one. Same reasoning as
+      // LineTopology._checkNoCycleThroughAnchor, with a worse failure.
+      if (this._pageReaches(consequence.pageId, pageId)) {
+        throw new Error('That link would make a cycle between pages');
+      }
+      page.derivedFrom = { consequenceId: consequence.id, pageId: consequence.pageId };
+      this._emitChange();
+      return page;
+    }
+
+    unlinkPage(pageId) {
+      const page = this.getPage(pageId);
+      if (!page || !page.derivedFrom) return;
+      page.derivedFrom = null;
+      this._emitChange();
+    }
+
+    // Creates a page whose top event IS this consequence, and links it --
+    // the "Escalate to a new page" primitive. One model method so it is
+    // one undo step: a user who undoes an escalation means to undo the
+    // whole thing, not to be left with an empty page.
+    escalateConsequenceToNewPage(consequenceId, opts = {}) {
+      const consequence = this.consequences.find((c) => c.id === this._resolvePlacementId(consequenceId));
+      if (!consequence) throw new Error(`Unknown consequence id: ${consequenceId}`);
+      const node = this.getNode(consequence.nodeId);
+      const name = opts.name || node.name || this.displayIdentifierFor(node);
+      const page = this.addPage({ name, description: opts.description || '' });
+      // The new page's top event takes the consequence's own name: they
+      // are the same event, and making the user retype it invites the two
+      // from drifting apart.
+      page.topLevelEvent.name = name;
+      this.linkPageToConsequence(page.id, consequence.id);
+      return page;
+    }
+
+    // Whether `fromPageId` reaches `targetPageId` by following
+    // `derivedFrom`. The walk is bounded by the page count as well as by
+    // a seen-set: a file edited by hand can carry a cycle no UI ever
+    // created, and this is called from `validate` on exactly that file.
+    _pageReaches(fromPageId, targetPageId) {
+      let current = fromPageId;
+      const seen = new Set();
+      for (let steps = 0; steps <= this.pages.length; steps += 1) {
+        if (current === targetPageId) return true;
+        if (!current || seen.has(current)) return false;
+        seen.add(current);
+        const page = this.getPage(current);
+        current = page && page.derivedFrom ? page.derivedFrom.pageId : null;
+      }
+      return false;
+    }
+
+    // What a derived page is derived from, resolved for display:
+    // `{ page, consequence, displayId }` or null. One producer, so the
+    // TLE's hover title and the status strip cannot word it differently.
+    derivedSourceFor(pageId) {
+      const page = this.getPage(pageId);
+      if (!page || !page.derivedFrom) return null;
+      const source = this.getPage(page.derivedFrom.pageId);
+      const consequence = this.consequences.find((c) => c.id === page.derivedFrom.consequenceId);
+      if (!source || !consequence) return null;
+      return {
+        page: source,
+        consequence,
+        displayId: this.displayIdentifierFor(this.getNode(consequence.nodeId)),
+      };
+    }
+
+    // Every page whose top event is this consequence -- what the delete
+    // confirmation names, so nobody strands an analysis without being
+    // told which one.
+    pagesDerivedFromConsequence(consequenceId) {
+      const resolved = this._resolvePlacementId(consequenceId);
+      return this.pages.filter((p) => p.derivedFrom && p.derivedFrom.consequenceId === resolved);
     }
 
     threatsForPage(pageId) {
@@ -899,6 +1027,11 @@
         case 'consequence':
           this.consequences = this.consequences.filter((o) => o.id !== id);
           this.lines = this.lines.filter((l) => l.originId !== id);
+          // Any page escalated from it stops being derived (proposals/22)
+          // rather than pointing at a consequence that no longer exists.
+          this.pages.forEach((page) => {
+            if (page.derivedFrom && page.derivedFrom.consequenceId === id) page.derivedFrom = null;
+          });
           break;
         case 'preventativeBarrier':
           this.preventativeBarriers = this.preventativeBarriers.filter((p) => p.id !== id);
