@@ -12,17 +12,30 @@
   one undoable step) or **Link to an Existing Page**. A derived page
   says where its top event came from, on the canvas and in the status
   strip, and the strip's segment takes you there.
-  - **It changes no figure yet, in any mode.** This step records the
-    relationship. Carrying the source consequence's likelihood into the
-    derived page's top event is a separate change, held back on purpose:
-    a cross-page cycle would not produce a wrong number, it would hang
-    the tab, so the link and its defences ship first and get exercised
-    before anything computes through them.
+  - **The number now flows too.** A derived page's top event takes the
+    source consequence's **post-mitigation** likelihood — what actually
+    reaches that consequence once its mitigative barriers have acted,
+    which is the event the derived page is analysing. It is one more
+    contribution to the top event, folded in beside the page's own
+    threats under whichever `tleAggregation` the document is set to, so
+    a derived page can still have threats of its own that start there.
+  - **A source whose figure is unknown makes the top event unknown**,
+    and the canvas says `(source unknown)` rather than quietly showing a
+    number built from the page's own threats alone.
   - Cycles are refused when you make one and again when a file
     containing one is opened — the second because a hand-edited or
     badly merged file can carry a cycle the app would never create.
+    Since arithmetic now recurses through links, there is also a depth
+    ceiling inside the calculation that returns "unknown" rather than a
+    number: a defence in depth, because a page-scoped undo could restore
+    a stale link and reach a state the other two defences never see.
   - Deleting a consequence, or a whole page, clears any link that named
     it. The dependent page stays; it just stops being derived.
+  - A **new advisory warning** when a mitigative barrier is placed both
+    on the source consequence's line and again on the derived page: it
+    is then credited twice for the same event. Mitigative only — a
+    preventative barrier shared across two pages is the ordinary
+    supported case, not a mistake.
 
 - **A stale-element race in the test suite, and 95 sleeps that were
   hiding it** (`proposals/17`). Eleven places measured a node's bounding

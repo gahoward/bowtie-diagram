@@ -143,9 +143,53 @@
     // max below and the risk-matrix banding compare by exact cross-
     // multiplication. See Rational.js for why that matters.
     computeTleLikelihood(pageId, { includeBarriers = true } = {}) {
+      return this._tleLikelihood(pageId, includeBarriers, { memo: new Map(), depth: 0 });
+    }
+
+    // `ctx` carries a per-CALL memo and the current link depth
+    // (proposals/22). The memo matters because a page reached through
+    // several links -- two analyses escalating from the same
+    // consequence, or a Risk Summary walking every page -- would
+    // otherwise recompute the whole root chain once per visit. It is
+    // deliberately per call rather than held on the instance: every
+    // figure here is derived from live model state, and a cache that
+    // outlived one call would be a staleness bug waiting to happen.
+    _tleLikelihood(pageId, includeBarriers, ctx) {
+      const key = `${pageId}|${includeBarriers}`;
+      if (ctx.memo.has(key)) return ctx.memo.get(key);
+      const result = this._computeTleLikelihood(pageId, includeBarriers, ctx);
+      ctx.memo.set(key, result);
+      return result;
+    }
+
+    _computeTleLikelihood(pageId, includeBarriers, ctx) {
       const model = this.model;
       let excludedThreatCount = 0;
       const contributions = [];
+      // What this page's top event inherits from another page's
+      // consequence (proposals/22). One more contribution, combined by
+      // the same `tleAggregation` policy as the page's own threats: an
+      // escalated event usually has other causes too, and treating the
+      // link as special would make a derived page behave differently
+      // from every other page in the same document.
+      let excludedLink = false;
+      const derived = model.getPage(pageId) && model.getPage(pageId).derivedFrom;
+      if (derived) {
+        // Defence in depth, not the main defence. Cycles are refused at
+        // creation and again by DocumentSerializer.validate, so reaching
+        // this means a file got in by some route neither covers. Return
+        // "unknown" rather than a number: a wrong figure that looks
+        // computed is worse than an absent one, and a stack overflow is
+        // worse than both.
+        if (ctx.depth > model.pages.length) {
+          return { value: null, excludedThreatCount: 0, excludedLink: true };
+        }
+        const source = this._consequenceLikelihood(
+          derived.consequenceId, includeBarriers, { memo: ctx.memo, depth: ctx.depth + 1 },
+        );
+        if (source.value === null) excludedLink = true;
+        else contributions.push(source.value);
+      }
       model.threatsForPage(pageId).forEach((threat) => {
         const node = model.getNode(threat.nodeId);
         const freq = Bowtie.RiskMatrix.quantityToDecimal(node.frequency);
@@ -172,7 +216,12 @@
       const value = model.tleAggregation === 'sum'
         ? Bowtie.Rational.sum(contributions)
         : Bowtie.Rational.max(contributions);
-      return { value, excludedThreatCount };
+      // `excludedLink` is the cross-page counterpart of
+      // `excludedThreatCount`, and exists for the same reason: a derived
+      // page whose source is Unknown would otherwise report a figure
+      // computed from its own threats alone, which is LESS conservative
+      // than the truth and looks complete. Callers surface it.
+      return { value, excludedThreatCount, excludedLink };
     }
 
     // One consequence's (Consequence's) likelihood = the TLE likelihood (on
@@ -183,17 +232,31 @@
     // `excludedThreatCount` is inherited from the TLE calculation, since a
     // consequence's likelihood derives from the exact same threat set.
     computeConsequenceLikelihood(consequenceId, { includeBarriers = true } = {}) {
+      return this._consequenceLikelihood(consequenceId, includeBarriers, { memo: new Map(), depth: 0 });
+    }
+
+    _consequenceLikelihood(consequenceId, includeBarriers, ctx) {
       const model = this.model;
       const consequence = model.consequences.find((o) => o.id === consequenceId);
-      if (!consequence) return { value: null, excludedThreatCount: 0 };
-      const tle = this.computeTleLikelihood(consequence.pageId, { includeBarriers });
-      if (tle.value === null) return { value: null, excludedThreatCount: tle.excludedThreatCount };
+      if (!consequence) return { value: null, excludedThreatCount: 0, excludedLink: false };
+      const tle = this._tleLikelihood(consequence.pageId, includeBarriers, ctx);
+      if (tle.value === null) {
+        return {
+          value: null,
+          excludedThreatCount: tle.excludedThreatCount,
+          excludedLink: tle.excludedLink,
+        };
+      }
       let contribution = tle.value;
       if (includeBarriers) {
         const line = model._lineFor(consequenceId);
         contribution = this._foldBarriers(contribution, line.stops, model.mitigativeBarriers, true);
       }
-      return { value: contribution, excludedThreatCount: tle.excludedThreatCount };
+      return {
+        value: contribution,
+        excludedThreatCount: tle.excludedThreatCount,
+        excludedLink: tle.excludedLink,
+      };
     }
 
     // Risk class for one consequence, mode-aware per quantitative_mode_

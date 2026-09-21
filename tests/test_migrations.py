@@ -28,6 +28,23 @@ V13 = json.loads((FIXTURES / "schema-v13.json").read_text())
 V14 = json.loads((FIXTURES / "schema-v14.json").read_text())
 
 
+_TLE_READER = """() => {
+  // computeTleLikelihood returns {value, excludedThreatCount} -- there is
+  // no `.likelihood` on it, and reading one silently compared undefined
+  // to undefined in four "this figure must not move" assertions.
+  window._tleString = (model, pageId) => {
+    const computed = model.computeTleLikelihood(pageId);
+    if (!computed.value) return null;
+    const exact = computed.value.toExactDecimal();
+    return exact ? exact.toDecimalString() : computed.value.toDisplayNumber(6);
+  };
+}"""
+
+
+def _install_tle_reader(page):
+    page.evaluate(_TLE_READER)
+
+
 def _steps_from(page, version):
     """The chain a fixture of `version` must walk to reach current.
 
@@ -249,10 +266,11 @@ def test_the_v13_to_v14_step_changes_no_existing_figure(page):
     existing document reports: `degradation` defaults to null, so an
     analysis says exactly what it said before until an analyst states
     one. That is the whole reason the field has no default value."""
+    _install_tle_reader(page)
     before = page.evaluate("""(doc) => {
       window.__lastImportExport.loadDocument(JSON.parse(JSON.stringify(doc)));
       return {
-        tle: window.__lastModel.computeTleLikelihood(window.__lastModel.pages[0].id).likelihood,
+        tle: _tleString(window.__lastModel, window.__lastModel.pages[0].id),
         factors: window.__lastModel.escalationFactors.length,
       };
     }""", V13)
@@ -264,7 +282,7 @@ def test_the_v13_to_v14_step_changes_no_existing_figure(page):
     after = page.evaluate("""(doc) => {
       window.__lastImportExport.loadDocument(doc);
       return {
-        tle: window.__lastModel.computeTleLikelihood(window.__lastModel.pages[0].id).likelihood,
+        tle: _tleString(window.__lastModel, window.__lastModel.pages[0].id),
         factors: window.__lastModel.escalationFactors.length,
       };
     }""", result["doc"])
@@ -351,11 +369,12 @@ def test_a_v14_file_gains_the_cross_page_link_field_and_moves_no_figure(page):
     simply does not. Nothing to fill in, and -- by design in this step --
     no arithmetic reads the field yet, so a figure moving here would mean
     the migration had touched something it should not have."""
+    _install_tle_reader(page)
     before = page.evaluate("""(doc) => {
       window.__lastImportExport.loadDocument(JSON.parse(JSON.stringify(doc)));
       const m = window.__lastModel;
       return {
-        tle: m.computeTleLikelihood(m.pages[0].id).likelihood,
+        tle: _tleString(m, m.pages[0].id),
         pages: m.pages.length,
       };
     }""", V14)
@@ -368,7 +387,7 @@ def test_a_v14_file_gains_the_cross_page_link_field_and_moves_no_figure(page):
       window.__lastImportExport.loadDocument(doc);
       const m = window.__lastModel;
       return {
-        tle: m.computeTleLikelihood(m.pages[0].id).likelihood,
+        tle: _tleString(m, m.pages[0].id),
         pages: m.pages.length,
         derived: m.pages.filter((p) => p.derivedFrom).length,
       };

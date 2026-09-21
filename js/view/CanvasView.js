@@ -246,13 +246,22 @@
       if (model.mode !== 'quantitative') return [];
       const residual = model.computeTleLikelihoodForActivePage();
       const text = this._formatLikelihood(residual.value, displayUnit);
-      if (!text) return [];
+      // A derived page with no threats of its own and an Unknown source
+      // has no figure to print -- and printing nothing at all would
+      // leave a top event that is supposed to carry one looking simply
+      // blank. Say why (proposals/22).
+      if (!text) return residual.excludedLink ? ['(source unknown)'] : [];
       // Design review finding 11: name the active aggregation right on the
       // figure it produced, since 'max' and 'sum' are both valid, very
       // differently-valued answers for the same diagram. Appended in
       // parens so this stays a superstring of "Likelihood: <value>".
       const lines = [`Likelihood: ${text} (${model.tleAggregation})`];
       if (residual.excludedThreatCount) lines.push(`(${residual.excludedThreatCount} excluded)`);
+      // The cross-page counterpart of that count (proposals/22): a
+      // derived page whose source is Unknown is computing from its own
+      // threats alone, which is less conservative than the truth and
+      // looks complete. Said out loud, for the same reason.
+      if (residual.excludedLink) lines.push('(source unknown)');
       return lines;
     }
 

@@ -94,6 +94,49 @@
           detail: 'No escalation barrier — nothing is controlling this factor.',
         });
       });
+      // A barrier credited twice along one chain, across a cross-page
+      // link (proposals/22). The link carries the source consequence's
+      // POST-mitigation likelihood, so the mitigative barriers on that
+      // consequence's own line are already inside the number the derived
+      // page's top event starts from. Placing one of them again on the
+      // derived page credits it a second time on the same causal chain
+      // -- easy to do by accident ("bunding" is a real control on both
+      // diagrams), and otherwise invisible: the figure just comes out
+      // optimistic.
+      //
+      // Deliberately only the MITIGATIVE side of the derived page.
+      // Everything downstream of that page's top event is downstream of
+      // the link; its own preventative barriers sit on its own threats'
+      // lines, which are a different chain. The same node appearing as a
+      // preventative barrier on two pages is the ordinary shared-barrier
+      // case the node library exists to support, and flagging it would
+      // fire on correct models.
+      //
+      // The library gives identity, so this is detected rather than
+      // guessed. Advisory, not blocking: a re-stated barrier can be
+      // deliberate, and stopping an export over a modelling judgement
+      // would be overreach -- the same line proposals/23 drew for
+      // sole protection.
+      model.pages.forEach((page) => {
+        const source = model.derivedSourceFor(page.id);
+        if (!source) return;
+        const sourceLine = model._lineFor(source.consequence.id);
+        const upstream = new Set(
+          model.mitigativeBarriers.filter((b) => sourceLine.stops.includes(b.id)).map((b) => b.nodeId),
+        );
+        model.mitigativeBarriersForPage(page.id).forEach((barrier) => {
+          if (!upstream.has(barrier.nodeId)) return;
+          const node = model.getNode(barrier.nodeId);
+          warnings.push({
+            id: barrier.id, type: 'double-counted-barrier', severity: 'advisory',
+            pageId: page.id, pageName: page.name,
+            message: `${node.id} (${node.name}) on page "${page.name}" is also credited on `
+              + `"${source.page.name}", upstream of the link this page's top event comes from.`,
+            detail: `Also credited upstream on "${source.page.name}" — it may be counted twice.`,
+          });
+        });
+      });
+
       // No broken-cross-page-link warning here, deliberately
       // (proposals/22 asked for one). A dangling `derivedFrom` cannot
       // reach this code: `DocumentSerializer.validate` refuses the file

@@ -73,8 +73,12 @@
     getPageJSON(model, pageId) {
       const page = model.getPage(pageId);
       if (!page) throw new Error(`Unknown page id: ${pageId}`);
+      // ...minus `derivedFrom`, which is document-scoped -- see
+      // loadPageFromJSON below for what restoring a stale one would do.
+      const { derivedFrom, ...header } = this.pageHeaderToJSON(page);
+      void derivedFrom;
       return {
-        ...this.pageHeaderToJSON(page),
+        ...header,
         threats: model.threatsForPage(pageId).map((c) => ({
           id: c.id, nodeId: c.nodeId, x: c.x, y: c.y, w: c.w, h: c.h, pageId: c.pageId,
         })),
@@ -106,7 +110,19 @@
     loadPageFromJSON(model, pageId, data) {
       const idx = model.pages.findIndex((p) => p.id === pageId);
       if (idx === -1) throw new Error(`Unknown page id: ${pageId}`);
+      // `derivedFrom` is DOCUMENT-scoped state that happens to live on a
+      // page record (proposals/22): a link names two pages, and every
+      // method that writes one is in UndoController's document tier. A
+      // page-scoped restore must therefore leave it exactly as it is.
+      //
+      // This is not tidiness. Restoring a stale link here is the one way
+      // a cycle could reach the model without passing either defence:
+      // unlink A->B, link B->A (legal, no cycle yet), then undo a
+      // page-scoped edit on A and watch A->B come back on top of B->A.
+      // Neither `linkPageToConsequence` nor `validate` ever sees it.
+      const liveLink = model.pages[idx].derivedFrom;
       model.pages[idx] = this.pageHeaderFromJSON(data);
+      model.pages[idx].derivedFrom = liveLink;
       model.threats = model.threats.filter((c) => c.pageId !== pageId)
         .concat((data.threats || []).map((c) => new Bowtie.Placement({ ...c, type: 'threat' })));
       model.consequences = model.consequences.filter((o) => o.pageId !== pageId)

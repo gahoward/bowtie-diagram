@@ -326,28 +326,248 @@ def test_an_already_escalated_consequence_offers_the_way_there_instead(page):
     page.keyboard.press("Escape")
 
 
-# --- Nothing moves --------------------------------------------------------
+# --- The arithmetic -------------------------------------------------------
+#
+# `computeTleLikelihood` returns `{value, excludedThreatCount,
+# excludedLink}` -- there is no `.likelihood` on it, and reading one
+# compares undefined to undefined. These all read `value` properly.
 
-def test_linking_changes_no_computed_figure(page):
-    """The whole point of shipping the structure first: the relationship
-    is recorded, and every number is exactly what it was."""
-    ids = page.evaluate("""() => {
-      const m = window.__lastUndo.model;
-      m.setMode('quantitative');
-      m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
-      const t = m.addThreat({x: 150, y: 200, name: 'Corrosion'});
-      m.renameNode(t.nodeId, {frequency: {value: '1E-2'}});
-      const c = m.addConsequence({x: 1200, y: 200, name: 'Loss of containment'});
-      const second = m.addPage({name: 'Pool fire'});
-      const t2 = m.addThreat({x: 150, y: 200, name: 'Ignition', pageId: second.id});
-      m.renameNode(t2.nodeId, {frequency: {value: '1E-3'}});
-      return {consequence: c.id, first: m.pages[0].id, second: second.id};
+_QUANT_SETUP = """() => {
+  const m = window.__lastUndo.model;
+  m.setMode('quantitative');
+  m.setRiskMatrix(JSON.parse(JSON.stringify(Bowtie.RISK_MATRIX_PRESETS.leaflet5)));
+  // Page one: a threat at 1/hr through a PFD 1E-2 barrier, so the top
+  // event runs at 1E-2 and the consequence, behind a PFD 1E-1 mitigative
+  // barrier, occurs at 1E-3.
+  const t = m.addThreat({x: 150, y: 200, name: 'Overpressure'});
+  m.renameNode(t.nodeId, {frequency: {value: '1'}});
+  const pb = m.addPreventativeControl(t.id, {name: 'Relief valve'});
+  m.renameNode(pb.nodeId, {protection: {measure: 'pfdavg', value: '1E-2'}});
+  const c = m.addConsequence({x: 1200, y: 200, name: 'Loss of containment'});
+  const mb = m.addMitigativeControl(c.id, {name: 'Bunding'});
+  m.renameNode(mb.nodeId, {protection: {measure: 'pfdavg', value: '1E-1'}});
+  const second = m.addPage({name: 'Pool fire'});
+  window.__ids = {
+    threat: t.id, consequence: c.id, mitigative: mb.id,
+    mitigativeNode: mb.nodeId, preventativeNode: pb.nodeId,
+    first: m.pages[0].id, second: second.id,
+  };
+  m._emitChange();
+  return window.__ids;
+}"""
+
+
+def _quant(page):
+    ids = page.evaluate(_QUANT_SETUP)
+    page.evaluate("""() => {
+      window._tleString = (pageId) => {
+        const c = window.__lastModel.computeTleLikelihood(pageId);
+        if (!c.value) return null;
+        const exact = c.value.toExactDecimal();
+        return exact ? exact.toDecimalString() : c.value.toDisplayNumber(6);
+      };
     }""")
-    before = page.evaluate(
-        "(id) => window.__lastModel.computeTleLikelihood(id).likelihood", ids["second"]
-    )
+    return ids
+
+
+def _tle(page, page_id):
+    return page.evaluate("(id) => window._tleString(id)", page_id)
+
+
+def test_a_derived_top_event_takes_the_source_consequence_post_mitigation(page):
+    """Post, not pre: the escalated event happens at the rate the
+    consequence actually occurs, which is after its own barriers."""
+    ids = _quant(page)
+    assert _tle(page, ids["second"]) is None, "nothing of its own yet"
     _link(page, ids["second"], ids["consequence"])
-    after = page.evaluate(
-        "(id) => window.__lastModel.computeTleLikelihood(id).likelihood", ids["second"]
+    assert _tle(page, ids["second"]) == "0.001", "1 x 1E-2 x 1E-1, the consequence's own rate"
+
+
+def test_removing_a_barrier_upstream_moves_the_derived_page(page):
+    """The whole point: page 2 no longer goes stale when page 1 changes."""
+    ids = _quant(page)
+    _link(page, ids["second"], ids["consequence"])
+    assert _tle(page, ids["second"]) == "0.001"
+    page.evaluate("(id) => window.__lastUndo.model.deleteElement(id)", ids["mitigative"])
+    assert _tle(page, ids["second"]) == "0.01", "the mitigative barrier is gone, so more gets through"
+
+
+def test_the_link_combines_with_the_pages_own_threats_by_the_aggregation_policy(page):
+    """An escalated event usually has other causes too. The link is one
+    more contribution, under whichever rule the document already uses --
+    which is why the status strip shows that rule."""
+    ids = _quant(page)
+    page.evaluate("""(pageId) => {
+      const m = window.__lastUndo.model;
+      const t = m.addThreat({x: 150, y: 200, name: 'Ignition', pageId});
+      m.renameNode(t.nodeId, {frequency: {value: '4E-3'}});
+    }""", ids["second"])
+    _link(page, ids["second"], ids["consequence"])
+
+    assert _tle(page, ids["second"]) == "0.004", "max: the bigger of 4E-3 and 1E-3"
+    page.evaluate("() => window.__lastUndo.model.setTleAggregation('sum')")
+    assert _tle(page, ids["second"]) == "0.005", "sum: 4E-3 + 1E-3"
+
+
+def test_a_chain_of_three_pages_computes_through(page):
+    ids = _quant(page)
+    third = page.evaluate("""(secondId) => {
+      const m = window.__lastUndo.model;
+      const c = m.addConsequence({x: 1200, y: 200, name: 'Escalated', pageId: secondId});
+      const mb = m.addMitigativeControl(c.id, {name: 'Deluge'});
+      m.renameNode(mb.nodeId, {protection: {measure: 'pfdavg', value: '1E-2'}});
+      const p = m.addPage({name: 'Escalation'});
+      m.linkPageToConsequence(p.id, c.id);
+      return p.id;
+    }""", ids["second"])
+    _link(page, ids["second"], ids["consequence"])
+    assert _tle(page, ids["second"]) == "0.001"
+    assert _tle(page, third) == "0.00001", "1E-3 through the second page's own 1E-2 barrier"
+
+
+def test_an_unknown_source_is_said_out_loud_rather_than_quietly_dropped(page):
+    """A derived page whose source is Unknown would otherwise report a
+    figure computed from its own threats alone -- less conservative than
+    the truth, and looking complete. Same rule as an excluded threat."""
+    ids = _quant(page)
+    page.evaluate("""(pageId) => {
+      const m = window.__lastUndo.model;
+      const t = m.addThreat({x: 150, y: 200, name: 'Ignition', pageId});
+      m.renameNode(t.nodeId, {frequency: {value: '4E-3'}});
+    }""", ids["second"])
+    _link(page, ids["second"], ids["consequence"])
+    # Take the source's frequency away, so its consequence is unknown.
+    page.evaluate("""(threatId) => {
+      const m = window.__lastUndo.model;
+      const t = m.findById(threatId);
+      m.renameNode(t.nodeId, {frequency: null});
+    }""", ids["threat"])
+    result = page.evaluate(
+        "(id) => window.__lastModel.computeTleLikelihood(id)", ids["second"]
     )
-    assert after == before, "the derived page still computes from its own threats"
+    assert result["excludedLink"] is True
+    assert _tle(page, ids["second"]) == "0.004", "its own threat still counts"
+
+
+def test_the_canvas_says_when_the_source_is_unknown(page):
+    ids = _quant(page)
+    _link(page, ids["second"], ids["consequence"])
+    page.evaluate("""(threatId) => {
+      const m = window.__lastUndo.model;
+      m.renameNode(m.findById(threatId).nodeId, {frequency: null});
+    }""", ids["threat"])
+    page.evaluate("(id) => window.__lastPageTabs.select(id)", ids["second"])
+    eventually_equals(
+        lambda: any(
+            "source unknown" in t for t in page.locator("#bowtie-canvas text").all_text_contents()
+        ),
+        True,
+    )
+
+
+def test_a_consequence_on_a_derived_page_carries_the_inherited_rate(page):
+    """The link feeds the top event, so everything downstream of it on
+    the derived page moves with it -- which is what "nothing propagates"
+    used to mean and no longer does."""
+    ids = _quant(page)
+    _link(page, ids["second"], ids["consequence"])
+    downstream = page.evaluate("""(pageId) => {
+      const m = window.__lastUndo.model;
+      const c = m.addConsequence({x: 1200, y: 200, name: 'Escalated', pageId});
+      return c.id;
+    }""", ids["second"])
+    value = page.evaluate("""(id) => {
+      const c = window.__lastModel.computeConsequenceLikelihood(id);
+      return c.value ? c.value.toExactDecimal().toDecimalString() : null;
+    }""", downstream)
+    assert value == "0.001"
+
+
+# --- Double counting ------------------------------------------------------
+
+def test_a_barrier_counted_on_both_sides_of_a_link_is_flagged(page):
+    """Post-mitigation at the link means the source page's barriers are
+    already in the figure. Re-modelling one on the derived page counts it
+    twice -- easy to do by accident, and invisible without this."""
+    ids = _quant(page)
+    _link(page, ids["second"], ids["consequence"])
+    # The same mitigative barrier, re-applied downstream of the link.
+    page.evaluate("""([pageId, nodeId]) => {
+      const m = window.__lastUndo.model;
+      const c = m.addConsequence({x: 1200, y: 200, name: 'Escalated', pageId});
+      m.addMitigativeControl(c.id, {nodeId});
+    }""", [ids["second"], ids["mitigativeNode"]])
+    warnings = page.evaluate("() => window.__lastModel.getWarnings()")
+    double = [w for w in warnings if w["type"] == "double-counted-barrier"]
+    assert len(double) == 1
+    assert double[0]["severity"] == "advisory", "legitimate models do this; blocking would overreach"
+    assert "Pool fire" in double[0]["message"] and "counted twice" in double[0]["detail"]
+
+
+def test_a_barrier_on_only_one_side_is_not_flagged(page):
+    ids = _quant(page)
+    _link(page, ids["second"], ids["consequence"])
+    page.evaluate("""(pageId) => {
+      const m = window.__lastUndo.model;
+      const c = m.addConsequence({x: 1200, y: 200, name: 'Escalated', pageId});
+      m.addMitigativeControl(c.id, {name: 'Deluge'});
+    }""", ids["second"])
+    warnings = page.evaluate("() => window.__lastModel.getWarnings()")
+    assert [w for w in warnings if w["type"] == "double-counted-barrier"] == []
+
+
+def test_the_same_preventative_barrier_on_two_pages_is_not_flagged(page):
+    """A shared barrier on two pages' threat lines is the ordinary case
+    the node library exists to support -- two different chains, each
+    legitimately crediting it. Only the mitigative side of a derived page
+    is downstream of the link."""
+    ids = _quant(page)
+    _link(page, ids["second"], ids["consequence"])
+    page.evaluate("""([pageId, nodeId]) => {
+      const m = window.__lastUndo.model;
+      const t = m.addThreat({x: 150, y: 200, name: 'Ignition', pageId});
+      m.addPreventativeControl(t.id, {nodeId});
+    }""", [ids["second"], ids["preventativeNode"]])
+    warnings = page.evaluate("() => window.__lastModel.getWarnings()")
+    assert [w for w in warnings if w["type"] == "double-counted-barrier"] == []
+
+
+def test_the_flag_goes_away_with_the_link(page):
+    ids = _quant(page)
+    _link(page, ids["second"], ids["consequence"])
+    page.evaluate("""([pageId, nodeId]) => {
+      const m = window.__lastUndo.model;
+      const c = m.addConsequence({x: 1200, y: 200, name: 'Escalated', pageId});
+      m.addMitigativeControl(c.id, {nodeId});
+    }""", [ids["second"], ids["mitigativeNode"]])
+    page.evaluate("(id) => window.__lastUndo.model.unlinkPage(id)", ids["second"])
+    warnings = page.evaluate("() => window.__lastModel.getWarnings()")
+    assert [w for w in warnings if w["type"] == "double-counted-barrier"] == [], \
+        "without a link there is nothing being counted twice"
+
+
+# --- The cycle hole that page-scoped undo could have opened ---------------
+
+def test_a_page_scoped_undo_cannot_restore_a_stale_link(page):
+    """`derivedFrom` is document-scoped state that happens to live on a
+    page record. If a page-scoped snapshot carried it, this sequence
+    would put a cycle into the model without either defence seeing it:
+    unlink A->B, link B->A (legal), then undo an edit on A."""
+    ids = _two_pages(page)
+    _link(page, ids["second"], ids["consequence"])
+    result = page.evaluate("""(ids) => {
+      const m = window.__lastUndo.model;
+      // A page-scoped edit on the DERIVED page, snapshotted while linked.
+      m.addThreat({x: 150, y: 400, name: 'Local', pageId: ids.second});
+      m.unlinkPage(ids.second);
+      // Now the other direction, which is legal once the first is gone.
+      const c = m.addConsequence({x: 1200, y: 400, name: 'Back', pageId: ids.second});
+      m.linkPageToConsequence(ids.first, c.id);
+      window.__lastUndo.undo();
+      window.__lastUndo.undo();
+      return window.__lastModel.pages.map((p) => (p.derivedFrom ? p.derivedFrom.pageId : null));
+    }""", ids)
+    linked = [p for p in result if p is not None]
+    assert len(linked) <= 1, f"a cycle would mean both pages point somewhere: {result}"
+    # And the figures still compute rather than hanging.
+    assert page.evaluate("(id) => window.__lastModel.computeTleLikelihood(id) !== null", ids["first"])
