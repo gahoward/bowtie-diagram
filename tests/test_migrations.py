@@ -166,7 +166,6 @@ def test_the_upgraded_document_exports_at_the_current_version(page):
     """The round trip that matters: open an old file, save it, and what
     lands on disk is the new schema rather than a half-renamed hybrid."""
     assert _load(page, V10) is True
-    page.wait_for_timeout(150)
     page.get_by_role("button", name="OK", exact=True).click()
     exported = page.evaluate("() => window.__lastModel.toJSON()")
     assert exported["version"] == 14

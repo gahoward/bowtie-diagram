@@ -169,10 +169,8 @@ def test_shift_f10_opens_the_same_menu_a_right_click_gives(page):
     assert "Add Preventative Barrier" in keyboard_items
     page.keyboard.press("Escape")
     page.mouse.click(10, 300)
-    page.wait_for_timeout(80)
 
-    box = page.locator("#bowtie-canvas .node.threat").first.bounding_box()
-    page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2, button="right")
+    page.locator("#bowtie-canvas .node.threat").first.click(button="right")
     eventually_equals(lambda: page.locator(".context-menu-item").all_text_contents(), keyboard_items)
     page.keyboard.press("Escape")
 
@@ -274,9 +272,7 @@ def test_a_right_click_menu_does_not_steal_focus(page):
     """The same menu opened by pointer must not move focus — that would
     yank it out of whatever the user was typing in."""
     _chain(page)
-    page.wait_for_timeout(150)
-    box = page.locator("#bowtie-canvas .node.threat").first.bounding_box()
-    page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2, button="right")
+    page.locator("#bowtie-canvas .node.threat").first.click(button="right")
     expect(page.locator(".context-menu")).to_have_count(1)
     focused_tag = page.evaluate("() => document.activeElement.className")
     assert "context-menu-item" not in str(focused_tag)

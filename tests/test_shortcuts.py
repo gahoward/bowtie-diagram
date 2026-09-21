@@ -56,9 +56,8 @@ def test_ctrl_s_inside_a_text_field_does_not_export(page):
     save-page shortcut, not ours -- and must not fire an export either."""
     _add_threat(page)
     _no_save_picker(page)
-    box = page.locator("#bowtie-canvas .node.threat").first.bounding_box()
-    page.mouse.dblclick(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-    page.wait_for_timeout(100)
+    page.locator("#bowtie-canvas .node.threat").first.dblclick()
+    expect(page.locator(".modal-dialog")).to_be_visible()
 
     name = page.locator(".modal-field:has-text('Name') input[type=text]").first
     name.click()
@@ -91,9 +90,7 @@ def test_shortcuts_are_inert_while_a_modal_is_open(page):
 
 def test_clicking_a_node_selects_it_and_delete_removes_it_undoably(page):
     _add_threat(page)
-    node = page.locator("#bowtie-canvas .node.threat").first
-    box = node.bounding_box()
-    page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.locator("#bowtie-canvas .node.threat").first.click()
     expect(page.locator("#bowtie-canvas .node.selected")).to_have_count(1)
 
     page.keyboard.press("Delete")
@@ -111,13 +108,9 @@ def test_clicking_a_barrier_selects_it_and_escape_clears_the_selection(page):
       m.addThreat({x: 150, y: 200});
       m.addPreventativeControl(m.threats[0].id);
     }""")
-    page.wait_for_timeout(120)
-
-    box = page.locator("#bowtie-canvas .node.preventative-barrier").first.bounding_box()
-    page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-    page.wait_for_timeout(80)
+    page.locator("#bowtie-canvas .node.preventative-barrier").first.click()
     selected = page.locator("#bowtie-canvas .node.selected")
-    assert selected.count() == 1
+    expect(selected).to_have_count(1)
     assert "preventative-barrier" in (selected.first.get_attribute("class") or "")
 
     page.keyboard.press("Escape")
@@ -126,8 +119,7 @@ def test_clicking_a_barrier_selects_it_and_escape_clears_the_selection(page):
 
 def test_the_top_event_and_hazard_are_never_selected(page):
     """Neither can be removed from a page, so neither is a Delete target."""
-    box = page.locator("#bowtie-canvas .node.top-level-event").first.bounding_box()
-    page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.locator("#bowtie-canvas .node.top-level-event").first.click()
     expect(page.locator("#bowtie-canvas .node.selected")).to_have_count(0)
 
 
@@ -139,10 +131,11 @@ def test_delete_with_nothing_selected_changes_nothing(page):
 
 def test_clicking_empty_canvas_clears_the_selection(page):
     _add_threat(page)
-    box = page.locator("#bowtie-canvas .node.threat").first.bounding_box()
-    page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.locator("#bowtie-canvas .node.threat").first.click()
     expect(page.locator("#bowtie-canvas .node.selected")).to_have_count(1)
 
+    # The empty-canvas click stays a measured one: there is no element to
+    # address, only a point known to be clear of every node.
     canvas = page.locator("#bowtie-canvas").bounding_box()
     page.mouse.click(canvas["x"] + canvas["width"] / 2, canvas["y"] + canvas["height"] - 20)
     expect(page.locator("#bowtie-canvas .node.selected")).to_have_count(0)
@@ -157,7 +150,6 @@ def test_question_mark_opens_the_sheet_and_the_menu_item_opens_the_same_one(page
     assert len(rows) == page.evaluate("() => Bowtie.SHORTCUTS.length")
     assert any(r in ("Ctrl+S", "⌘S") for r in rows)
     page.get_by_role("button", name="Close", exact=True).click()
-    page.wait_for_timeout(80)
 
     page.click("#menu-trigger-view")
     page.click("#btn-shortcuts")

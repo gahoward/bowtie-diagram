@@ -178,7 +178,6 @@ def test_delete_from_library_context_menu_item_opens_straight_to_the_node(page):
       const o = m.addConsequence({ x: 1200, y: 200, name: 'Fire' });
       m.addMitigativeControl(o.id);
     }""")
-    page.wait_for_timeout(80)
 
     page.locator('#bowtie-canvas .node.mitigative-barrier[data-id="MB_1"]').click(button="right")
     assert "Delete from Library…" in page.locator(".context-menu-item").all_text_contents()
@@ -195,7 +194,6 @@ def test_delete_from_library_context_menu_item_opens_straight_to_the_node(page):
 
 def test_focused_node_does_not_leak_into_a_later_ordinary_open(page):
     page.evaluate("() => { window.__lastModel.addThreat({ x: 150, y: 200, name: 'Gas Release' }); }")
-    page.wait_for_timeout(80)
 
     page.locator('#bowtie-canvas .node.threat[data-id="T_1"]').click(button="right")
     click_menu_item(page, "Delete from Library")

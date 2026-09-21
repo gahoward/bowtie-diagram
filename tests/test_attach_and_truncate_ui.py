@@ -26,7 +26,6 @@ def test_attach_prompts_to_inherit_downstream_when_target_continues_further(page
       m.insertBarrier('preventativeBarrier', 'after', pb1.id); // T_1: [PB_1, PB_2]
       m.addThreat({x: 150, y: 300}); // T_2, bare
     }""")
-    page.wait_for_timeout(150)
 
     page.locator('#bowtie-canvas .node.threat[data-id="T_2"]').click(button="right")
     click_menu_item(page, "Attach to Existing Preventative Barrier")
@@ -52,12 +51,10 @@ def test_attach_stop_here_ends_the_line_at_the_target_barrier(page):
       m.insertBarrier('preventativeBarrier', 'after', pb1.id); // T_1: [PB_1, PB_2]
       m.addThreat({x: 150, y: 300}); // T_2, bare
     }""")
-    page.wait_for_timeout(150)
 
     page.locator('#bowtie-canvas .node.threat[data-id="T_2"]').click(button="right")
     click_menu_item(page, "Attach to Existing Preventative Barrier")
     pick_attach_target(page, "PB_1")
-    page.wait_for_timeout(100)
     page.get_by_role("button", name="Stop Here", exact=True).click()
     page.wait_for_timeout(100)
 
@@ -79,12 +76,10 @@ def test_attach_cancel_leaves_the_line_unchanged(page):
       m.insertBarrier('preventativeBarrier', 'after', pb1.id);
       m.addThreat({x: 150, y: 300});
     }""")
-    page.wait_for_timeout(150)
 
     page.locator('#bowtie-canvas .node.threat[data-id="T_2"]').click(button="right")
     click_menu_item(page, "Attach to Existing Preventative Barrier")
     pick_attach_target(page, "PB_1")
-    page.wait_for_timeout(100)
     page.get_by_role("button", name="Cancel", exact=True).click()
     page.wait_for_timeout(100)
 
@@ -101,7 +96,6 @@ def test_attach_skips_the_prompt_when_target_has_nothing_to_inherit(page):
       m.addPreventativeControl(m.threats[0].id); // PB_1, terminal
       m.addThreat({x: 150, y: 300});
     }""")
-    page.wait_for_timeout(150)
 
     page.locator('#bowtie-canvas .node.threat[data-id="T_2"]').click(button="right")
     click_menu_item(page, "Attach to Existing Preventative Barrier")

@@ -67,7 +67,6 @@ def test_the_strip_follows_the_model_and_the_display_unit(page):
     page.click("#menu-trigger-settings")
     page.click("#btn-preferences")
     page.locator("input[name=display-unit][value=year]").check()
-    page.wait_for_timeout(80)
     page.get_by_role("button", name="Done", exact=True).click()
     page.wait_for_timeout(80)
     assert "per year" in _strip(page)
@@ -81,13 +80,11 @@ def test_segments_open_the_setting_they_name(page):
     assert page.locator(".modal-title").text_content() == "Project Settings"
     assert page.locator(".settings-tab[aria-selected=true]").text_content() == "Risk analysis"
     page.get_by_role("button", name="Done", exact=True).click()
-    page.wait_for_timeout(80)
 
     _segment(page, "max").click()
     page.wait_for_timeout(100)
     assert page.locator(".settings-tab[aria-selected=true]").text_content() == "Quantitative"
     page.get_by_role("button", name="Done", exact=True).click()
-    page.wait_for_timeout(80)
 
     _segment(page, "per hour").click()
     page.wait_for_timeout(100)

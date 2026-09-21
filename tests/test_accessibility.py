@@ -133,9 +133,7 @@ QUANTITATIVE_WITH_A_FACTOR = """() => {
 ])
 def test_properties_modal_is_accessible(page, selector, state):
     page.evaluate(QUANTITATIVE_WITH_A_FACTOR)
-    page.wait_for_timeout(150)
-    box = page.locator(f"#bowtie-canvas {selector}").first.bounding_box()
-    page.mouse.dblclick(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.locator(f"#bowtie-canvas {selector}").first.dblclick()
     page.wait_for_selector(".modal-dialog")
     _assert_accessible(page, state)
 

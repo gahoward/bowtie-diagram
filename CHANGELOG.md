@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **A stale-element race in the test suite, and 95 sleeps that were
+  hiding it** (`proposals/17`). Eleven places measured a node's bounding
+  box and then clicked those coordinates. The canvas replaces its whole
+  node layer on every render, so a box measured just after a change can
+  describe an element that no longer exists — the test then dies on
+  `'NoneType' object is not subscriptable` rather than on what it was
+  checking. CI caught one; the rest were the same pattern waiting. All
+  are locator clicks now, which re-resolve at click time, and the sleeps
+  that were standing in for that waiting are gone.
+
 - **A new table: which barriers is the analysis leaning on?**
   (`proposals/23`). The Barrier Register says what state each barrier is
   in. View › **Barrier Criticality** answers the other question a safety

@@ -32,28 +32,31 @@ def _set_qualitative_mode(page):
     }""")
 
 
+# Through the locator's own click rather than a measured
+# `page.mouse.click`: CanvasView replaces the whole node layer on every
+# render, so a box measured just after a model change can belong to an
+# element that no longer exists -- `bounding_box()` then returns None and
+# the test dies on the arithmetic rather than on anything it meant to
+# check. A locator re-resolves at click time and waits for the node to be
+# stable. (Both still click the element's centre; that part is unchanged.)
 def _right_click_center(page, locator):
-    box = locator.bounding_box()
-    page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2, button="right")
+    locator.click(button="right")
 
 
 def _double_click_center(page, locator):
-    box = locator.bounding_box()
-    page.mouse.dblclick(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    locator.dblclick()
 
 
 def _open_properties_modal(page, node_selector):
     _right_click_center(page, page.locator(node_selector).first)
-    page.wait_for_timeout(80)
     page.locator(".context-menu-item", has_text="Properties").click()
-    page.wait_for_timeout(80)
+    expect(page.locator(".modal-dialog")).to_be_visible()
 
 
 # --- Identity section (name/description/identifier), all 5 node types -----
 
 def test_double_click_opens_properties_modal(page):
     page.evaluate("() => { window.__lastModel.addThreat({x: 150, y: 200}); }")
-    page.wait_for_timeout(80)
     # MinimapView clones the whole live #nodes-layer <g> -- id and all --
     # into #minimap-container, so a bare ".node.threat" selector matches
     # both copies, and even "#nodes-layer .node.threat" matches both (the
@@ -67,7 +70,6 @@ def test_double_click_opens_properties_modal(page):
 
 def test_properties_modal_saves_name_and_description_for_a_threat(page):
     page.evaluate("() => { window.__lastModel.addThreat({x: 150, y: 200}); }")
-    page.wait_for_timeout(80)
 
     _open_properties_modal(page, ".node.threat")
     page.locator(".modal-section:has-text('Identity') input[type=text]").fill("Loss of Containment")
@@ -88,7 +90,7 @@ def test_properties_modal_saves_name_and_description_for_the_tle(page):
     page.locator(".modal-section:has-text('Identity') input[type=text]").fill("Major Release")
     page.locator(".modal-section:has-text('Identity') textarea").fill("The top-level event.")
     page.get_by_role("button", name="Save", exact=True).click()
-    page.wait_for_timeout(80)
+    expect(page.locator(".modal-overlay")).to_have_count(0)
 
     tle = page.evaluate("() => window.__lastModel.topLevelEvent")
     assert tle["name"] == "Major Release"
@@ -100,7 +102,7 @@ def test_properties_modal_saves_name_and_description_for_the_hazard(page):
     page.locator(".modal-section:has-text('Identity') input[type=text]").fill("Flammable Gas")
     page.locator(".modal-section:has-text('Identity') textarea").fill("The hazard description.")
     page.get_by_role("button", name="Save", exact=True).click()
-    page.wait_for_timeout(80)
+    expect(page.locator(".modal-overlay")).to_have_count(0)
 
     hazard = page.evaluate("() => window.__lastModel.hazard")
     assert hazard["name"] == "Flammable Gas"
@@ -113,7 +115,6 @@ def test_properties_modal_saves_barrier_name_and_description(page):
       const threat = m.addThreat({x: 150, y: 200});
       m.addPreventativeControl(threat.id);
     }""")
-    page.wait_for_timeout(80)
 
     _open_properties_modal(page, ".node.preventative-barrier")
     # Scoped to the Name field specifically -- a barrier's Identity section
@@ -122,7 +123,7 @@ def test_properties_modal_saves_barrier_name_and_description(page):
     page.locator(".modal-field:has-text('Name') input[type=text]").fill("Isolation Valve")
     page.locator(".modal-section:has-text('Identity') textarea").fill("Auto-closes on high pressure.")
     page.get_by_role("button", name="Save", exact=True).click()
-    page.wait_for_timeout(80)
+    expect(page.locator(".modal-overlay")).to_have_count(0)
 
     node = page.evaluate("""() => {
       const pb = window.__lastModel.preventativeBarriers[0];
@@ -141,14 +142,13 @@ def test_properties_modal_saves_preventative_barrier_metadata(page):
       const threat = m.addThreat({x: 150, y: 200});
       m.addPreventativeControl(threat.id);
     }""")
-    page.wait_for_timeout(80)
 
     _open_properties_modal(page, ".node.preventative-barrier")
     page.locator(".modal-field:has-text('Barrier type') select").select_option("hardware")
     page.locator(".modal-field:has-text('Owner') input[type=text]").fill("Ops Team")
     page.locator(".modal-field:has-text('Effectiveness') select").select_option("high")
     page.get_by_role("button", name="Save", exact=True).click()
-    page.wait_for_timeout(80)
+    expect(page.locator(".modal-overlay")).to_have_count(0)
 
     node = page.evaluate("""() => {
       const pb = window.__lastModel.preventativeBarriers[0];
@@ -165,14 +165,13 @@ def test_properties_modal_saves_mitigative_barrier_metadata(page):
       const consequence = m.addConsequence({x: 1200, y: 200});
       m.addMitigativeControl(consequence.id);
     }""")
-    page.wait_for_timeout(80)
 
     _open_properties_modal(page, ".node.mitigative-barrier")
     page.locator(".modal-field:has-text('Barrier type') select").select_option("human")
     page.locator(".modal-field:has-text('Owner') input[type=text]").fill("Shift Supervisor")
     page.locator(".modal-field:has-text('Effectiveness') select").select_option("medium")
     page.get_by_role("button", name="Save", exact=True).click()
-    page.wait_for_timeout(80)
+    expect(page.locator(".modal-overlay")).to_have_count(0)
 
     node = page.evaluate("""() => {
       const mb = window.__lastModel.mitigativeBarriers[0];
@@ -189,11 +188,10 @@ def test_properties_modal_barrier_metadata_left_unset_stays_null(page):
       const threat = m.addThreat({x: 150, y: 200});
       m.addPreventativeControl(threat.id);
     }""")
-    page.wait_for_timeout(80)
 
     _open_properties_modal(page, ".node.preventative-barrier")
     page.get_by_role("button", name="Save", exact=True).click()
-    page.wait_for_timeout(80)
+    expect(page.locator(".modal-overlay")).to_have_count(0)
 
     node = page.evaluate("""() => {
       const pb = window.__lastModel.preventativeBarriers[0];
@@ -206,7 +204,6 @@ def test_properties_modal_barrier_metadata_left_unset_stays_null(page):
 
 def test_properties_modal_shows_no_barrier_metadata_fields_for_a_threat(page):
     page.evaluate("() => { window.__lastModel.addThreat({x: 150, y: 200}); }")
-    page.wait_for_timeout(80)
 
     _open_properties_modal(page, ".node.threat")
     assert page.locator(".modal-field:has-text('Barrier type')").count() == 0
@@ -216,7 +213,6 @@ def test_properties_modal_shows_no_barrier_metadata_fields_for_a_threat(page):
 
 def test_properties_modal_cancel_discards_changes(page):
     page.evaluate("() => { window.__lastModel.addThreat({x: 150, y: 200}); }")
-    page.wait_for_timeout(80)
     original_name = page.evaluate("""() => {
       const c = window.__lastModel.threats[0];
       return window.__lastModel.getNode(c.nodeId).name;
@@ -236,7 +232,6 @@ def test_properties_modal_cancel_discards_changes(page):
 
 def test_properties_modal_blank_name_shows_error_and_does_not_close(page):
     page.evaluate("() => { window.__lastModel.addThreat({x: 150, y: 200}); }")
-    page.wait_for_timeout(80)
 
     _open_properties_modal(page, ".node.threat")
     page.locator(".modal-section:has-text('Identity') input[type=text]").fill("   ")
@@ -248,19 +243,17 @@ def test_properties_modal_blank_name_shows_error_and_does_not_close(page):
 
 def test_properties_modal_shows_identifier_field_only_in_custom_mode(page):
     page.evaluate("() => { window.__lastModel.addThreat({x: 150, y: 200}); }")
-    page.wait_for_timeout(80)
 
     _open_properties_modal(page, ".node.threat")
     assert page.locator(".modal-field:has-text('Identifier')").count() == 0
     page.get_by_role("button", name="Cancel", exact=True).click()
 
     page.evaluate("() => window.__lastModel.setIdentifierDisplayMode('custom')")
-    page.wait_for_timeout(80)
     _open_properties_modal(page, ".node.threat")
     assert page.locator(".modal-field:has-text('Identifier')").count() == 1
     page.locator(".modal-field:has-text('Identifier') input[type=text]").fill("LOC-1")
     page.get_by_role("button", name="Save", exact=True).click()
-    page.wait_for_timeout(80)
+    expect(page.locator(".modal-overlay")).to_have_count(0)
 
     identifier = page.evaluate("""() => {
       const c = window.__lastModel.threats[0];
@@ -274,7 +267,6 @@ def test_properties_modal_shows_identifier_field_only_in_custom_mode(page):
 def test_properties_modal_saves_consequence_severity_class_in_quantitative_mode(page):
     _set_quantitative_mode(page)
     page.evaluate("() => { window.__lastModel.addConsequence({x: 1200, y: 200}); }")
-    page.wait_for_timeout(80)
 
     _open_properties_modal(page, ".node.consequence")
     page.locator(".modal-field:has-text('Severity') select").select_option("major")
@@ -291,7 +283,6 @@ def test_properties_modal_saves_consequence_severity_class_in_quantitative_mode(
 def test_properties_modal_saves_consequence_likelihood_class_in_qualitative_mode(page):
     _set_qualitative_mode(page)
     page.evaluate("() => { window.__lastModel.addConsequence({x: 1200, y: 200}); }")
-    page.wait_for_timeout(80)
 
     _open_properties_modal(page, ".node.consequence")
     page.locator(".modal-field:has-text('Likelihood') select").select_option(index=1)
@@ -309,7 +300,6 @@ def test_properties_modal_saves_consequence_likelihood_class_in_qualitative_mode
 def test_properties_modal_saves_threat_frequency_in_quantitative_mode(page):
     _set_quantitative_mode(page)
     page.evaluate("() => { window.__lastModel.addThreat({x: 150, y: 200}); }")
-    page.wait_for_timeout(80)
 
     _open_properties_modal(page, ".node.threat")
     # A Quantity field defaults to Unknown-checked (with its value input
@@ -337,7 +327,6 @@ def test_properties_modal_saves_barrier_risk_reduction_factor_in_quantitative_mo
       const threat = m.addThreat({x: 150, y: 200});
       m.addPreventativeControl(threat.id);
     }""")
-    page.wait_for_timeout(80)
 
     _open_properties_modal(page, ".node.preventative-barrier")
     page.locator(".barrier-protection-detail input[type=checkbox]").uncheck()
@@ -359,7 +348,6 @@ def test_properties_modal_saves_barrier_pfd_measure_in_quantitative_mode(page):
       const threat = m.addThreat({x: 150, y: 200});
       m.addPreventativeControl(threat.id);
     }""")
-    page.wait_for_timeout(80)
 
     _open_properties_modal(page, ".node.preventative-barrier")
     page.locator(".barrier-protection-field select").select_option("pfdavg")
@@ -382,7 +370,6 @@ def test_properties_modal_saves_rate_based_standby_barrier(page):
       const threat = m.addThreat({x: 150, y: 200});
       m.addPreventativeControl(threat.id);
     }""")
-    page.wait_for_timeout(80)
 
     _open_properties_modal(page, ".node.preventative-barrier")
     page.locator(".barrier-protection-field select").select_option("rateStandby")
@@ -402,12 +389,11 @@ def test_properties_modal_saves_rate_based_standby_barrier(page):
 def test_properties_modal_marking_frequency_unknown_saves_unknown_quantity(page):
     _set_quantitative_mode(page)
     page.evaluate("() => { window.__lastModel.addThreat({x: 150, y: 200}); }")
-    page.wait_for_timeout(80)
 
     _open_properties_modal(page, ".node.threat")
     page.locator(".modal-field:has-text('Frequency') input[type=checkbox]").check()
     page.get_by_role("button", name="Save", exact=True).click()
-    page.wait_for_timeout(80)
+    expect(page.locator(".modal-overlay")).to_have_count(0)
 
     frequency = page.evaluate("""() => {
       const c = window.__lastModel.threats[0];
@@ -419,7 +405,6 @@ def test_properties_modal_marking_frequency_unknown_saves_unknown_quantity(page)
 def test_properties_modal_shows_no_risk_fields_or_computed_section_in_simple_mode(page):
     # Default mode -- the wizard-created page fixture starts in Simple mode.
     page.evaluate("() => { window.__lastModel.addThreat({x: 150, y: 200}); }")
-    page.wait_for_timeout(80)
 
     _open_properties_modal(page, ".node.threat")
     assert page.locator(".modal-field:has-text('Frequency')").count() == 0
@@ -443,7 +428,6 @@ def _setup_computable_quantitative_scenario(page):
       const o = m.addConsequence({x: 1200, y: 200});
       m.renameNode(o.nodeId, { name: 'O1', severityClassId: m.riskMatrix.severityClasses[3].id });
     }""")
-    page.wait_for_timeout(100)
 
 
 def test_properties_modal_shows_computed_likelihood_for_the_tle(page):
@@ -482,7 +466,6 @@ def test_properties_modal_shows_a_single_risk_class_in_qualitative_mode(page):
       const o = m.addConsequence({x: 1200, y: 200});
       m.renameNode(o.nodeId, { name: 'O1', severityClassId: 'catastrophic', likelihoodClassId: 'frequent' });
     }""")
-    page.wait_for_timeout(100)
     _open_properties_modal(page, ".node.consequence")
 
     computed = page.locator(".modal-section:has-text('Computed')")
@@ -501,7 +484,6 @@ def test_properties_modal_shows_excluded_threat_count_note(page):
       const c2 = m.addThreat({x: 150, y: 400});
       m.renameNode(c2.nodeId, { name: 'Unknown', frequency: { unknown: true } });
     }""")
-    page.wait_for_timeout(100)
 
     _open_properties_modal(page, ".node.top-level-event")
     computed = page.locator(".modal-section:has-text('Computed')")
@@ -518,7 +500,6 @@ def test_properties_modal_shows_demand_rate_for_a_barrier(page):
       m.renameNode(c.nodeId, { frequency: { value: '1E-3' } });
       m.addPreventativeControl(c.id);
     }""")
-    page.wait_for_timeout(80)
 
     _open_properties_modal(page, ".node.preventative-barrier")
     computed = page.locator(".modal-section:has-text('Computed')")
@@ -531,7 +512,6 @@ def test_properties_modal_shows_no_computed_section_for_a_barrier_with_no_incomi
     _set_quantitative_mode(page)
     page.evaluate("() => { window.__lastModel.addPreventativeControl(window.__lastModel.addThreat({}).id); "
                   + "window.__lastModel.getNode(window.__lastModel.threats[0].nodeId).frequency = { unknown: true }; }")
-    page.wait_for_timeout(80)
 
     _open_properties_modal(page, ".node.preventative-barrier")
     assert page.locator(".modal-section:has-text('Computed')").count() == 0
@@ -540,7 +520,6 @@ def test_properties_modal_shows_no_computed_section_for_a_barrier_with_no_incomi
 def test_properties_modal_shows_no_computed_section_for_consequence_without_severity(page):
     _set_quantitative_mode(page)
     page.evaluate("() => { window.__lastModel.addConsequence({x: 1200, y: 200}); }")
-    page.wait_for_timeout(80)
 
     _open_properties_modal(page, ".node.consequence")
     assert page.locator(".modal-section:has-text('Computed')").count() == 0
@@ -563,45 +542,47 @@ def _threat_frequency(page):
 def _try_saving_frequency(page, text):
     _set_quantitative_mode(page)
     page.evaluate("() => { window.__lastModel.addThreat({x: 150, y: 200}); }")
-    page.wait_for_timeout(80)
     _open_properties_modal(page, ".node.threat")
     page.locator(".modal-field:has-text('Frequency') input[type=checkbox]").uncheck()
     page.locator(".modal-field:has-text('Frequency') input[type=text]").fill(text)
+    # No assertion here: this helper serves both the rejection tests (the
+    # dialog must stay open) and the acceptance one (it must close), so
+    # each caller waits for its own outcome.
     page.get_by_role("button", name="Save", exact=True).click()
-    page.wait_for_timeout(80)
 
 
 def test_frequency_rejects_text_that_is_not_a_number(page):
     _try_saving_frequency(page, "not-a-number")
-    assert page.locator(".modal-overlay").count() == 1, "must not close on invalid input"
-    assert "must be a number" in page.locator(".modal-field-error").text_content()
+    expect(page.locator(".modal-overlay")).to_have_count(1)  # must not close on invalid input
+    expect(page.locator(".modal-field-error")).to_contain_text("must be a number")
     assert _threat_frequency(page) is None, "nothing may be stored"
 
 
 def test_frequency_rejects_a_negative_value(page):
     _try_saving_frequency(page, "-1")
-    assert page.locator(".modal-overlay").count() == 1
-    assert "greater than 0" in page.locator(".modal-field-error").text_content()
+    expect(page.locator(".modal-overlay")).to_have_count(1)
+    expect(page.locator(".modal-field-error")).to_contain_text("greater than 0")
     assert _threat_frequency(page) is None
 
 
 def test_frequency_rejects_zero(page):
     _try_saving_frequency(page, "0")
-    assert page.locator(".modal-overlay").count() == 1
+    expect(page.locator(".modal-overlay")).to_have_count(1)
+    expect(page.locator(".modal-field-error")).to_be_visible()
     assert _threat_frequency(page) is None
 
 
 def test_frequency_rejects_an_empty_box_rather_than_guessing(page):
     _try_saving_frequency(page, "")
-    assert page.locator(".modal-overlay").count() == 1
-    assert "Unknown" in page.locator(".modal-field-error").text_content(), \
-        "the message should point at the Unknown checkbox as the deliberate choice"
+    expect(page.locator(".modal-overlay")).to_have_count(1)
+    # The message should point at the Unknown checkbox as the deliberate choice.
+    expect(page.locator(".modal-field-error")).to_contain_text("Unknown")
     assert _threat_frequency(page) is None
 
 
 def test_frequency_accepts_a_valid_value(page):
     _try_saving_frequency(page, "1E-4")
-    assert page.locator(".modal-overlay").count() == 0
+    expect(page.locator(".modal-overlay")).to_have_count(0)
     assert _threat_frequency(page) == {"value": "1E-4"}
 
 
@@ -614,7 +595,6 @@ def test_risk_reduction_factor_rejects_a_value_below_one(page):
       const threat = m.addThreat({x: 150, y: 200});
       m.addPreventativeControl(threat.id);
     }""")
-    page.wait_for_timeout(80)
 
     _open_properties_modal(page, ".node.preventative-barrier")
     page.locator(".barrier-protection-detail input[type=checkbox]").uncheck()

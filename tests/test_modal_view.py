@@ -55,7 +55,6 @@ def test_closing_a_modal_restores_focus_to_its_trigger(page):
     trigger = page.locator("#btn-warnings")
     trigger.focus()
     trigger.click()
-    page.wait_for_timeout(100)
 
     page.get_by_role("button", name="Close", exact=True).click()
     page.wait_for_timeout(80)

@@ -145,7 +145,6 @@ def test_print_builds_a_sheet_per_page_plus_the_risk_summary(page):
       window.__printed = 0;
       window.print = () => { window.__printed += 1; };
     }""")
-    page.wait_for_timeout(100)
 
     page.click("#menu-trigger-file")
     page.click("#btn-print")
@@ -195,10 +194,8 @@ def test_single_page_export_and_json_are_named_after_the_analysis(page):
         return { createWritable: async () => ({ write: async () => {}, close: async () => {} }) };
       };
     }""")
-    page.wait_for_timeout(80)
     page.click("#menu-trigger-file")
     page.click("#btn-export-svg")
-    page.wait_for_timeout(200)
     page.click("#menu-trigger-file")
     page.click("#btn-export-json")
     page.wait_for_timeout(200)

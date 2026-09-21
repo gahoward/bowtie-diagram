@@ -136,7 +136,6 @@ def test_recover_restores_the_document_and_leaves_it_dirty(browser, base_url):
         pg.evaluate("() => window.__lastUndo.model.addThreat({x: 150, y: 200, name: 'Corrosion'})")
         _seed(pg)
         pg.reload()
-        pg.wait_for_timeout(200)
 
         pg.locator(".welcome-recovery").get_by_role("button", name="Recover", exact=True).click()
         pg.wait_for_timeout(400)
@@ -158,7 +157,6 @@ def test_discard_removes_the_card_and_the_snapshot(browser, base_url):
         pg.evaluate("() => window.__lastUndo.model.addThreat({x: 150, y: 200, name: 'Corrosion'})")
         _seed(pg)
         pg.reload()
-        pg.wait_for_timeout(200)
 
         pg.locator(".welcome-recovery").get_by_role("button", name="Discard", exact=True).click()
         pg.wait_for_timeout(100)
@@ -197,7 +195,6 @@ def test_a_snapshot_from_an_older_schema_fails_the_way_a_stale_export_does(brows
           window.localStorage.setItem('{KEY}', JSON.stringify(stored));
         }}""")
         pg.reload()
-        pg.wait_for_timeout(200)
 
         pg.locator(".welcome-recovery").get_by_role("button", name="Recover", exact=True).click()
         pg.wait_for_timeout(200)

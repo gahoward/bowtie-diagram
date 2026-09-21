@@ -6,6 +6,8 @@ across that line. Dashed and purple on purpose: it is the one edge on
 the canvas that does not mean "leads to" — it means "degrades".
 """
 
+from playwright.sync_api import expect
+
 
 def _build(page, controls=1):
     return page.evaluate(
@@ -102,11 +104,8 @@ def test_the_same_factor_on_two_barriers_draws_twice(page):
 
 def test_clicking_a_factor_focuses_its_own_line(page):
     _build(page)
-    page.wait_for_timeout(150)
-    box = _canvas(page, ".node.escalation-factor").bounding_box()
-    page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-    page.wait_for_timeout(100)
-    assert _canvas(page, ".node.selected").count() == 1
+    _canvas(page, ".node.escalation-factor").click()
+    expect(_canvas(page, ".node.selected")).to_have_count(1)
     assert "escalation-factor" in (_canvas(page, ".node.selected").get_attribute("class") or "")
 
 

@@ -189,7 +189,6 @@ def test_deleting_a_page_removes_it_and_its_content(page):
       const p2 = window.__lastModel.pages[1].id;
       window.__lastModel.addThreat({x: 150, y: 200, pageId: p2});
     }""")
-    page.wait_for_timeout(100)
 
     page.locator(".page-tab", has_text="Page Two").locator(".page-tab-close").click()
     page.get_by_role("button", name="Delete", exact=True).click()
@@ -220,7 +219,6 @@ def test_deleting_a_non_active_page_leaves_the_active_page_untouched(page):
     page.locator(".page-tab-add").click()
     page.locator(".modal-field:has-text('Page name') input").fill("Page Two")
     page.get_by_role("button", name="Create", exact=True).click()
-    page.wait_for_timeout(150)
     # Switch back to the first page (by index, not by guessing its default
     # label text).
     page.locator(".page-tab").first.locator(".page-tab-label").click()
@@ -408,7 +406,6 @@ def test_per_page_undo_isolation_both_directions(page):
       window.__lastUndo.snapshot(pageId); // moveElement itself is excluded from
       m.moveElement(c.id, 150, 260);      // the proxy's generic hook -- see UndoController.js
     }""")
-    page.wait_for_timeout(80)
 
     page.locator(".page-tab").nth(1).locator(".page-tab-label").click()
     page.wait_for_timeout(120)
@@ -419,10 +416,8 @@ def test_per_page_undo_isolation_both_directions(page):
       window.__lastUndo.snapshot(pageId);
       m.moveElement(c.id, 150, 260);
     }""")
-    page.wait_for_timeout(80)
 
     page.locator(".page-tab").first.locator(".page-tab-label").click()
-    page.wait_for_timeout(120)
     page.keyboard.press("Control+z")
     page.wait_for_timeout(120)
 
@@ -463,7 +458,6 @@ def test_redo_scoping_a_new_edit_clears_only_its_own_pages_redo(page):
     }""")
     page.wait_for_timeout(80)
     page.keyboard.press("Control+z")  # leaves page one's own redo available
-    page.wait_for_timeout(80)
 
     page.locator(".page-tab").nth(1).locator(".page-tab-label").click()
     page.wait_for_timeout(120)
@@ -516,7 +510,6 @@ def test_undo_picks_the_more_recent_document_tier_rename_over_an_older_page_edit
       window.__lastUndo.snapshot(pageId); // moveElement itself is excluded from
       m.moveElement(c.id, 150, 260);      // the proxy's generic hook -- see UndoController.js
     }""")
-    page.wait_for_timeout(80)
 
     page.locator(".page-tab").first.locator(".page-tab-edit").click()
     page.locator(".modal-field:has-text('Page name') input").fill("Renamed")
@@ -537,7 +530,6 @@ def test_undo_picks_the_more_recent_document_tier_rename_over_an_older_page_edit
 def test_undo_picks_the_more_recent_page_edit_over_an_older_document_tier_rename(page):
     _add_second_page(page)
     page.locator(".page-tab").first.locator(".page-tab-label").click()
-    page.wait_for_timeout(120)
 
     page.locator(".page-tab").first.locator(".page-tab-edit").click()
     page.locator(".modal-field:has-text('Page name') input").fill("Renamed")
@@ -545,7 +537,6 @@ def test_undo_picks_the_more_recent_page_edit_over_an_older_document_tier_rename
     page.wait_for_timeout(120)
 
     page.evaluate("() => { window.__lastUndo.model.addThreat({x: 150, y: 200, name: 'P1 Threat'}); }")
-    page.wait_for_timeout(80)
 
     page.keyboard.press("Control+z")
     eventually_equals(lambda: _threat_names(page), [], "the more recent page-tier edit must undo first")
@@ -558,7 +549,6 @@ def test_switching_tabs_is_never_an_undo_step(page):
     eventually_equals(lambda: page.evaluate("() => document.getElementById('btn-undo').disabled"), True)
 
     page.locator(".page-tab").first.locator(".page-tab-label").click()
-    page.wait_for_timeout(100)
     page.locator(".page-tab").nth(1).locator(".page-tab-label").click()
     page.wait_for_timeout(100)
 
@@ -614,7 +604,6 @@ def test_undo_after_delete_page_fully_restores_page_and_content(page):
       const p2 = window.__lastModel.pages[1].id;
       window.__lastModel.addThreat({x: 150, y: 200, name: 'P2 Threat', pageId: p2});
     }""")
-    page.wait_for_timeout(100)
 
     page.locator(".page-tab", has_text="Page Two").locator(".page-tab-close").click()
     page.get_by_role("button", name="Delete", exact=True).click()
@@ -757,7 +746,6 @@ def test_node_library_retired_row_shows_no_page_info(page):
       const threat = m.addThreat({x: 150, y: 200, pageId: p2});
       m.deleteNode(threat.nodeId);
     }""")
-    page.wait_for_timeout(100)
 
     page.click("#menu-trigger-add")
     page.click("#btn-manage-ids")
@@ -784,7 +772,6 @@ def test_node_library_reassign_dropdown_lists_live_nodes_without_page_info(page)
       m.addThreat({x: 150, y: 400, name: 'Live On P1', pageId: p1});
       m.addThreat({x: 150, y: 200, name: 'Live On P2', pageId: p2});
     }""")
-    page.wait_for_timeout(100)
 
     page.click("#menu-trigger-add")
     page.click("#btn-manage-ids")

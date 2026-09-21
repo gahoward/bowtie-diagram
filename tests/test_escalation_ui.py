@@ -9,11 +9,16 @@ Properties) took the new types without needing parallel versions of
 itself.
 """
 
+from playwright.sync_api import expect
 
+
+# Through the locator rather than a measured `page.mouse.click`:
+# CanvasView replaces the whole node layer on every render, so a box
+# measured just after a model change can describe an element that has
+# already been detached. A locator re-resolves at click time.
 def _right_click(page, selector):
-    box = page.locator(f"#bowtie-canvas {selector}").first.bounding_box()
-    page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2, button="right")
-    page.wait_for_timeout(100)
+    page.locator(f"#bowtie-canvas {selector}").first.click(button="right")
+    expect(page.locator(".context-menu")).to_be_visible()
 
 
 def _menu_labels(page):
@@ -26,7 +31,6 @@ def _a_barrier(page):
       const t = m.addThreat({x: 150, y: 200, name: 'Corrosion'});
       m.addPreventativeControl(t.id, { name: 'Inspection' });
     }""")
-    page.wait_for_timeout(120)
 
 
 def test_a_barrier_offers_add_escalation_factor(page):
@@ -41,13 +45,11 @@ def test_creating_one_through_the_menu_puts_it_on_the_canvas(page):
     _a_barrier(page)
     _right_click(page, ".node.preventative-barrier")
     page.locator(".context-menu-item", has_text="Add Escalation Factor").click()
-    page.wait_for_timeout(120)
-    assert page.locator(".modal-title").text_content() == "Add Escalation Factor"
+    expect(page.locator(".modal-title")).to_have_text("Add Escalation Factor")
     page.locator(".modal-dialog .modal-field:has-text('Name') input").first.fill("Not proof tested")
     page.get_by_role("button", name="Create Escalation Factor", exact=True).click()
-    page.wait_for_timeout(200)
+    expect(page.locator("#bowtie-canvas .node.escalation-factor")).to_have_count(1)
 
-    assert page.locator("#bowtie-canvas .node.escalation-factor").count() == 1
     assert page.evaluate("() => window.__lastModel.escalationFactors.length") == 1
     assert page.evaluate("() => window.__lastModel.getNode(window.__lastModel.escalationFactors[0].nodeId).name") \
         == "Not proof tested"
@@ -60,7 +62,6 @@ def test_a_factor_offers_its_own_control_items(page):
       const pb = m.addPreventativeControl(t.id, { name: 'Inspection' });
       m.addEscalationFactor(pb.id, { name: 'Not proof tested' });
     }""")
-    page.wait_for_timeout(150)
     _right_click(page, ".node.escalation-factor")
     labels = _menu_labels(page)
     assert "Add Escalation Barrier" in labels
@@ -79,13 +80,10 @@ def test_an_existing_control_can_be_attached_from_the_menu(page):
       m.addEscalationBarrier(ef1.id, { name: 'Quarterly test regime' });
       m.addEscalationFactor(pb2.id, { name: 'On manual' });
     }""")
-    page.wait_for_timeout(200)
     factors = page.locator("#bowtie-canvas .node.escalation-factor")
-    box = factors.nth(1).bounding_box()
-    page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2, button="right")
-    page.wait_for_timeout(100)
+    factors.nth(1).click(button="right")
+    expect(page.locator(".context-menu")).to_be_visible()
     page.locator(".context-menu-item", has_text="Attach to Existing Escalation Barrier").click()
-    page.wait_for_timeout(120)
     page.locator(".attach-list-item").first.click()
     page.wait_for_timeout(150)
 
@@ -103,7 +101,6 @@ def test_the_node_library_gained_two_tabs(page):
       const ef = m.addEscalationFactor(pb.id, { name: 'Not proof tested' });
       m.addEscalationBarrier(ef.id, { name: 'Quarterly test regime' });
     }""")
-    page.wait_for_timeout(150)
     page.click("#menu-trigger-add")
     page.click("#btn-manage-ids")
     page.wait_for_timeout(150)
@@ -112,8 +109,7 @@ def test_the_node_library_gained_two_tabs(page):
     page.locator(".modal-dialog .settings-tab, .modal-dialog .library-tab").filter(
         has_text="Escalation"
     ).first.click()
-    page.wait_for_timeout(120)
-    assert "EF_1" in page.locator(".modal-dialog").text_content()
+    expect(page.locator(".modal-dialog")).to_contain_text("EF_1")
     page.get_by_role("button", name="Done", exact=True).click()
 
 
@@ -124,10 +120,8 @@ def test_properties_shows_a_factor_as_an_escalation_factor(page):
       const pb = m.addPreventativeControl(t.id, { name: 'Inspection' });
       m.addEscalationFactor(pb.id, { name: 'Not proof tested' });
     }""")
-    page.wait_for_timeout(150)
-    box = page.locator("#bowtie-canvas .node.escalation-factor").bounding_box()
-    page.mouse.dblclick(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-    page.wait_for_timeout(150)
+    page.locator("#bowtie-canvas .node.escalation-factor").dblclick()
+    expect(page.locator(".modal-dialog")).to_be_visible()
     title = page.locator(".modal-title").text_content()
     assert "Escalation Factor" in title
     body = page.locator(".modal-body").text_content()
@@ -147,8 +141,7 @@ def test_the_demo_ships_with_a_worked_escalation_factor(browser, base_url):
     pg.goto(f"{base_url}/index.html")
     try:
         pg.get_by_role("button", name="Explore the demo", exact=True).click()
-        pg.wait_for_timeout(400)
-        assert pg.locator("#bowtie-canvas .node.escalation-factor").count() == 1
+        expect(pg.locator("#bowtie-canvas .node.escalation-factor")).to_have_count(1)
         assert pg.locator("#bowtie-canvas .node.escalation-barrier").count() == 1
         assert pg.locator('#bowtie-canvas .connection[data-role="escalation-line"]').count() == 1
         assert pg.evaluate("() => window.__lastModel.getWarnings().length") == 0, \
@@ -165,13 +158,11 @@ def test_a_factors_owner_saves(page):
       const pb = m.addPreventativeControl(t.id, { name: 'Inspection' });
       m.addEscalationFactor(pb.id, { name: 'Not proof tested' });
     }""")
-    page.wait_for_timeout(150)
-    box = page.locator("#bowtie-canvas .node.escalation-factor").bounding_box()
-    page.mouse.dblclick(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-    page.wait_for_timeout(150)
+    page.locator("#bowtie-canvas .node.escalation-factor").dblclick()
+    expect(page.locator(".modal-dialog")).to_be_visible()
     page.locator(".modal-field:has-text('Owner') input").fill("Maintenance")
     page.get_by_role("button", name="Save", exact=True).click()
-    page.wait_for_timeout(150)
+    expect(page.locator(".modal-overlay")).to_have_count(0)
     assert page.evaluate(
         "() => window.__lastModel.getNode(window.__lastModel.escalationFactors[0].nodeId).owner"
     ) == "Maintenance"
